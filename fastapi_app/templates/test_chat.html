@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CCW Test Chat</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #ece5dd;
+            margin: 0;
+        }
+
+        .chat-container {
+            width: 450px;
+            margin: auto;
+            margin-top: 30px;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0px 0px 10px #aaa;
+        }
+
+        .header {
+            background: #075e54;
+            padding: 15px;
+            color: white;
+            font-size: 20px;
+        }
+
+        #messages {
+            height: 350px;
+            overflow-y: auto;
+            padding: 15px;
+            background: #e5ddd5;
+        }
+
+        .msg {
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            max-width: 70%;
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .me {
+            background: #dcf8c6;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .other {
+            background: white;
+            margin-right: auto;
+        }
+
+        .reply-box {
+            background: #f5f5f5;
+            padding: 8px;
+            border-left: 4px solid #075e54;
+            margin: 5px;
+            display: none;
+        }
+
+        .typing {
+            padding: 5px 15px;
+            font-size: 13px;
+            color: #555;
+            font-style: italic;
+            height: 18px;
+        }
+
+        .footer {
+            display: flex;
+            padding: 10px;
+            background: #f0f0f0;
+            border-top: 1px solid #ccc;
+        }
+
+        .footer input {
+            width: 80%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
+
+        .footer button {
+            width: 20%;
+            background: #075e54;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-left: 8px;
+            cursor: pointer;
+        }
+
+        /* Popup */
+        #msgPopup {
+            position: fixed;
+            bottom: -60px;
+            right: 20px;
+            background: #075e54;
+            color: white;
+            padding: 12px 18px;
+            border-radius: 10px;
+            box-shadow: 0 0 12px #0004;
+            transition: all 0.35s ease-out;
+            opacity: 0;
+            transform: translateY(20px);
+            z-index: 9999;
+        }
+
+        #msgPopup.show {
+            opacity: 1;
+            bottom: 20px;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="msgPopup"></div>
+
+<div class="chat-container">
+    <div class="header">Test Chat</div>
+
+    <div style="padding: 10px;">
+        <label>Your ID:</label>
+        <input id="sender" type="number" placeholder="5">
+
+        <label>Chat With:</label>
+        <input id="receiver" type="number" placeholder="8">
+
+        <button onclick="startChat()">Start</button>
+    </div>
+
+    <div id="replyPreview" class="reply-box"></div>
+    <div id="typingIndicator" class="typing"></div>
+    <div id="messages"></div>
+
+    <div class="footer">
+        <input id="msgInput" placeholder="Type a message..." oninput="sendTypingPing()">
+        <button onclick="sendMsg()">Send</button>
+    </div>
+</div>
+
+<script>
+let interval = null;
+let CURRENT_CONVO_ID = null;
+let replyTo = null;
+let LAST_MESSAGE_ID = null;
+let typingTimeout = null;
+
+/* ---------------- POPUP ---------------- */
+function showPopup(msg) {
+    const box = document.getElementById("msgPopup");
+    box.innerHTML = msg;
+    box.classList.add("show");
+
+    setTimeout(() => box.classList.remove("show"), 2200);
+}
+
+/* ---------------- START CHAT ---------------- */
+function startChat() {
+    if (interval) clearInterval(interval);
+    interval = setInterval(loadMessages, 1000);
+    loadMessages();
+}
+
+/* ---------------- TYPING ---------------- */
+function sendTypingPing() {
+    const sender = Number(document.getElementById("sender").value);
+    const receiver = Number(document.getElementById("receiver").value);
+    if (!sender || !receiver) return;
+
+    fetch("http://127.0.0.1:8000/message/typing", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+            user_id: sender,
+            chat_with: receiver,
+            is_typing: true
+        })
+    });
+
+    if (typingTimeout) clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+        fetch("http://127.0.0.1:8000/message/typing", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({
+                user_id: sender,
+                chat_with: receiver,
+                is_typing: false
+            })
+        });
+    }, 900);
+}
+
+/* ---------------- LOAD MESSAGES ---------------- */
+async function loadMessages() {
+    const sender = document.getElementById("sender").value;
+    const receiver = document.getElementById("receiver").value;
+
+    if (!sender || !receiver) return;
+
+    const res = await fetch(`http://127.0.0.1:8000/message/conversation/${sender}/${receiver}`);
+    const data = await res.json();
+
+    CURRENT_CONVO_ID = data.conversation_id;
+
+    /* typing indicator */
+    document.getElementById("typingIndicator").innerText =
+        data.other_user_typing ? "Typing…" : "";
+
+    /* popup incoming msg */
+    if (data.messages.length > 0) {
+        const latest = data.messages[data.messages.length - 1];
+
+        if (latest.id !== LAST_MESSAGE_ID && String(latest.sender) !== String(sender)) {
+            showPopup(latest.content);
+        }
+        LAST_MESSAGE_ID = latest.id;
+    }
+
+    /* render messages */
+    let html = "";
+    data.messages.forEach(m => {
+        const mine = String(m.sender) === String(sender);
+
+        html += `
+            <div class="msg ${mine ? "me" : "other"}"
+                 onclick="chooseReply(${JSON.stringify(m.content)}, ${m.id})">
+                ${m.reply_to ? `<div style='font-size:12px;color:gray;'>↪ ${m.reply_to.content}</div>` : ""}
+                ${m.content}
+            </div>
+        `;
+    });
+
+    const box = document.getElementById("messages");
+    const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+
+    box.innerHTML = html;
+
+    if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+/* ---------------- REPLY ---------------- */
+function chooseReply(text, id) {
+    replyTo = id;
+    document.getElementById("replyPreview").innerHTML =
+        `<b>Replying:</b> ${text}
+         <span onclick="cancelReply()" style="float:right;color:red;cursor:pointer;">X</span>`;
+    document.getElementById("replyPreview").style.display = "block";
+}
+
+function cancelReply() {
+    replyTo = null;
+    document.getElementById("replyPreview").style.display = "none";
+}
+
+/* ---------------- SEND MESSAGE ---------------- */
+async function sendMsg() {
+    const sender = document.getElementById("sender").value;
+    const receiver = document.getElementById("receiver").value;
+    const content = document.getElementById("msgInput").value;
+
+    const form = new FormData();
+    form.append("sender_id", sender);
+    form.append("receiver_id", receiver);
+    form.append("content", content);
+    if (replyTo) form.append("reply_to", replyTo);
+
+    await fetch("http://127.0.0.1:8000/message/send", {
+        method: "POST",
+        body: form
+    });
+
+    replyTo = null;
+    document.getElementById("replyPreview").style.display = "none";
+    document.getElementById("msgInput").value = "";
+
+    loadMessages();
+}
+</script>
+
+</body>
+</html>

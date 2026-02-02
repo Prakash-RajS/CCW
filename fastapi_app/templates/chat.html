@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CCW Chat</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #ece5dd;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* LEFT PANEL */
+        .left-panel {
+            width: 30%;
+            background: #fff;
+            border-right: 1px solid #ccc;
+            overflow-y: auto;
+        }
+
+        .login-box, .user-list-title {
+            padding: 15px;
+            background: #075e54;
+            color: white;
+            font-size: 18px;
+        }
+
+        .user-list-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logout-btn {
+            background:#c62828;
+            color:white;
+            border:none;
+            padding:5px 10px;
+            border-radius:5px;
+            cursor:pointer;
+        }
+
+        .user-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .user-item:hover { background:#f5f5f5; }
+
+        .user-row {
+            display:flex;
+            justify-content: space-between;
+            align-items:center;
+        }
+
+        .status-dot {
+            width:10px;
+            height:10px;
+            border-radius:50%;
+            background:gray;
+        }
+        .online { background:#25d366; }
+
+        .user-name { font-weight:bold; font-size:14px; }
+        .user-preview { font-size:12px; color:#777; margin-top:3px; }
+
+        /* RIGHT PANEL */
+        .right-panel {
+            width:70%;
+            display:flex;
+            flex-direction:column;
+        }
+
+        .chat-header {
+            background:#075e54;
+            color:white;
+            padding:12px 15px;
+            display:flex;
+            flex-direction:column;
+        }
+
+        #chatName { font-size:16px; font-weight:bold; }
+
+        #chatStatus {
+            font-size: 14px;
+            min-height: 22px;
+            color: #ffffff;
+            font-style: italic;
+            padding-top: 3px;
+        }
+
+        #messages {
+            flex:1;
+            padding:15px;
+            overflow-y:auto;
+            background:#e5ddd5;
+        }
+
+        .msg {
+            max-width:60%;
+            padding:8px 10px;
+            margin-bottom:12px;
+            border-radius:10px;
+            cursor:pointer;
+            font-size:14px;
+        }
+
+        .me { background:#dcf8c6; margin-left:auto; }
+        .other { background:white; margin-right:auto; }
+
+        .reply-snippet {
+            font-size:11px;
+            color:gray;
+            border-left:3px solid #888;
+            padding-left:5px;
+            margin-bottom:4px;
+        }
+
+        .msg-meta {
+            text-align:right;
+            font-size:10px;
+            color:#777;
+            margin-top:4px;
+        }
+
+        .reply-box {
+            background:#f5f5f5;
+            display:none;
+            padding:8px;
+            border-left:4px solid #075e54;
+            margin:5px;
+        }
+
+        .chat-footer {
+            background:#f0f0f0;
+            display:flex;
+            padding:10px;
+        }
+
+        .chat-footer input {
+            flex:1;
+            padding:10px;
+            border-radius:8px;
+            border:1px solid #ccc;
+        }
+
+        .file-btn {
+            background:none;
+            border:none;
+            font-size:22px;
+            cursor:pointer;
+            margin-right:10px;
+        }
+
+        /* Popup */
+        #msgPopup {
+            position: fixed;
+            bottom: -60px;
+            right: 20px;
+            background: #075e54;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 10px;
+            box-shadow: 0 0 12px #0004;
+            transition: all .3s ease-out;
+            opacity: 0;
+            transform: translateY(10px);
+            z-index: 99999;
+        }
+
+        #msgPopup.show {
+            opacity: 1;
+            bottom: 20px;
+            transform: translateY(0);
+        }
+    </style>
+</head>
+
+<body>
+
+<div id="msgPopup"></div>
+
+<div class="container">
+
+    <!-- LEFT PANEL -->
+    <div class="left-panel">
+        <div class="login-box">Login</div>
+
+        <div id="loginSection" style="padding:20px;">
+            <input id="loginId" type="number" placeholder="Enter User ID"
+                   style="width:100%;padding:10px;">
+            <button onclick="login()" style="width:100%;padding:10px;background:#075e54;color:white;">
+                Login
+            </button>
+        </div>
+
+        <div id="userList" style="display:none;">
+            <div class="user-list-title">
+                <span>Users</span>
+                <button onclick="logout()" class="logout-btn">Logout</button>
+            </div>
+            <div id="users"></div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right-panel">
+
+        <div class="chat-header">
+            <span id="chatName">Select User to Chat</span>
+            <span id="chatStatus">&nbsp;</span>
+        </div>
+
+        <div id="replyPreview" class="reply-box"></div>
+
+        <div id="messages"></div>
+
+        <div class="chat-footer">
+            <button class="file-btn" onclick="pickFile()">📎</button>
+            <input id="msgInput" placeholder="Type a message..." oninput="handleTyping()">
+            <input type="file" id="fileInput" style="display:none;">
+            <button onclick="sendMsg()">Send</button>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+/* ---------------- GLOBAL VARS ---------------- */
+let CURRENT_USER = null;
+let CURRENT_CHAT_USER = null;
+let CURRENT_CONVO_ID = null;
+let replyTo = null;
+let interval = null;
+let LAST_MESSAGE_ID = null;
+let typingTimeout = null;
+
+/* ---------------- POPUP ---------------- */
+function showPopup(msg) {
+    const box = document.getElementById("msgPopup");
+    box.innerHTML = msg;
+    box.classList.add("show");
+    setTimeout(() => box.classList.remove("show"), 2200);
+}
+
+/* ---------------- AUTO LOGIN ---------------- */
+window.onload = () => {
+    const u = localStorage.getItem("user");
+    if (u) {
+        CURRENT_USER = u;
+        document.getElementById("loginSection").style.display = "none";
+        document.getElementById("userList").style.display = "block";
+        loadUsers();
+    }
+    setInterval(loadUsers, 3000);
+};
+
+/* ---------------- LOGIN ---------------- */
+function login() {
+    const id = document.getElementById("loginId").value;
+    if (!id) return alert("Enter ID");
+
+    CURRENT_USER = id;
+    localStorage.setItem("user", id);
+
+    document.getElementById("loginSection").style.display = "none";
+    document.getElementById("userList").style.display = "block";
+    loadUsers();
+}
+
+/* ---------------- LOGOUT ---------------- */
+function logout() {
+    localStorage.removeItem("user");
+    location.reload();
+}
+
+/* ---------------- LOAD USERS ---------------- */
+async function loadUsers() {
+    if (!CURRENT_USER) return;
+
+    const res = await fetch(`http://127.0.0.1:8000/message/users?current_user_id=${CURRENT_USER}`);
+    const users = await res.json();
+
+    let html = "";
+    users.forEach(u => {
+        html += `
+        <div class="user-item" onclick="openChat(${u.id}, '${u.name}')">
+            <div class="user-row">
+                <div>
+                  <div class="user-name">${u.name}</div>
+                  <div class="user-preview">${u.last_message || ""}</div>
+                </div>
+                <div class="status-dot ${u.online ? "online" : ""}"></div>
+            </div>
+        </div>`;
+    });
+
+    document.getElementById("users").innerHTML = html;
+}
+
+/* ---------------- OPEN CHAT ---------------- */
+function openChat(id, name) {
+    CURRENT_CHAT_USER = id;
+    document.getElementById("chatName").innerText = name;
+
+    if (interval) clearInterval(interval);
+    interval = setInterval(loadMessages, 1000);
+
+    loadMessages();
+}
+
+/* ---------------- MARK SEEN ---------------- */
+async function markSeen() {
+    if (!CURRENT_CONVO_ID) return;
+    await fetch(`http://127.0.0.1:8000/message/seen/${CURRENT_CONVO_ID}/${CURRENT_USER}`, {
+        method: "POST"
+    });
+}
+
+/* ---------------- LOAD MESSAGES ---------------- */
+async function loadMessages() {
+    if (!CURRENT_CHAT_USER) return;
+
+    const res = await fetch(`http://127.0.0.1:8000/message/conversation/${CURRENT_USER}/${CURRENT_CHAT_USER}`);
+    const data = await res.json();
+
+    CURRENT_CONVO_ID = data.conversation_id;
+
+    if (CURRENT_CONVO_ID) await markSeen();
+
+    /* typing indicator */
+    const st = document.getElementById("chatStatus");
+    if (data.other_user_typing) st.innerText = "typing…";
+    else if (data.other_user_online) st.innerText = "online";
+    else if (data.other_user_last_active)
+        st.innerText = "last seen: " + new Date(data.other_user_last_active).toLocaleTimeString();
+    else st.innerHTML = "&nbsp;";
+
+    /* popup new message */
+    if (data.messages.length > 0) {
+        const latest = data.messages[data.messages.length - 1];
+        if (latest.id !== LAST_MESSAGE_ID && String(latest.sender) !== String(CURRENT_USER)) {
+            showPopup(latest.content);
+        }
+        LAST_MESSAGE_ID = latest.id;
+    }
+
+    /* render messages */
+    let html = "";
+    data.messages.forEach(m => {
+        const mine = String(m.sender) === String(CURRENT_USER);
+        const tick = mine ? (m.is_seen ? "💙" : "✔") : "";
+
+        html += `
+        <div class="msg ${mine ? "me" : "other"}"
+             onclick="reply('${m.content.replace(/'/g, "\\'")}', ${m.id})">
+            ${m.reply_to ? `<div class="reply-snippet">↪ ${m.reply_to.content}</div>` : ""}
+            <div>${m.content}</div>
+            <div class="msg-meta">${tick}</div>
+        </div>`;
+    });
+
+    const box = document.getElementById("messages");
+    const atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 40;
+
+    box.innerHTML = html;
+
+    if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+/* ---------------- SEND MESSAGE ---------------- */
+async function sendMsg() {
+    if (!CURRENT_CHAT_USER) return;
+
+    const text = document.getElementById("msgInput").value;
+    const file = document.getElementById("fileInput").files[0];
+
+    if (!text && !file) return;
+
+    const form = new FormData();
+    form.append("sender_id", CURRENT_USER);
+    form.append("receiver_id", CURRENT_CHAT_USER);
+    form.append("content", text);
+    if (replyTo) form.append("reply_to", replyTo);
+    if (file) form.append("file", file);
+
+    await fetch("http://127.0.0.1:8000/message/send", {
+        method: "POST",
+        body: form
+    });
+
+    sendTyping(false);
+    replyTo = null;
+    document.getElementById("replyPreview").style.display = "none";
+    document.getElementById("msgInput").value = "";
+    document.getElementById("fileInput").value = "";
+}
+
+/* ---------------- REPLY ---------------- */
+function reply(text, id) {
+    replyTo = id;
+    document.getElementById("replyPreview").innerHTML =
+        `<b>Replying:</b> ${text}
+        <span onclick="cancelReply()" style="float:right;color:red;cursor:pointer;">X</span>`;
+    document.getElementById("replyPreview").style.display = "block";
+}
+
+function cancelReply() {
+    replyTo = null;
+    document.getElementById("replyPreview").style.display = "none";
+}
+
+/* ---------------- PICK FILE ---------------- */
+function pickFile() {
+    document.getElementById("fileInput").click();
+}
+
+/* ---------------- TYPING INDICATOR ---------------- */
+function handleTyping() {
+    if (!CURRENT_USER) return;
+    sendTyping(true);
+
+    if (typingTimeout) clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => sendTyping(false), 900);
+}
+
+async function sendTyping(isTyping) {
+    if (!CURRENT_USER || !CURRENT_CHAT_USER) return;
+
+    await fetch("http://127.0.0.1:8000/message/typing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            user_id: Number(CURRENT_USER),
+            chat_with: Number(CURRENT_CHAT_USER),
+            is_typing: isTyping
+        })
+    });
+}
+
+</script>
+
+</body>
+</html>
