@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { useUser} from "../../contexts/userContext";
+import { useUser} from "../../contexts/UserContext";
 import api from "../../utils/axiosConfig";
 import Slide1 from "../../assets/Landing/Slide1.png";
 import Profilepic from "../../assets/Landing/Profilepic.png";

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
-import { useUser } from '../../contexts/userContext';
+import { useUser } from '../../contexts/UserContext';
 import api from "../../utils/axiosConfig";
 import Header from "../../component/colHeader";
 import Footer from "../../component/Footer";
@@ -25,7 +25,7 @@ const ColHome = () => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // State for saved jobs interactions
   const [savedJobs, setSavedJobs] = useState(new Set());
   const [likedJobs, setLikedJobs] = useState(new Set());
@@ -33,14 +33,14 @@ const ColHome = () => {
   // Format time ago
   const formatTimeAgo = (dateString) => {
     if (!dateString) return "Recently";
-    
+
     try {
       const date = new Date(dateString);
       const now = new Date();
       const diffMs = now - date;
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
+
       if (diffHours < 1) {
         return "Recently";
       } else if (diffHours < 24) {
@@ -60,7 +60,7 @@ const ColHome = () => {
   // Get flag based on country
   const getFlagForCountry = (country) => {
     if (!country) return USAFlag;
-    
+
     const countryLower = country.toLowerCase();
     if (countryLower.includes('usa') || countryLower.includes('united states') || countryLower.includes('manhattan')) {
       return USAFlag;
@@ -96,6 +96,31 @@ const ColHome = () => {
     return budgetType === 'fixed' || budgetType === 'Fixed' ? '$ Fixed Rate' : '$ Hourly Rate';
   };
 
+  const CountryFlag = ({ countryCode, country }) => {
+    if (!countryCode) return <span>🌍</span>;
+
+    return (
+      <img
+        src={`https://flagcdn.com/w20/${countryCode.toLowerCase()}.png`}
+        alt={country}
+        title={country}
+        className="w-[18px] h-[12px] rounded-[4px] object-cover"
+        onError={(e) => {
+          e.target.replaceWith(
+            document.createTextNode(
+              String.fromCodePoint(
+                ...[...countryCode.toUpperCase()].map(
+                  (c) => 127397 + c.charCodeAt()
+                )
+              )
+            )
+          );
+        }}
+      />
+    );
+  };
+
+
   // Fetch jobs based on active tab
   useEffect(() => {
     if (!userData?.id) return;
@@ -104,7 +129,7 @@ const ColHome = () => {
       setLoading(true);
       try {
         let response;
-        
+
         switch (activeTab) {
           case "best":
             response = await api.get(`/collaborator/jobs/best-match/${userData.id}`);
@@ -116,17 +141,17 @@ const ColHome = () => {
                     const creatorResponse = await api.get(`/collaborator/jobs/${job.id}`);
                     const jobData = creatorResponse.data || {};
                     const creatorData = jobData.creator || {};
-                    
+
                     return {
                       ...job,
                       // Display raw DB values
                       meta: `${formatBudgetType(job.budget_type)} - ${job.expertise_level || 'Intermediate'} - Est. Budget: ${formatBudget(job)} - Posted ${formatTimeAgo(job.created_at)}`,
                       rateType: formatRateType(job.budget_type),
-                      rating: "★★★★☆",
-                      reviews: "4/5 (12 Reviews)",
-                      flag: getFlagForCountry(creatorData.location),
-                      location: creatorData.location || "Remote",
-                      creator_name: creatorData.creator_name || "Anonymous",
+                      rating: creatorData.rating || 0,
+                      reviews: creatorData.reviews || 0,
+                      country: creatorData.country,
+  state: creatorData.state,
+  country_code: creatorData.country_code,
                       posted_at: job.created_at,
                       full_description: job.description || "No description available"
                     };
@@ -136,11 +161,12 @@ const ColHome = () => {
                       ...job,
                       meta: `${formatBudgetType(job.budget_type)} - ${job.expertise_level || 'Intermediate'} - Est. Budget: ${formatBudget(job)} - Posted ${formatTimeAgo(job.created_at)}`,
                       rateType: formatRateType(job.budget_type),
-                      rating: "★★★★☆",
-                      reviews: "4/5 (12 Reviews)",
-                      flag: USAFlag,
-                      location: "Remote",
-                      creator_name: "Anonymous",
+                      rating: creatorData.rating || 0,
+                      reviews: creatorData.reviews || 0,
+                      country: creatorData.country,
+                      state: creatorData.state,
+                      country_code: creatorData.country_code,
+
                       posted_at: job.created_at,
                       full_description: job.description || "No description available"
                     };
@@ -152,7 +178,7 @@ const ColHome = () => {
               setJobs([]);
             }
             break;
-            
+
           case "saved":
             response = await api.get(`/collaborator/jobs/saved/${userData.id}`);
             if (response.data && response.data.length > 0) {
@@ -162,16 +188,17 @@ const ColHome = () => {
                     const creatorResponse = await api.get(`/collaborator/jobs/${job.id}`);
                     const jobData = creatorResponse.data || {};
                     const creatorData = jobData.creator || {};
-                    
+
                     return {
                       ...job,
                       meta: `${formatBudgetType(job.budget_type)} - ${job.expertise_level || 'Intermediate'} - Est. Budget: ${formatBudget(job)} - Posted ${formatTimeAgo(job.saved_at || job.created_at)}`,
                       rateType: formatRateType(job.budget_type),
-                      rating: "★★★★☆",
-                      reviews: "4/5 (12 Reviews)",
-                      flag: getFlagForCountry(creatorData.location),
-                      location: creatorData.location || "Remote",
-                      creator_name: creatorData.creator_name || "Anonymous",
+                      rating: creatorData.rating || 0,
+                      reviews: creatorData.reviews || 0,
+                      country: creatorData.country,
+                      state: creatorData.state,
+                      country_code: creatorData.country_code,
+
                       posted_at: job.saved_at || job.created_at,
                       full_description: job.description || "No description available"
                     };
@@ -197,7 +224,7 @@ const ColHome = () => {
               setJobs([]);
             }
             break;
-            
+
           case "recent":
             response = await api.get(`/collaborator/jobs/recent/${userData.id}`);
             if (response.data && response.data.length > 0) {
@@ -207,16 +234,17 @@ const ColHome = () => {
                     const creatorResponse = await api.get(`/collaborator/jobs/${job.id}`);
                     const jobData = creatorResponse.data || {};
                     const creatorData = jobData.creator || {};
-                    
+
                     return {
                       ...job,
                       meta: `${formatBudgetType(job.budget_type)} - ${job.expertise_level || 'Intermediate'} - Est. Budget: ${formatBudget(job)} - Posted ${formatTimeAgo(job.viewed_at || job.created_at)}`,
                       rateType: formatRateType(job.budget_type),
-                      rating: "★★★★☆",
-                      reviews: "4/5 (12 Reviews)",
-                      flag: getFlagForCountry(creatorData.location),
-                      location: creatorData.location || "Remote",
-                      creator_name: creatorData.creator_name || "Anonymous",
+                      rating: creatorData.rating || 0,
+reviews: creatorData.reviews || 0,
+                      country: creatorData.country,
+                      state: creatorData.state,
+                      country_code: creatorData.country_code,
+
                       posted_at: job.viewed_at || job.created_at,
                       full_description: job.description || "No description available"
                     };
@@ -242,7 +270,7 @@ const ColHome = () => {
               setJobs([]);
             }
             break;
-            
+
           default:
             setJobs([]);
         }
@@ -325,7 +353,7 @@ const ColHome = () => {
   // Track job view
   const handleTrackView = async (jobId) => {
     if (!userData?.id) return;
-    
+
     try {
       await api.post('/collaborator/jobs/track-view', null, {
         params: {
@@ -344,71 +372,70 @@ const ColHome = () => {
   };
 
   const handleSearch = async () => {
-  const query = searchQuery.trim();
-  if (!query) return;
+    const query = searchQuery.trim();
+    if (!query) return;
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    const response = await api.get("/collaborator/job-search", {
-      params: { search: query }
-    });
+    try {
+      const response = await api.get("/collaborator/job-search", {
+        params: { search: query }
+      });
 
-    if (!response.data || response.data.length === 0) {
+      if (!response.data || response.data.length === 0) {
+        setJobs([]);
+        toast.info("No jobs found");
+        return;
+      }
+
+      const jobsWithDisplayFields = response.data.map(job => ({
+        ...job,
+
+        meta: `${formatBudgetType(job.budget_type)} - ${job.expertise_level || "Intermediate"
+          } - Est. Budget: ${formatBudget(job)} - Posted ${formatTimeAgo(
+            job.created_at
+          )}`,
+
+        rateType: formatRateType(job.budget_type),
+
+        rating: "★★★★☆",
+        reviews: "4/5 (12 Reviews)",
+
+
+        flag: getFlagForCountry(job.location),
+
+
+        full_description: job.description || "No description available",
+        posted_at: job.created_at
+      }));
+
+      setJobs(jobsWithDisplayFields);
+
+    } catch (error) {
+      console.error("Search error:", error);
+      toast.error("Search failed");
       setJobs([]);
-      toast.info("No jobs found");
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    const jobsWithDisplayFields = response.data.map(job => ({
-      ...job,
-
-      meta: `${formatBudgetType(job.budget_type)} - ${
-        job.expertise_level || "Intermediate"
-      } - Est. Budget: ${formatBudget(job)} - Posted ${formatTimeAgo(
-        job.created_at
-      )}`,
-
-      rateType: formatRateType(job.budget_type),
-
-      rating: "★★★★☆",
-      reviews: "4/5 (12 Reviews)",
-  
-
-      flag: getFlagForCountry(job.location),
-      
-
-      full_description: job.description || "No description available",
-      posted_at: job.created_at
-    }));
-
-    setJobs(jobsWithDisplayFields);
-
-  } catch (error) {
-    console.error("Search error:", error);
-    toast.error("Search failed");
-    setJobs([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const getProfileCompletion = () => {
-  if (!userData) return 0;
+    if (!userData) return 0;
 
-  const fields = [
-    userData.first_name,
-    userData.last_name,
-    userData.email,
-    userData.profile_picture,
-    userData.status
-  ];
+    const fields = [
+      userData.first_name,
+      userData.last_name,
+      userData.email,
+      userData.profile_picture,
+      userData.status
+    ];
 
-  const filled = fields.filter(Boolean).length;
-  return Math.round((filled / fields.length) * 100);
-};
+    const filled = fields.filter(Boolean).length;
+    return Math.round((filled / fields.length) * 100);
+  };
 
-const profilePercent = getProfileCompletion();
+  const profilePercent = getProfileCompletion();
 
 
   return (
@@ -454,13 +481,13 @@ const profilePercent = getProfileCompletion();
           >
             {/* INPUT */}
             <input
-  type="text"
-  placeholder="Search Jobs"
-  value={searchQuery}
-  onChange={(e) => setSearchQuery(e.target.value)}
-  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-  className="flex-1 h-full px-6 text-[15px] text-gray-600 outline-none bg-transparent"
-/>
+              type="text"
+              placeholder="Search Jobs"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              className="flex-1 h-full px-6 text-[15px] text-gray-600 outline-none bg-transparent"
+            />
 
 
             {/* SEARCH BUTTON */}
@@ -564,17 +591,17 @@ const profilePercent = getProfileCompletion();
                   </div>
                   <h3 className="text-lg font-semibold text-gray-600 mb-2">No Jobs Found</h3>
                   <p className="text-gray-500">
-                    {activeTab === "saved" 
-                      ? "You haven't saved any jobs yet. Click the heart icon on jobs to save them." 
+                    {activeTab === "saved"
+                      ? "You haven't saved any jobs yet. Click the heart icon on jobs to save them."
                       : activeTab === "recent"
-                      ? "You haven't viewed any jobs recently. Click on jobs to view them."
-                      : "No matching jobs found for your profile."}
+                        ? "You haven't viewed any jobs recently. Click on jobs to view them."
+                        : "No matching jobs found for your profile."}
                   </p>
                 </div>
               ) : (
                 jobs.map((job, index) => (
-                  <div 
-                    key={job.id || index} 
+                  <div
+                    key={job.id || index}
                     className={`${index !== jobs.length - 1 ? 'border-b border-gray-200 pb-8 mb-8' : ''} cursor-pointer`}
                     onClick={() => handleJobClick(job.id)}
                   >
@@ -602,18 +629,27 @@ const profilePercent = getProfileCompletion();
                         {/* FOOTER - Creator name after flag */}
                         <div className="flex items-center gap-5 text-[14px] text-gray-500 flex-wrap">
                           <span className="text-[#4B1D8C] font-medium">{job.rateType}</span>
-                          <span className="text-[#4B1D8C]">{job.rating}</span>
-                          <span>{job.reviews}</span>
+                          {/* ⭐ Rating */}
+                          <span className="text-[#4B1D8C]">
+                            {"★".repeat(Math.floor(job.rating))}
+                            {"☆".repeat(5 - Math.floor(job.rating))}
+                          </span>
 
+                          <span>
+                            {job.rating}/5 ({job.reviews} reviews)
+                          </span>
+
+                          {/* 📍 Location */}
                           <div className="flex items-center gap-2">
-                            <img
-                              src={job.flag || USAFlag}
-                              alt="Country Flag"
-                              className="w-[18px] h-[12px] rounded-[4px] object-cover"
+                            <CountryFlag
+                              countryCode={job.country_code}
+                              country={job.country}
                             />
-                            <span className="text-gray-500">{job.creator_name}, {job.location}</span>
-                      
+                            <span className="text-gray-500">
+                              {[job.state, job.country].filter(Boolean).join(", ")}
+                            </span>
                           </div>
+
                         </div>
                       </div>
 
@@ -621,7 +657,7 @@ const profilePercent = getProfileCompletion();
                       <div className="flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex gap-3">
                           {/* Heart Circle - For saving jobs */}
-                          <div 
+                          <div
                             className="w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 relative group"
                             style={{
                               opacity: 1,
@@ -630,18 +666,18 @@ const profilePercent = getProfileCompletion();
                             onClick={() => handleSaveJob(job.id)}
                           >
                             {/* Heart SVG */}
-                            <svg 
-                              className="w-5 h-5" 
-                              fill={savedJobs.has(job.id) ? "white" : "none"} 
-                              stroke={savedJobs.has(job.id) ? "white" : "#51218F"} 
+                            <svg
+                              className="w-5 h-5"
+                              fill={savedJobs.has(job.id) ? "white" : "none"}
+                              stroke={savedJobs.has(job.id) ? "white" : "#51218F"}
                               strokeWidth="2"
-                              viewBox="0 0 24 24" 
+                              viewBox="0 0 24 24"
                               xmlns="http://www.w3.org/2000/svg"
                             >
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
                               />
                             </svg>
                             {/* Tooltip */}
@@ -651,7 +687,7 @@ const profilePercent = getProfileCompletion();
                           </div>
 
                           {/* Like Circle */}
-                          <div 
+                          <div
                             className="w-[46px] h-[46px] rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-110 relative group"
                             style={{
                               opacity: 1,
@@ -660,18 +696,18 @@ const profilePercent = getProfileCompletion();
                             onClick={() => handleLikeJob(job.id)}
                           >
                             {/* Like/Thumbs Up SVG */}
-                            <svg 
-                              className="w-5 h-5" 
-                              fill={likedJobs.has(job.id) ? "white" : "none"} 
-                              stroke={likedJobs.has(job.id) ? "white" : "#51218F"} 
+                            <svg
+                              className="w-5 h-5"
+                              fill={likedJobs.has(job.id) ? "white" : "none"}
+                              stroke={likedJobs.has(job.id) ? "white" : "#51218F"}
                               strokeWidth="2"
-                              viewBox="0 0 24 24" 
+                              viewBox="0 0 24 24"
                               xmlns="http://www.w3.org/2000/svg"
                             >
-                              <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" 
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
                               />
                             </svg>
                             {/* Tooltip */}
@@ -691,7 +727,7 @@ const profilePercent = getProfileCompletion();
           {/* ========== RIGHT SIDEBAR ========== */}
           <div className="w-full lg:w-[392px] mt-8 lg:mt-0 lg:absolute lg:top-[0px] lg:right-4 lg:left-auto">
             <div className="flex flex-col gap-[30px]">
-              
+
 
               {/* Profile completion card */}
               <div
@@ -732,12 +768,12 @@ const profilePercent = getProfileCompletion();
                 <div className="w-full max-w-[341px] h-[6px] opacity-100 mb-8 rounded-full bg-gray-200 overflow-hidden">
                   {/* Progress bar fill - 75% of 341px = 276px */}
                   <div
-  className="h-full rounded-full border-0"
-  style={{
-    width: `${profilePercent}%`,
-    backgroundColor: '#51218F',
-  }}
-/>
+                    className="h-full rounded-full border-0"
+                    style={{
+                      width: `${profilePercent}%`,
+                      backgroundColor: '#51218F',
+                    }}
+                  />
 
                 </div>
 

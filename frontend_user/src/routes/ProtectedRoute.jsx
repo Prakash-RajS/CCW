@@ -1,6 +1,6 @@
 //src/routes/ProtectedRoute.jsx
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useUser } from "../contexts/userContext";
+import { useUser } from "../contexts/UserContext";
 
 export default function ProtectedRoute({ allowedRoles }) {
   const { userData, loading } = useUser();

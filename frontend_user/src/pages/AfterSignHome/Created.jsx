@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Header from "../../component/Header";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/axiosConfig";
-import { useUser } from "../../contexts/userContext";
+import { useUser } from "../../contexts/UserContext";
 
 export default function Created() {
   const navigate = useNavigate();

@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
 import { Toaster } from "react-hot-toast";
 
-import { UserProvider } from "./contexts/userContext.jsx";
+import { UserProvider } from "./contexts/UserContext.jsx";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 /* ===================== Landing ===================== */

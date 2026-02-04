@@ -506,7 +506,9 @@ from django.db.models.functions import Concat
 import random
 import string
 from pathlib import Path as PathLib
+from django.db.models import Avg, Count
 from django.core.files.base import ContentFile
+import pycountry
 
 # Import your Django Models
 from creator_app.models import (
@@ -1029,31 +1031,40 @@ def get_collaborator_reviews(user_id: int):
     ]
 
 
+
+def get_country_code(country_name: str | None):
+    if not country_name:
+        return None
+    try:
+        country = pycountry.countries.search_fuzzy(country_name)[0]
+        return country.alpha_2
+    except Exception:
+        return None
+
 @router.get("/jobs/{job_id}")
 def get_job_details(job_id: int):
-    """
-    Get job details with creator information.
-    """
     try:
         job = JobPost.objects.get(id=job_id)
-        
-        # Get creator details
-        try:
-            creator_profile = CreatorProfile.objects.get(user_id=job.employer_id)
-            creator_info = {
-                "creator_name": creator_profile.creator_name,
-                "creator_type": creator_profile.creator_type,
-                "experience_level": creator_profile.experience_level,
-                "location": creator_profile.location,
-            }
-        except CreatorProfile.DoesNotExist:
-            creator_info = {
-                "creator_name": "Anonymous",
-                "creator_type": "Unknown",
-                "experience_level": "Unknown",
-                "location": "Remote",
-            }
-        
+
+        # 🔹 Creator = UserData (IMPORTANT CHANGE)
+        creator = UserData.objects.get(id=job.employer_id)
+
+        # 📍 Location from UserData
+        country = creator.location or "Unknown"
+        state = creator.state or None
+        country_code = get_country_code(country)
+
+        # ⭐ Rating & reviews (creator as recipient)
+        review_stats = Review.objects.filter(
+            recipient=creator
+        ).aggregate(
+            avg_rating=Avg("rating"),
+            total_reviews=Count("id")
+        )
+
+        rating = round(review_stats["avg_rating"] or 0, 1)
+        reviews = review_stats["total_reviews"]
+
         return {
             "id": job.id,
             "title": job.title,
@@ -1067,15 +1078,21 @@ def get_job_details(job_id: int):
             "budget_to": float(job.budget_to) if job.budget_to else None,
             "status": job.status,
             "created_at": job.created_at.isoformat(),
-            "updated_at": job.updated_at.isoformat(),
-            "employer_id": job.employer_id,
-            "creator": creator_info
+
+            # 👇 ONLY UserData-based location
+            "creator": {
+                "state": state,
+                "country": country,
+                "country_code": country_code,
+                "rating": rating,
+                "reviews": reviews,
+            },
         }
-        
+
     except JobPost.DoesNotExist:
         raise HTTPException(status_code=404, detail="Job not found")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Creator not found")
 
 
 @router.get("/job-search")

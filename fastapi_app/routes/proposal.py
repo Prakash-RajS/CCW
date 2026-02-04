@@ -4,6 +4,27 @@ from fastapi import APIRouter, Form, UploadFile, File, HTTPException
 import os
 from django.conf import settings
 from creator_app.models import JobPost, UserData, Proposal
+from django.db.models import Sum
+from creator_app.models import WalletTransaction
+from django.db.models import Avg, Count
+from creator_app.models import Review,CollaboratorProfile
+from fastapi import Body
+import pycountry
+from creator_app.models import Contract
+from datetime import date
+from fastapi_app.routes.plan_guard import check_contract_limit
+from django.db import transaction
+
+def get_country_code(country_name: str | None):
+    if not country_name:
+        return ""
+
+    try:
+        country = pycountry.countries.search_fuzzy(country_name)[0]
+        return country.alpha_2.lower()  # "IN", "US" → "in", "us"
+    except LookupError:
+        return ""
+
  
 router = APIRouter(prefix="/proposals", tags=["Proposals"])
 BASE_DIR = settings.BASE_DIR
@@ -257,4 +278,195 @@ def withdraw_proposal(proposal_id: int):
         return {"message": "Proposal deleted successfully"}
     except Proposal.DoesNotExist:
         raise HTTPException(status_code=404, detail="Proposal not found")
+
+
+@router.get("/GetProposalsForCreator/{creator_id}")
+def get_proposals_for_creator(creator_id: int):
+    try:
+        proposals = (
+            Proposal.objects
+            .select_related(
+                "job",          # FK → JobPost
+                "freelancer"    # FK → UserData
+            )
+            .prefetch_related(
+                "freelancer__my_proposals"
+            )
+            .filter(job__employer_id=creator_id)
+            .order_by("-created_at")
+        )
+
+        data = []
+
+        for p in proposals:
+            total_earnings = (
+                WalletTransaction.objects
+                .filter(to_user=p.freelancer)
+                .aggregate(total=Sum("amount"))["total"]
+            ) or 0
+
+            rating_data = (
+                Review.objects
+                .filter(recipient=p.freelancer)
+                .aggregate(
+                    avg_rating=Avg("rating"),
+                    review_count=Count("id")
+                )
+            )
+
+            profile = CollaboratorProfile.objects.filter(
+                user=p.freelancer
+            ).first()
+
+            data.append({
+                "id": p.id,
+                "freelancer_name": f"{p.freelancer.first_name} {p.freelancer.last_name}",
+                "profession": profile.skill_category if profile else "",
+                "profile_image": (
+                    p.freelancer.profile_picture.url
+                    if p.freelancer.profile_picture else ""
+                ),
+                "bid_amount": float(p.bid_amount or 0),
+                "total_earnings": float(total_earnings),
+                "skills": p.skills or [],
+                "rating": round(rating_data["avg_rating"] or 0, 1),
+                "reviews": rating_data["review_count"] or 0,
+                "city": p.freelancer.city or "",
+                "country": p.freelancer.location or "",
+                "country_code": get_country_code(p.freelancer.location),
+                "status": p.status,
+                "date": p.created_at.strftime("%Y-%m-%d"),
+            })
+
+        return {"proposals": data}
+
+    except Exception as e:
+        print("❌ GetProposalsForCreator ERROR:", e)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+# from fastapi import HTTPException
+# from pydantic import BaseModel
+# from django.db import transaction
+
+# class ProposalStatusUpdate(BaseModel):
+#     status: str
+
+# @router.post("/UpdateProposalStatus/{proposal_id}")
+# def update_proposal_status(
+#     proposal_id: int,
+#     payload: ProposalStatusUpdate
+# ):
+#     if payload.status not in ["accepted", "rejected"]:
+#         raise HTTPException(status_code=400, detail="Invalid status")
+
+#     updated = Proposal.objects.filter(id=proposal_id).update(
+#         status=payload.status
+#     )
+
+#     if not updated:
+#         raise HTTPException(status_code=404, detail="Proposal not found")
+
+#     return {
+#         "message": "Status updated successfully",
+#         "proposal_id": proposal_id,
+#         "status": payload.status
+#     }
+
+@router.post("/AcceptProposal/{proposal_id}")
+def accept_proposal(proposal_id: int, creator_id: int):
+    try:
+        creator = UserData.objects.get(id=creator_id)
+
+        proposal = (
+            Proposal.objects
+            .select_related("job", "freelancer")
+            .filter(id=proposal_id, status="submitted")
+            .first()
+        )
+
+        if not proposal:
+            raise HTTPException(
+                status_code=400,
+                detail="Proposal already processed or not found"
+            )
+
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    job = proposal.job
+
+    if job.employer_id != creator.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only job creator can accept proposals"
+        )
+
+    check_contract_limit(creator)
+
+    with transaction.atomic():
+        contract = Contract.objects.create(
+            job=job,
+            creator=creator,
+            collaborator=proposal.freelancer,
+            budget=proposal.bid_amount or proposal.milestone_amount or 0,
+            description=proposal.cover_letter or "",
+            status="in_progress",
+            start_date=date.today()
+        )
+
+        Proposal.objects.filter(
+            id=proposal.id,
+            status="submitted"
+        ).update(status="accepted")
+
+        Proposal.objects.filter(
+            job=job,
+            status="submitted"
+        ).exclude(id=proposal.id).update(status="rejected")
+
+    return {
+        "message": "Proposal accepted and contract created",
+        "proposal_id": proposal.id,
+        "contract_id": contract.id,
+        "contract_status": contract.status
+    }
+
+@router.post("/RejectProposal/{proposal_id}")
+def reject_proposal(proposal_id: int, creator_id: int):
+    try:
+        creator = UserData.objects.get(id=creator_id)
+        proposal = (
+            Proposal.objects
+            .select_related("job")
+            .filter(id=proposal_id, status="submitted")
+            .first()
+        )
+
+        if not proposal:
+            raise HTTPException(
+                status_code=400,
+                detail="Proposal already processed or not found"
+            )
+
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    if proposal.job.employer_id != creator.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only job creator can reject proposals"
+        )
+
+    Proposal.objects.filter(
+        id=proposal.id,
+        status="submitted"
+    ).update(status="rejected")
+
+    return {
+        "message": "Proposal rejected",
+        "proposal_id": proposal.id,
+        "status": "rejected"
+    }
+
+
 

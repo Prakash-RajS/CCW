@@ -4,7 +4,7 @@ import SignupSideBg from "../../assets/Auth/SignupSideBg.png";
 import toast from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../utils/axiosConfig";
-import { useUser } from "../../contexts/userContext";
+import { useUser } from "../../contexts/UserContext";
  
 const Login = () => {
   const navigate = useNavigate();
