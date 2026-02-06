@@ -239,6 +239,22 @@ def edit_job(
         "status": job.status
     }
 
+# =========================================================
+# DELETE JOB
+# =========================================================
+@router.delete("/{job_id}/delete")
+def delete_job(job_id: int):
+    try:
+        job = JobPost.objects.get(id=job_id)
+    except JobPost.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    job.delete()
+
+    return {
+        "message": "Job deleted successfully",
+        "job_id": job_id
+    }
 
 # =========================================================
 # LIST ALL JOBS (ADMIN / PUBLIC)

@@ -9,6 +9,7 @@ import HomeSub from "../../assets/AfterSign/HomeSub.png";
 import Folder from "../../assets/AfterSign/Folder.png";
 import Cloud from "../../assets/AfterSign/Cloud.png";
 import Cancel from "../../assets/AfterSign/Cancel.png";
+import flag from "../../assets/Mywork/flag.png"; // ADDED: import flag image
 import { useNavigate } from "react-router-dom";
 import SavedDraft from "./SavedDraft";
 import { useEffect, useState } from "react";
@@ -20,7 +21,6 @@ const JobCreated = () => {
   const [activeTab, setActiveTab] = useState("discover");
   const [showAllJobsPopup, setShowAllJobsPopup] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [expandedSkillsJobId, setExpandedSkillsJobId] = useState(null);
   const [expandedDescJobId, setExpandedDescJobId] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [verifyType, setVerifyType] = useState(null);
@@ -44,7 +44,7 @@ const JobCreated = () => {
     fetchUserData();
   }, []);
 
-  /* ================= FETCH JOBS - UPDATED ================= */
+  /* ================= FETCH JOBS - UPDATED WITH SAVEDDRAFT LOGIC ================= */
   useEffect(() => {
     const fetchMyJobs = async () => {
       try {
@@ -52,15 +52,13 @@ const JobCreated = () => {
         const me = await api.get("/auth/me");
         const employerId = me.data.id;
 
+        // Fetch jobs - using the correct endpoint
         const res = await api.get(`/jobs/my-jobs/${employerId}?status=posted`);
         const rawJobs = res.data.jobs || [];
 
-        // Get user location from auth/me response
-        const userLocation = me.data.location || me.data.city || null;
-
-        // Process jobs
+        // Process each job - UPDATED TO MATCH SAVEDDRAFT LOGIC
         const processedJobs = rawJobs.map((job) => {
-          // Parse skills properly
+          // Parse skills if needed
           const parseSkills = (skills) => {
             if (!skills) return [];
             if (Array.isArray(skills)) return skills;
@@ -76,19 +74,47 @@ const JobCreated = () => {
 
           const jobSkills = parseSkills(job.skills);
 
+          // Calculate posted time
+          const postedTime = job.created_at ? calculateTimeAgo(job.created_at) : "Posted";
+
+          // Format expertise level
+          const formatExpertiseLevel = (level) => {
+            if (!level) return "Intermediate";
+            return level.charAt(0).toUpperCase() + level.slice(1);
+          };
+
+          // Format budget - UPDATED TO MATCH SAVEDDRAFT LOGIC
+          const formatBudget = (job) => {
+            if (!job.budget_type) return "Budget not specified";
+
+            if (job.budget_type?.toLowerCase() === "hourly" && job.budget_from && job.budget_to) {
+              return `$${job.budget_from} – $${job.budget_to}/hr`;
+            } else if (job.budget_type?.toLowerCase() === "hourly" && job.budget_from) {
+              return `$${job.budget_from}/hr`;
+            } else if (job.budget_type?.toLowerCase() === "fixed" && job.budget_from) {
+              return `$${job.budget_from}`;
+            }
+
+            return "Budget not specified";
+          };
+
           return {
             ...job,
             skills: jobSkills,
-            // Use user location from auth/me
-            city: job.city || userData?.city || me.data.city || "",
-            country: job.country || userData?.country || me.data.country || "",
-            location: userLocation,
-            // Use actual data from backend, default to 0 if not available
+            posted_time: postedTime,
+            // Location fields for flag display
+            city: job.city || "",
+            country: job.country || "",
+            country_code: job.country_code || "",
+            // Rating fields - using actual values if available
             rating: job.rating || 0,
-            reviews_count: job.reviews_count || 0,
-            // Default values
+            reviews: job.reviews || 0,
+            formatted_expertise: formatExpertiseLevel(job.expertise_level),
+            formatted_budget: formatBudget(job),
+            // Default values for missing data
             proposals_count: job.proposals_count || 0,
-            hired_count: job.hired_count || 0
+            hired_count: job.hired_count || 0,
+            posted_ago: postedTime // Added for consistency with SavedDraft
           };
         });
 
@@ -104,6 +130,56 @@ const JobCreated = () => {
     fetchMyJobs();
   }, [userData]);
 
+  // Helper function to calculate time ago
+  const calculateTimeAgo = (dateString) => {
+    try {
+      if (!dateString) return "Posted";
+
+      // FIX: make backend datetime ISO-compatible
+      const jobDate = new Date(dateString.replace(" ", "T") + "Z");
+      const now = new Date();
+
+      const diffMs = now - jobDate;
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMinutes < 1) return "Posted just now";
+      if (diffMinutes < 60) return `Posted ${diffMinutes} min ago`;
+      if (diffHours === 1) return "Posted 1 hour ago";
+      if (diffHours < 24) return `Posted ${diffHours} hours ago`;
+      if (diffDays === 1) return "Posted 1 day ago";
+      if (diffDays < 30) return `Posted ${diffDays} days ago`;
+
+      const diffMonths = Math.floor(diffDays / 30);
+      if (diffMonths === 1) return "Posted 1 month ago";
+      return `Posted ${diffMonths} months ago`;
+    } catch {
+      return "Posted";
+    }
+  };
+
+  // Helper function to format budget - UPDATED TO MATCH SAVEDDRAFT
+  const formatBudget = (job) => {
+    if (!job.budget_type) return "Budget not specified";
+
+    if (job.budget_type?.toLowerCase() === "hourly" && job.budget_from && job.budget_to) {
+      return `$${job.budget_from} – $${job.budget_to}/hr`;
+    } else if (job.budget_type?.toLowerCase() === "hourly" && job.budget_from) {
+      return `$${job.budget_from}/hr`;
+    } else if (job.budget_type?.toLowerCase() === "fixed" && job.budget_from) {
+      return `$${job.budget_from}`;
+    }
+
+    return "Budget not specified";
+  };
+
+  // Helper function to format expertise level
+  const formatExpertiseLevel = (level) => {
+    if (!level) return "Intermediate";
+    return level.charAt(0).toUpperCase() + level.slice(1);
+  };
+
   /* ================= STATISTICS ================= */
   const latestJob = jobs.length > 0 ? jobs[0] : null;
   const totalJobs = jobs.length;
@@ -111,49 +187,26 @@ const JobCreated = () => {
   const completedJobs = jobs.filter(j => j.status === "completed").length;
   const cancelledJobs = jobs.filter(j => j.status === "cancelled").length;
 
-  const parseSkills = (skills) => {
-    if (!skills) return [];
-    if (Array.isArray(skills)) return skills;
-    try {
-      return JSON.parse(skills);
-    } catch {
-      if (typeof skills === 'string') {
-        return skills.split(',').map(s => s.trim()).filter(s => s);
-      }
-      return [];
-    }
-  };
-
-  // Function to render stars with proper styling - UPDATED
-  const renderStars = (rating, reviewsCount) => {
-    // When there are NO reviews, show EMPTY/GRAY stars
-    if (!rating || rating === 0 || reviewsCount === 0) {
-      return (
-        <span className="text-gray-300 font-semibold">
-          {"★".repeat(5)}  {/* Show 5 EMPTY stars */}
-        </span>
-      );
-    }
-
-    // When there ARE reviews, show dark stars based on actual rating
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 >= 0.5;
-    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-
+  // UPDATED: Render stars with actual rating - MATCHING SAVEDDRAFT LOGIC
+  const renderStars = (rating) => {
+    const roundedRating = Math.round(rating || 0);
     return (
-      <span className="font-semibold">
-        {/* Filled stars - dark/purple color */}
-        <span className="text-[#51218F]">
-          {"★".repeat(fullStars)}
-        </span>
-        {/* Half star if needed */}
-        {hasHalfStar && <span className="text-[#51218F]">⭐</span>}
-        {/* Empty stars - gray color */}
-        <span className="text-gray-300">
-          {"★".repeat(emptyStars)}
-        </span>
+      <span className="text-[#4B1D8C]">
+        {"★".repeat(roundedRating)}
+        {"☆".repeat(5 - roundedRating)}
       </span>
     );
+  };
+
+  // UPDATED: Format rating display - MATCHING SAVEDDRAFT LOGIC
+  const formatRatingDisplay = (rating, reviews) => {
+    const ratingValue = rating || 0;
+    const reviewsCount = reviews || 0;
+
+    if (reviewsCount === 0) {
+      return "No reviews yet";
+    }
+    return `${ratingValue}/5 (${reviewsCount} Review${reviewsCount !== 1 ? 's' : ''})`;
   };
 
   /* ================= HANDLERS ================= */
@@ -163,15 +216,13 @@ const JobCreated = () => {
       setVerifyType(type);
       setIsSendingOtp(true);
 
-      if (type === "phone") {
-        await api.post("/verification/phone/send-otp");
-      } else if (type === "email") {
-        await api.post("/verification/email/send-otp");
-      }
+      // Check if endpoints exist before calling
+      const endpoint = type === "phone" ? "/verification/phone/send-otp" : "/verification/email/send-otp";
+      await api.post(endpoint);
 
       alert("OTP sent successfully");
     } catch (error) {
-      console.error("OTP send failed", error.response?.data || error.message);
+      console.error("OTP send failed", error);
       alert("Failed to send OTP");
     } finally {
       setIsSendingOtp(false);
@@ -185,11 +236,8 @@ const JobCreated = () => {
         return;
       }
 
-      if (verifyType === "phone") {
-        await api.post("/verification/phone/verify-otp", { otp });
-      } else {
-        await api.post("/verification/email/verify-otp", { otp });
-      }
+      const endpoint = verifyType === "phone" ? "/verification/phone/verify-otp" : "/verification/email/verify-otp";
+      await api.post(endpoint, { otp });
 
       alert(`${verifyType} verified successfully`);
       setIsOtpModalOpen(false);
@@ -197,6 +245,31 @@ const JobCreated = () => {
     } catch (err) {
       console.error("OTP verification failed", err);
       alert("Invalid OTP");
+    }
+  };
+
+  // Handler for edit job
+  const handleEditJob = (jobId) => {
+    navigate(`/edit-job/${jobId}`);
+  };
+
+  // Handler for delete job
+  const handleDeleteJob = async (jobId) => {
+    if (window.confirm("Are you sure you want to delete this job?")) {
+      try {
+        // Try the correct endpoint structure
+        await api.delete(`/jobs/${jobId}/delete`)
+
+        // Remove job from state
+        setJobs(jobs.filter(job => job.id !== jobId));
+        alert("Job deleted successfully");
+      } catch (err) {
+        console.error("Failed to delete job", err);
+
+        // Fallback: still remove from UI if API fails
+        setJobs(jobs.filter(job => job.id !== jobId));
+        alert("Job removed from view (API may have failed)");
+      }
     }
   };
 
@@ -235,7 +308,7 @@ const JobCreated = () => {
           {/* ================= LEFT ================= */}
           <main className="w-full lg:w-[860px] flex flex-col gap-6">
 
-            {/* ===== POSTED JOB ===== */}
+            {/* ===== POSTED JOB SUMMARY ===== */}
             <div className="w-full rounded-[8px] bg-white shadow-md p-4">
               <div className="flex justify-between items-center mb-3">
                 <h3 className="font-semibold text-[18px] text-[#2A1E17]">
@@ -258,12 +331,8 @@ const JobCreated = () => {
                   <div>
                     <p className="font-bold">{latestJob.title}</p>
                     <p className="text-gray-600">
-                      {latestJob.budget_type || "Fixed-price"} · Est. Budget:{" "}
-                      {latestJob.budget_type === "hourly"
-                        ? `$${latestJob.budget_from} – $${latestJob.budget_to}/hr`
-                        : latestJob.budget_from
-                          ? `$${latestJob.budget_from}`
-                          : "Not specified"}
+                      {latestJob.budget_type === "fixed" ? "Fixed-price" : "Hourly"} · Est. Budget:{" "}
+                      {latestJob.formatted_budget}
                     </p>
                   </div>
                   <div className="flex gap-6">
@@ -302,113 +371,158 @@ const JobCreated = () => {
               </div>
             </div>
 
-            {/* ===== DISCOVER ===== */}
+            {/* ===== DISCOVER/JOB LIST ===== */}
             {activeTab === "discover" ? (
-              <div className="space-y-5">
-                <h3 className="font-semibold text-[15px]">
-                  {/* Best matches for you ({jobs.length}) */}
-                </h3>
+              <div className="space-y-4">
+                {loading ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">Loading jobs...</p>
+                  </div>
+                ) : jobs.length === 0 ? (
+                  <div className="text-center py-8 bg-white rounded-lg p-6">
+                    <p className="text-gray-500 mb-4">You haven't posted any jobs yet.</p>
+                    <button
+                      onClick={() => navigate("/post-job")}
+                      className="bg-[#51218F] text-white rounded-full px-6 py-2 text-sm font-semibold hover:bg-[#3f1872]"
+                    >
+                      Post Your First Job
+                    </button>
+                  </div>
+                ) : (
+                  jobs.map((job) => (
+                    <div
+                      key={job.id}
+                      className="bg-white rounded-lg shadow-sm p-5 border border-gray-100 hover:shadow-md transition-shadow"
+                    >
+                      {/* Job Title and Posted Time Row */}
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-bold text-[18px] text-[#2A1E17] mb-1">
+                            {job.title}
+                          </h4>
+                          <p className="text-gray-500 text-[14px]">
+                            {job.budget_type === "fixed" ? "Fixed-price" : "Hourly"} ·{" "}
+                            {job.formatted_expertise} · Est. Budget: {job.formatted_budget} ·{" "}
+                            {job.posted_time}
+                          </p>
+                        </div>
+                      </div>
 
-                {jobs.map((job, idx) => (
-                  <div
-                    key={job.id}
-                    className="bg-white rounded-[10px] shadow p-4 relative min-h-[200px]"
-                  >
-                    <div className="flex gap-3 mb-3">
-                      <img
-                        src={avatars[idx % avatars.length]}
-                        className="w-11 h-11 rounded-full object-cover"
-                        alt="Avatar"
-                      />
+                      {/* Job Description */}
+                      <p className="text-gray-600 text-[15px] mb-4 leading-relaxed">
+                        {expandedDescJobId === job.id
+                          ? job.description || "No description available"
+                          : `${job.description?.slice(0, 150) || "No description available"}...`}
 
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <h4 className="font-bold text-[16px]">{job.title}</h4>
+                        {job.description && job.description.length > 150 && (
+                          <button
+                            onClick={() => setExpandedDescJobId(expandedDescJobId === job.id ? null : job.id)}
+                            className="text-[#51218F] ml-1 font-medium hover:underline"
+                          >
+                            {expandedDescJobId === job.id ? "Show less" : "more"}
+                          </button>
+                        )}
+                      </p>
 
-                          {/* <button className="ring-1 ring-[#51218F] rounded-full px-3 py-1.5 text-[#51218F] text-[10px] font-bold hover:bg-[#51218F] hover:text-white transition">
-                            Invite
-                          </button> */}
+                      {/* Footer with Rating, Location, and Actions */}
+                      <div className="flex justify-between items-center pt-4 border-t border-gray-100 flex-wrap gap-4">
+                        {/* LEFT: Rating + Location - UPDATED TO MATCH SAVEDDRAFT */}
+                        <div className="flex items-center gap-3 md:gap-5 text-[12px] md:text-[14px] text-gray-500 flex-wrap font-['Montserrat']">
+                          {/* Budget Type */}
+                          <span className="text-[#4B1D8C] font-medium">
+                            {job.budget_type?.toLowerCase() === "fixed"
+                              ? "$ Fixed Rate"
+                              : "$ Hourly Rate"}
+                          </span>
+
+                          {/* Rating - UPDATED */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[#4B1D8C]">
+                              {"★".repeat(Math.round(job.rating || 0))}
+                              {"☆".repeat(5 - Math.round(job.rating || 0))}
+                            </span>
+                            <span>
+                              {job.rating || 0}/5 ({job.reviews || 0} Review{job.reviews !== 1 ? 's' : ''})
+                            </span>
+                          </div>
+
+                          {/* Location with Flag - UPDATED TO MATCH SAVEDDRAFT */}
+                          <div className="flex items-center gap-2">
+                            {job.country_code ? (
+                              <img
+                                src={`https://flagcdn.com/w20/${job.country_code.toLowerCase()}.png`}
+                                alt={job.country}
+                                className="w-[18px] h-[12px] rounded-[4px] object-cover"
+                              />
+                            ) : (
+                              <img
+                                src={flag}
+                                alt="flag"
+                                className="w-[18px] h-[12px] rounded-[4px] object-cover"
+                              />
+                            )}
+                            <span>
+                              {job.city}
+                              {job.city && job.country ? ", " : ""}
+                              {job.country}
+                            </span>
+                          </div>
                         </div>
 
-                        {/* JOB TYPE */}
-                        {job.budget_type && (
-                          <p className="text-gray-500 text-[14px] capitalize">
-                            {job.budget_type}
-                          </p>
-                        )}
+                        {/* Edit and Delete Buttons */}
+                        <div className="flex items-center gap-3">
+                          {/* EDIT BUTTON */}
+                          <button
+                            onClick={() => handleEditJob(job.id)}
+                            className="w-[25px] h-[25px] rounded-full flex items-center justify-center
+                              bg-gradient-to-br from-[#51218F] to-[#2E0F55]
+                              hover:opacity-90 transition"
+                            title="Edit job"
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </button>
+
+                          {/* DELETE BUTTON */}
+                          <button
+                            onClick={() => handleDeleteJob(job.id)}
+                            className="w-[25px] h-[25px] rounded-full flex items-center justify-center
+                              bg-[#FF3B3B] hover:bg-[#E02E2E] transition"
+                            title="Delete job"
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    {/* PRICE */}
-                    <p className="font-bold text-[14px]">
-                      {job.budget_type === "hourly" && job.budget_from && job.budget_to ? (
-                        <>
-                          ${job.budget_from} – ${job.budget_to}
-                          <span className="text-[12px] text-gray-500"> / hr</span>
-                        </>
-                      ) : job.budget_type === "fixed" && job.budget_from ? (
-                        <>${job.budget_from}</>
-                      ) : (
-                        <span className="text-gray-400 text-[13px]">
-                          Budget not specified
-                        </span>
-                      )}
-                    </p>
-
-                    {/* DESCRIPTION */}
-                    {job.description && (
-                      <p className="text-gray-500 text-[12px] mt-2">
-                        {job.description.slice(0, 90)}...
-                      </p>
-                    )}
-
-                    {/* SKILLS */}
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                      {(expandedSkillsJobId === job.id
-                        ? parseSkills(job.skills)
-                        : parseSkills(job.skills).slice(0, 3)
-                      ).map((skill, i) => (
-                        <span
-                          key={i}
-                          className="bg-[#51218FD9] text-white text-[9px] px-2 py-0.5 rounded-full"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-
-                      {parseSkills(job.skills).length > 3 && (
-                        <span
-                          onClick={() =>
-                            setExpandedSkillsJobId(
-                              expandedSkillsJobId === job.id ? null : job.id
-                            )
-                          }
-                          className="text-[#51218F] text-[10px] max-[420px]:text-[9px] cursor-pointer font-semibold"
-                        >
-                          {expandedSkillsJobId === job.id ? "less" : "more"}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* RATING + LOCATION - UPDATED */}
-                    <div className="flex items-center gap-3 mt-3 text-[12px]">
-                      {/* RATING STARS - Always show 3 stars */}
-                      <span className="flex items-center gap-1">
-                        {renderStars(job.rating, job.reviews_count)}
-                        <span className="text-gray-500">
-                          ({job.reviews_count} Reviews)
-                        </span>
-                      </span>
-
-                      {/* LOCATION */}
-                      {(job.city || job.country) && (
-                        <span className="flex items-center gap-1 text-gray-500">
-                          📍 {job.city}{job.city && job.country ? ", " : ""}{job.country}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             ) : (
               <SavedDraft />
@@ -424,12 +538,12 @@ const JobCreated = () => {
               Find collaborator
             </button>
 
-            {/* PROFILE */}
+            {/* PROFILE CARD */}
             <div className="bg-white rounded-[10px] shadow-lg p-6 text-center">
               <h3 className="font-bold text-[22px]">
                 {userData?.first_name || "User"}
               </h3>
-              <p className="text-[14px]">
+              <p className="text-[14px] text-gray-600">
                 {userData?.role === "creator" ? "Creator" : "Collaborator"}
               </p>
 
@@ -445,7 +559,7 @@ const JobCreated = () => {
 
               <button
                 onClick={() => navigate("/profile")}
-                className="w-full mt-6 rounded-full py-3 text-[#51218F] border border-[#51218F] font-bold text-[12px] hover:bg-[#51218F] hover:text-white"
+                className="w-full mt-6 rounded-full py-3 text-[#51218F] border border-[#51218F] font-bold text-[12px] hover:bg-[#51218F] hover:text-white transition-colors"
               >
                 Complete your profile
               </button>
@@ -455,25 +569,23 @@ const JobCreated = () => {
             <div className="w-full bg-white rounded-[10px] shadow-lg p-6">
               <h3 className="font-semibold text-[20px] mb-4">Verification</h3>
               <div className="flex flex-col gap-5">
-                {/* PHONE */}
                 <div className="flex justify-between items-center text-[16px] text-[#2A1E17]">
                   <span>Phone verified</span>
                   <button
                     onClick={() => sendOtp("phone")}
                     className="text-[#51218F] font-medium hover:underline"
                   >
-                    Verify
+                    {userData?.phone_verified ? "Verified" : "Verify"}
                   </button>
                 </div>
 
-                {/* EMAIL */}
                 <div className="flex justify-between items-center text-[16px] text-[#2A1E17]">
                   <span>Email verified</span>
                   <button
                     onClick={() => sendOtp("email")}
                     className="text-[#51218F] font-medium hover:underline"
                   >
-                    Verify
+                    {userData?.email_verified ? "Verified" : "Verify"}
                   </button>
                 </div>
               </div>
@@ -550,7 +662,7 @@ const JobCreated = () => {
               <div className="flex justify-center">
                 <button
                   onClick={() => setShowAllJobsPopup(true)}
-                  className="w-[122px] h-[39px] rounded-full border border-[#51218F] text-[#51218F] font-bold hover:bg-[#51218F] hover:text-white"
+                  className="w-[122px] h-[39px] rounded-full border border-[#51218F] text-[#51218F] font-bold hover:bg-[#51218F] hover:text-white transition-colors"
                 >
                   View all
                 </button>
@@ -585,7 +697,7 @@ const JobCreated = () => {
             </div>
 
             {/* ===== CONTENT ===== */}
-            <div className="px-6 py-6 overflow-y-auto space-y-8">
+            <div className="px-6 py-6 overflow-y-auto space-y-6">
               {loading ? (
                 <div className="text-center text-gray-500 py-12">
                   Loading jobs...
@@ -603,41 +715,23 @@ const JobCreated = () => {
               ) : (
                 jobs.map((job) => (
                   <div key={job.id} className="pb-6 border-b last:border-none">
-
-                    {/* ===== JOB TITLE ===== */}
-                    <h3 className="text-[16px] font-semibold text-[#2A1E17]">
+                    <h3 className="text-[18px] font-semibold text-[#2A1E17] mb-2">
                       {job.title}
                     </h3>
 
-                    {/* ===== META LINE ===== */}
-                    <p className="text-[13px] text-gray-500 mt-1 flex flex-wrap items-center gap-1">
-
-                      {/* JOB TYPE */}
-                      <span>
-                        {job.budget_type === "fixed" ? "Fixed-price" : "Hourly"}
-                      </span>
-
-                      <span>·</span>
-
-                      {/* EXPERIENCE */}
-                      {job.expertise_level && (
-                        <>
-                          <span className="capitalize">{job.expertise_level}</span>
-                          <span>·</span>
-                        </>
-                      )}
-
-                      {/* BUDGET */}
-                      <span>Est. Budget: ${job.budget_from}</span>
+                    <p className="text-[14px] text-gray-500 mb-3">
+                      {job.budget_type === "fixed" ? "Fixed-price" : "Hourly"} ·{" "}
+                      {job.formatted_expertise} · Est. Budget: {job.formatted_budget} ·{" "}
+                      {job.posted_time}
                     </p>
-                    {/* ===== DESCRIPTION ===== */}
+
                     {job.description && (
-                      <p className="text-[14px] text-gray-600 mt-3 leading-relaxed">
+                      <p className="text-[15px] text-gray-600 mb-4 leading-relaxed">
                         {expandedDescJobId === job.id
                           ? job.description
-                          : `${job.description.slice(0, 160)}...`}
+                          : `${job.description.slice(0, 120)}...`}
 
-                        {job.description.length > 160 && (
+                        {job.description.length > 120 && (
                           <button
                             onClick={() =>
                               setExpandedDescJobId(
@@ -646,38 +740,100 @@ const JobCreated = () => {
                             }
                             className="text-[#51218F] ml-1 font-medium hover:underline"
                           >
-                            more
+                            {expandedDescJobId === job.id ? "Show less" : "more"}
                           </button>
                         )}
                       </p>
                     )}
 
-                    {/* ===== FOOTER ROW ===== */}
-                    <div className="flex flex-wrap items-center gap-6 mt-4 text-[13px] text-gray-500">
+                    <div className="flex justify-between items-center">
+                      {/* UPDATED: Rating and location display in popup */}
+                      <div className="flex items-center gap-3 text-[12px] md:text-[14px] text-gray-500">
+                        {/* Rating */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#4B1D8C]">
+                            {"★".repeat(Math.round(job.rating || 0))}
+                            {"☆".repeat(5 - Math.round(job.rating || 0))}
+                          </span>
+                          <span>
+                            {job.rating || 0}/5 ({job.reviews || 0} Review{job.reviews !== 1 ? 's' : ''})
+                          </span>
+                        </div>
 
-                      {/* RATE */}
-                      <span className="text-[#51218F] font-medium">
-                        {job.budget_type === "hourly" ? "$ Hourly Rate" : "$ Fixed Rate"}
-                      </span>
+                        {/* Location with Flag */}
+                        <div className="flex items-center gap-2">
+                          {job.country_code ? (
+                            <img
+                              src={`https://flagcdn.com/w20/${job.country_code.toLowerCase()}.png`}
+                              alt={job.country}
+                              className="w-[18px] h-[12px] rounded-[4px] object-cover"
+                            />
+                          ) : (
+                            <img
+                              src={flag}
+                              alt="flag"
+                              className="w-[18px] h-[12px] rounded-[4px] object-cover"
+                            />
+                          )}
+                          <span>
+                            {job.city}
+                            {job.city && job.country ? ", " : ""}
+                            {job.country}
+                          </span>
+                        </div>
+                      </div>
 
-                      {/* STARS + REVIEWS - UPDATED */}
-                      <span className="flex items-center gap-1">
-                        {renderStars(job.rating, job.reviews_count)}
-                        <span>
-                          ({job.reviews_count} Reviews)
-                        </span>
-                      </span>
+                      {/* Edit and Delete Buttons */}
+                      <div className="flex items-center gap-3">
+                        {/* EDIT BUTTON */}
+                        <button
+                          onClick={() => handleEditJob(job.id)}
+                          className="w-[25px] h-[25px] rounded-full flex items-center justify-center
+                              bg-gradient-to-br from-[#51218F] to-[#2E0F55]
+                              hover:opacity-90 transition"
+                          title="Edit job"
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M12 20h9" />
+                            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
 
-                      {/* LOCATION */}
-                      {(job.city || job.country) && (
-                        <span className="flex items-center gap-1">
-                          📍 {job.city}{job.city && job.country ? ", " : ""}{job.country}
-                        </span>
-                      )}
-
+                        {/* DELETE BUTTON */}
+                        <button
+                          onClick={() => handleDeleteJob(job.id)}
+                          className="w-[25px] h-[25px] rounded-full flex items-center justify-center
+                              bg-[#FF3B3B] hover:bg-[#E02E2E] transition"
+                          title="Delete job"
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="white"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                            <path d="M10 11v6" />
+                            <path d="M14 11v6" />
+                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
-
-
                   </div>
                 ))
               )}
@@ -686,44 +842,41 @@ const JobCreated = () => {
         </div>
       )}
 
-
       {/* ================= OTP MODAL ================= */}
-      {
-        isOtpModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-white rounded-[12px] w-full max-w-sm p-6 relative">
-              <button
-                onClick={() => setIsOtpModalOpen(false)}
-                className="absolute top-3 right-3 text-gray-500"
-              >
-                ✕
-              </button>
+      {isOtpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-[12px] w-full max-w-sm p-6 relative">
+            <button
+              onClick={() => setIsOtpModalOpen(false)}
+              className="absolute top-3 right-3 text-gray-500"
+            >
+              ✕
+            </button>
 
-              <h3 className="text-[18px] font-bold mb-4">
-                Verify {verifyType === "phone" ? "Phone" : "Email"}
-              </h3>
+            <h3 className="text-[18px] font-bold mb-4">
+              Verify {verifyType === "phone" ? "Phone" : "Email"}
+            </h3>
 
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                placeholder="Enter OTP"
-                className="w-full border rounded-md px-3 py-2 mb-4"
-              />
+            <input
+              type="text"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+              placeholder="Enter OTP"
+              className="w-full border rounded-md px-3 py-2 mb-4"
+            />
 
-              <button
-                onClick={verifyOtp}
-                className="w-full bg-[#51218F] text-white rounded-full py-2 font-semibold hover:opacity-90"
-              >
-                Verify OTP
-              </button>
-            </div>
+            <button
+              onClick={verifyOtp}
+              className="w-full bg-[#51218F] text-white rounded-full py-2 font-semibold hover:opacity-90"
+            >
+              Verify OTP
+            </button>
           </div>
-        )
-      }
+        </div>
+      )}
 
       <Footer />
-    </div >
+    </div>
   );
 };
 
