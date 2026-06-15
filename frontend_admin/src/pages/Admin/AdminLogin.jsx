@@ -9,7 +9,7 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent multiple submissions
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -20,7 +20,8 @@ const AdminLogin = () => {
     password: "",
   });
 
-  // Refs to track initial values for change detection
+  // Refs for password input and tracking
+  const passwordInputRef = useRef(null);
   const initialEmailRef = useRef("");
   const initialPasswordRef = useRef("");
   const hasAttemptedSubmitRef = useRef(false);
@@ -68,7 +69,7 @@ const AdminLogin = () => {
       setErrors((prev) => ({ ...prev, password: "" }));
     }
 
-    // Validate inline only while user is actively typing and field has value
+    // Validate inline
     if (name === "email" && value) {
       setErrors((prev) => ({
         ...prev,
@@ -102,12 +103,8 @@ const AdminLogin = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Prevent multiple submissions
-    if (isSubmitting || loading) {
-      return;
-    }
+    if (isSubmitting || loading) return;
 
-    // Guard: empty fields
     if (!formData.email) {
       setErrors((prev) => ({ ...prev, email: "Email is required" }));
       toast.error("Email is required");
@@ -119,7 +116,6 @@ const AdminLogin = () => {
       return;
     }
 
-    // Guard: format errors (client-side)
     const emailError = validateEmail(formData.email);
     const passwordError = validatePassword(formData.password);
 
@@ -134,7 +130,6 @@ const AdminLogin = () => {
       return;
     }
 
-    // Store current values to detect changes later
     initialEmailRef.current = formData.email;
     initialPasswordRef.current = formData.password;
     
@@ -149,17 +144,13 @@ const AdminLogin = () => {
       });
 
       if (response.data) {
-        // No localStorage for auth anymore - cookies handle everything
         if (formData.rememberMe) {
           localStorage.setItem("rememberedEmail", formData.email);
         } else {
           localStorage.removeItem("rememberedEmail");
         }
 
-        // Clear any saved view from previous session
         localStorage.removeItem('adminCurrentView');
-        
-        // Set flag for fresh login
         sessionStorage.setItem('justLoggedIn', 'true');
 
         toast.success("Login successful!");
@@ -182,7 +173,7 @@ const AdminLogin = () => {
             setErrors((prev) => ({ ...prev, password: "Password is incorrect" }));
             toast.error("Incorrect password");
             setFormData((prev) => ({ ...prev, password: "" }));
-            initialPasswordRef.current = ""; // Reset password ref since we cleared it
+            initialPasswordRef.current = "";
           } else {
             toast.error(responseData.message || "Login failed");
           }
@@ -205,7 +196,14 @@ const AdminLogin = () => {
       }
     } finally {
       setLoading(false);
-      // Keep isSubmitting true to prevent further submissions until user changes input
+    }
+  };
+
+  // Handle Enter key on password field
+  const handlePasswordKeyDown = (e) => {
+    if (e.key === "Enter" && !isButtonDisabled) {
+      e.preventDefault();
+      handleSubmit(e);
     }
   };
 
@@ -259,7 +257,7 @@ const AdminLogin = () => {
               )}
             </div>
 
-            {/* Password */}
+            {/* Password - FIXED: Using text input with CSS masking for iOS/Safari compatibility */}
             <div className="mb-5">
               <div className="flex justify-between">
                 <label className="text-sm">Password</label>
@@ -272,19 +270,34 @@ const AdminLogin = () => {
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
-              <div className="relative">
+              <div 
+                className="relative"
+                onClick={() => {
+                  if (passwordInputRef.current && !loading) {
+                    passwordInputRef.current.focus();
+                  }
+                }}
+              >
                 <input
-                  type={showPassword ? "text" : "password"}
+                  ref={passwordInputRef}
+                  type="text"
+                  inputMode="text"
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
+                  onKeyDown={handlePasswordKeyDown}
                   disabled={loading}
-                  style={!showPassword ? { WebkitTextSecurity: 'disc' } : {}}
+                  autoComplete="current-password"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
                   className={`w-full h-[44px] rounded-[8px] bg-[#B9A9CE] px-3 outline-none ${
                     errors.password ? "border-2 border-red-500" : ""
-                  } ${loading ? "opacity-70 cursor-not-allowed" : ""}`}
+                  } ${loading ? "opacity-70 cursor-not-allowed" : ""} ${
+                    showPassword ? "password-visible" : "password-masked"
+                  }`}
                   placeholder="Enter your password"
-                  autoComplete="current-password"
+                  style={{ fontSize: "16px" }}
                 />
               </div>
               {errors.password && (
@@ -298,7 +311,6 @@ const AdminLogin = () => {
               onClick={() => {
                 if (!loading) {
                   setFormData(prev => ({ ...prev, rememberMe: !prev.rememberMe }));
-                  // Reset submission state when remember me is toggled
                   if (hasAttemptedSubmitRef.current) {
                     setIsSubmitting(false);
                     hasAttemptedSubmitRef.current = false;
@@ -378,82 +390,60 @@ const AdminLogin = () => {
         </div>
       </div>
 
-      {/* Add global styles to hide browser's password eye icon in all browsers */}
+      {/* Global styles for password masking and autofill */}
       <style>{`
-  /* Hide Edge's password reveal button */
-  input[type="password"]::-ms-reveal,
-  input[type="password"]::-ms-clear {
-    display: none !important;
-  }
-
-  /* Hide password reveal button for all browsers */
-  input[type="password"]::-webkit-credentials-auto-fill-button,
-  input[type="password"]::-webkit-caps-lock-indicator,
-  input[type="password"]::-webkit-contacts-auto-fill-button,
-  input[type="password"]::-webkit-credentials-auto-fill-button,
-  input[type="password"]::-webkit-textfield-decoration-container {
-    display: none !important;
-    visibility: hidden !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-  }
-
-  /* For Firefox */
-  input[type="password"] {
-    -moz-appearance: textfield;
-  }
-
-  /* Additional Edge specific */
-  ::-ms-reveal {
-    display: none !important;
-  }
-
-  /* Additional Chrome/Safari specific */
-  ::-webkit-credentials-auto-fill-button {
-    display: none !important;
-    visibility: hidden !important;
-  }
-
-  /* Hide Firefox password reveal button */
-  input[type="password"]::-moz-reveal {
-    display: none !important;
-  }
-
-  /* ===== FIX BROWSER AUTOFILL STYLES ===== */
-  
-  /* Target autofilled inputs and override default styles */
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus,
-  input:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 30px #B9A9CE inset !important;
-    -webkit-text-fill-color: #000000 !important;
-    transition: background-color 5000s ease-in-out 0s !important;
-  }
-
-  /* For Firefox autofill */
-  input:-moz-autofill,
-  input:-moz-autofill-preview {
-    background-color: #B9A9CE !important;
-    color: #000000 !important;
-  }
-
-  /* For standard autofill */
-  input:autofill {
-    background-color: #B9A9CE !important;
-    color: #000000 !important;
-  }
-
-  /* Optional: If you want to remove the yellow background completely and match your design */
-  input:-webkit-autofill::first-line {
-    color: #000000 !important;
-  }
-
-  /* Ensure your custom classes still apply even with autofill */
-  .bg-\\[\\#B9A9CE\\] {
-    background-color: #B9A9CE !important;
-  }
-`}</style>
+        /* Password masking styles - iOS/Safari compatible */
+        .password-masked {
+          -webkit-text-security: disc !important;
+          text-security: disc !important;
+        }
+        
+        .password-visible {
+          -webkit-text-security: none !important;
+          text-security: none !important;
+        }
+        
+        /* Hide browser's password management UI */
+        input::-webkit-credentials-auto-fill-button,
+        input::-webkit-caps-lock-indicator,
+        input::-webkit-strong-password-auto-fill-button,
+        input::-webkit-contacts-auto-fill-button {
+          display: none !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
+        
+        /* Fix autofill styles */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+          -webkit-text-fill-color: #000000 !important;
+          transition: background-color 5000s ease-in-out 0s;
+          background-color: #B9A9CE !important;
+        }
+        
+        input:-webkit-autofill::first-line {
+          color: #000000 !important;
+        }
+        
+        /* For Firefox */
+        input {
+          -moz-appearance: textfield;
+        }
+        
+        /* Ensure custom background stays with autofill */
+        .bg-\\[\\#B9A9CE\\] {
+          background-color: #B9A9CE !important;
+        }
+        
+        /* iOS specific - ensure 16px font to prevent zoom */
+        @media (pointer: coarse) {
+          input {
+            font-size: 16px !important;
+          }
+        }
+      `}</style>
     </section>
   );
 };

@@ -286,6 +286,137 @@ const TruncatedText = ({ text, className = "", style = {}, as: Tag = "span", isD
   );
 };
 
+// Revenue Chart Component - Fixed for Safari/iOS with proper X-axis labels
+const RevenueChart = ({ data, labels, isDarkMode }) => {
+  const chartContainerRef = useRef(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 100 });
+
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (chartContainerRef.current) {
+        setDimensions({
+          width: chartContainerRef.current.clientWidth,
+          height: 100
+        });
+      }
+    };
+    
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, []);
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-32 w-full flex items-center justify-center text-white/50 text-sm">
+        No data available
+      </div>
+    );
+  }
+
+  const maxVal = Math.max(...data, 1);
+  const chartHeight = 100;
+  const chartWidth = dimensions.width || 400;
+  
+  // Calculate points for the line
+  const points = data.map((value, index) => {
+    const x = (index / (data.length - 1)) * chartWidth;
+    const y = chartHeight - (value / maxVal) * 70;
+    return `${x},${y}`;
+  }).join(' L ');
+  
+  const linePath = `M ${points}`;
+  const areaPath = `${linePath} L ${chartWidth},${chartHeight} L 0,${chartHeight} Z`;
+
+  return (
+    <div className="w-full mt-4" ref={chartContainerRef}>
+      {/* Y-axis labels */}
+      <div className="relative h-[100px] w-full">
+        <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-[9px] font-medium text-white/50 py-1">
+          <span>{Math.round(maxVal)}k</span>
+          <span>{Math.round(maxVal * 0.75)}k</span>
+          <span>{Math.round(maxVal * 0.5)}k</span>
+          <span>{Math.round(maxVal * 0.25)}k</span>
+          <span>0</span>
+        </div>
+        
+        {/* SVG Chart */}
+        <div className="absolute left-8 right-0 top-0 bottom-0">
+          <svg 
+            width="100%" 
+            height="100%" 
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+            preserveAspectRatio="none"
+            style={{ overflow: 'visible' }}
+          >
+            {/* Grid lines */}
+            {[0, 25, 50, 75, 100].map((y) => (
+              <line
+                key={y}
+                x1="0"
+                y1={chartHeight - (y / 100) * chartHeight}
+                x2={chartWidth}
+                y2={chartHeight - (y / 100) * chartHeight}
+                stroke="white"
+                strokeOpacity="0.15"
+                strokeWidth="0.8"
+              />
+            ))}
+            
+            {/* Area fill */}
+            <path
+              d={areaPath}
+              fill={isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(101, 5, 228, 0.15)"}
+            />
+            
+            {/* Line */}
+            <path
+              d={linePath}
+              fill="none"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            
+            {/* Data points */}
+            {data.map((value, index) => {
+              const x = (index / (data.length - 1)) * chartWidth;
+              const y = chartHeight - (value / maxVal) * 70;
+              return (
+                <circle
+                  key={index}
+                  cx={x}
+                  cy={y}
+                  r="3"
+                  fill="white"
+                />
+              );
+            })}
+          </svg>
+        </div>
+      </div>
+      
+      {/* X-axis labels - fixed for Safari/iOS */}
+      <div className="flex justify-between w-full mt-2 pl-8">
+        {labels.map((label, index) => (
+          <div 
+            key={index} 
+            className="text-[9px] font-medium text-white/60 uppercase text-center"
+            style={{ 
+              flex: 1,
+              whiteSpace: 'nowrap',
+              overflow: 'visible'
+            }}
+          >
+            {label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
 
@@ -894,65 +1025,60 @@ const Dashboard = () => {
   }, [fetchNotifications]);
 
   useEffect(() => {
-  const applyTheme = () => {
-    const savedTheme = localStorage.getItem("theme");
-    const isDark = savedTheme === "dark";
+    const applyTheme = () => {
+      const savedTheme = localStorage.getItem("theme");
+      const isDark = savedTheme === "dark";
+      
+      setIsDarkMode(isDark);
+      
+      const htmlElement = document.documentElement;
+      const bodyElement = document.body;
+      
+      if (isDark) {
+        htmlElement.classList.add("dark");
+        htmlElement.classList.remove("light");
+        bodyElement.classList.add("dark");
+        bodyElement.classList.remove("light");
+      } else {
+        htmlElement.classList.add("light");
+        htmlElement.classList.remove("dark");
+        bodyElement.classList.add("light");
+        bodyElement.classList.remove("dark");
+      }
+    };
     
-    // Update state
-    setIsDarkMode(isDark);
-    
-    const htmlElement = document.documentElement;
-    const bodyElement = document.body;
-    
-    if (isDark) {
-      htmlElement.classList.add("dark");
-      htmlElement.classList.remove("light");
-      bodyElement.classList.add("dark");
-      bodyElement.classList.remove("light");
-    } else {
-      htmlElement.classList.add("light");
-      htmlElement.classList.remove("dark");
-      bodyElement.classList.add("light");
-      bodyElement.classList.remove("dark");
-    }
-  };
-  
-  // Apply theme immediately
-  applyTheme();
-  isInitialMount.current = false;
-  
-  // Listen for theme changes
-  const handleThemeChange = () => {
     applyTheme();
-    // Force a re-render by setting a state that will trigger a re-render
-    setIsDarkMode(prev => {
-      const newMode = localStorage.getItem("theme") === "dark";
-      return newMode;
-    });
-  };
-  
-  window.addEventListener("theme-change", handleThemeChange);
-  
-  // Listen for storage events (for cross-tab sync)
-  const handleStorageChange = (e) => {
-    if (e.key === 'theme') {
-      handleThemeChange();
-    }
-  };
-  window.addEventListener('storage', handleStorageChange);
-  
-  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-  const handleSystemChange = () => {
-    if (!localStorage.getItem("theme")) applyTheme();
-  };
-  mediaQuery.addEventListener("change", handleSystemChange);
-  
-  return () => {
-    window.removeEventListener("theme-change", handleThemeChange);
-    window.removeEventListener('storage', handleStorageChange);
-    mediaQuery.removeEventListener("change", handleSystemChange);
-  };
-}, []); // Empty dependency array to run only once
+    isInitialMount.current = false;
+    
+    const handleThemeChange = () => {
+      applyTheme();
+      setIsDarkMode(prev => {
+        const newMode = localStorage.getItem("theme") === "dark";
+        return newMode;
+      });
+    };
+    
+    window.addEventListener("theme-change", handleThemeChange);
+    
+    const handleStorageChange = (e) => {
+      if (e.key === 'theme') {
+        handleThemeChange();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleSystemChange = () => {
+      if (!localStorage.getItem("theme")) applyTheme();
+    };
+    mediaQuery.addEventListener("change", handleSystemChange);
+    
+    return () => {
+      window.removeEventListener("theme-change", handleThemeChange);
+      window.removeEventListener('storage', handleStorageChange);
+      mediaQuery.removeEventListener("change", handleSystemChange);
+    };
+  }, []);
 
   // Verify authentication and load data - only once
   useEffect(() => {
@@ -1032,11 +1158,12 @@ const Dashboard = () => {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4 mb-8 w-full items-stretch transition-colors duration-300">
-        {/* Revenue Card */}
+        {/* Revenue Card - Fixed X-axis labels */}
         <div
           className="rounded-[24px] p-7 flex flex-col justify-between w-full lg:w-1/3"
           style={{
-            height: "300px",
+            height: "auto",
+            minHeight: "300px",
             fontFamily: "sans-serif",
             color: "white",
             ...(isDarkMode
@@ -1073,101 +1200,12 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="relative h-32 w-full mt-4 flex items-end">
-            {revenueChartData.data.length > 0 && (
-              <>
-                <div className="absolute right-0 h-full flex flex-col justify-between text-[10px] font-bold py-1 text-white/50">
-                  {(() => {
-                    const maxVal = Math.max(...revenueChartData.data, 100);
-                    return (
-                      <>
-                        <span>{Math.round(maxVal)}k</span>
-                        <span>{Math.round(maxVal * 0.8)}k</span>
-                        <span>{Math.round(maxVal * 0.6)}k</span>
-                        <span>{Math.round(maxVal * 0.4)}k</span>
-                        <span>{Math.round(maxVal * 0.2)}k</span>
-                        <span>0</span>
-                      </>
-                    );
-                  })()}
-                </div>
-                {/* Fixed SVG viewBox for cross-browser compatibility */}
-                <svg viewBox="0 0 400 100" preserveAspectRatio="none" className="w-[92%] h-full" style={{ minWidth: "0", flexShrink: 0 }}>
-                  {[0, 20, 40, 60, 80].map((line) => (
-                    <line key={line} x1="0" y1={line} x2="400" y2={line} stroke="white" opacity="0.15" />
-                  ))}
-                  {(() => {
-                    const chartData = revenueChartData.data.map((v) =>
-                      Number.isFinite(Number(v)) ? Number(v) : 0
-                    );
-
-                    const maxVal = Math.max(...chartData, 1);
-
-                    const points = chartData.map((value, i) => {
-                      const x =
-                        chartData.length === 1
-                          ? 0
-                          : (i / (chartData.length - 1)) * 400;
-
-                      const y = 100 - (value / maxVal) * 70;
-
-                      return `${x},${y}`;
-                    });
-
-                    const linePath = `M${points.join(" L")}`;
-                    const areaPath = `${linePath} L400,100 L0,100 Z`;
-
-                    return (
-                      <>
-                        <path
-                          d={areaPath}
-                          fill={
-                            isDarkMode
-                              ? "rgba(255,255,255,0.08)"
-                              : "rgba(101, 5, 228, 0.15)"
-                          }
-                        />
-
-                        <path
-                          d={linePath}
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          vectorEffect="non-scaling-stroke"
-                        />
-
-                        {chartData.map((value, i) => {
-                          const x =
-                            chartData.length === 1
-                              ? 0
-                              : (i / (chartData.length - 1)) * 400;
-
-                          const y = 100 - (value / maxVal) * 70;
-
-                          return (
-                            <circle
-                              key={i}
-                              cx={x}
-                              cy={y}
-                              r="2.5"
-                              fill="white"
-                            />
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-                </svg>
-              </>
-            )}
-          </div>
-          <div className="flex justify-between w-[92%] text-[9px] font-bold uppercase mt-4 text-white/60">
-  {revenueChartData.labels.map((m, i) => (
-    <div key={i} style={{ flexShrink: 0, whiteSpace: 'nowrap' }}>{m}</div>
-  ))}
-</div>
+          {/* Revenue Chart with fixed X-axis labels */}
+          <RevenueChart 
+            data={revenueChartData.data}
+            labels={revenueChartData.labels}
+            isDarkMode={isDarkMode}
+          />
         </div>
 
         {/* Project Status Card */}
@@ -1506,8 +1544,8 @@ const Dashboard = () => {
                           borderBottom: i === paginatedActiveProjects.length - 1
                             ? "none"
                             : isDarkMode
-                              ? "1px solid #374151"   // darker gray for dark mode
-                              : "1px solid #9ca3af",   // darker gray for light mode
+                              ? "1px solid #374151"
+                              : "1px solid #9ca3af",
                           transition: "all 0.15s ease"
                         }}
                         className={`transition-all duration-150 ${isDarkMode
@@ -1811,6 +1849,7 @@ const Dashboard = () => {
       </div>
     </>
   );
+
   return (
     <div className={`h-screen flex overflow-hidden ${isDarkMode ? "bg-black text-white" : "bg-gray-100 text-black"}`}>
       {/* Sidebar */}

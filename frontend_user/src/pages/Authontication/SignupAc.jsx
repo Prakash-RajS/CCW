@@ -1,3 +1,4 @@
+//src/pages/Authontication/SignupAc.jsx
 import React, { useState, useEffect, useRef } from "react";
 import toast from "../../component/Toast";
 import SignupSideBg from "../../assets/Auth/SignupSideBg.png";
@@ -412,7 +413,7 @@ const SignupAc = () => {
     handleFieldKeyPress(e, passwordInputRef, isPhoneCompleted);
   };
 
-  // Handle password change - FIXED: Removed auto-focus logic
+  // Handle password change
   const handlePasswordChange = (e) => {
     if (!isPhoneCompleted) {
       showSingleToast('info', "Complete Phone First", "Please complete the phone number field first before creating password");
@@ -440,7 +441,7 @@ const SignupAc = () => {
     }
   };
 
-  // Handle password key press for iOS - FIXED: Only move on Enter/Tab
+  // Handle password key press for iOS
   const handlePasswordKeyPress = (e) => {
     // Only move to confirm password field when Enter is pressed AND password is valid
     if (e.key === 'Enter') {
@@ -676,50 +677,40 @@ const SignupAc = () => {
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#D9D9D9]">
       <style>{`
-  /* Safari and iOS specific password field fixes */
-  input[type="password"] {
-    -webkit-text-security: disc !important;
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    font-family: monospace !important;
-    letter-spacing: 2px !important;
-  }
-
-  /* Ensure password dots are visible */
-  input[type="password"]::placeholder {
-    font-family: inherit;
-    letter-spacing: normal;
-    color: #00000080;
-  }
-
-  /* Fix for Safari autofill */
-  input:-webkit-autofill,
-  input:-webkit-autofill:hover,
-  input:-webkit-autofill:focus,
-  input:-webkit-autofill:active {
-    -webkit-text-fill-color: #030303 !important;
-  }
-
-  /* Hide autofill icons in Safari */
-  input::-webkit-credentials-auto-fill-button,
-  input::-webkit-caps-lock-indicator {
-    display: none !important;
-    visibility: hidden !important;
-    pointer-events: none !important;
-  }
-
-  /* Ensure password field displays dots when typing */
-  input[type="password"]:focus {
-    outline: none;
-  }
-
-  /* iOS-specific fixes */
-  @media (pointer: coarse) {
-    input, input[type="email"], input[type="tel"], input[type="password"], input[type="text"] {
-      font-size: 16px !important;
-    }
-  }
-`}</style>
+        /*
+          NUCLEAR iOS FIX:
+          Input stays type="text" always — iOS NEVER blocks keyboard for text inputs.
+          Visual dot-masking is done via CSS -webkit-text-security instead of type="password".
+          Works on iOS Safari, Android Chrome, Desktop Chrome/Firefox/Safari — everywhere.
+        */
+        .password-masked {
+          -webkit-text-security: disc !important;
+          text-security: disc !important;
+        }
+        .password-visible {
+          -webkit-text-security: none !important;
+          text-security: none !important;
+        }
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+          -webkit-text-fill-color: #030303 !important;
+          transition: background-color 5000s ease-in-out 0s;
+        }
+        input::-webkit-credentials-auto-fill-button,
+        input::-webkit-caps-lock-indicator,
+        input::-webkit-strong-password-auto-fill-button {
+          display: none !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
+        @media (pointer: coarse) {
+          input { font-size: 16px !important; }
+        }
+        .input-container { pointer-events: auto; touch-action: manipulation; }
+        button { touch-action: manipulation; }
+      `}</style>
       
       <TermsModal
         isOpen={showTermsModal}
@@ -807,7 +798,7 @@ const SignupAc = () => {
                 className={`input-container w-full h-[46px] sm:h-[50px] rounded-[12px] flex items-center px-4 ${emailError ? 'border-2 border-red-500' : ''}`}
                 style={{ background: "#51218F4D" }}
                 onClick={() => {
-                  if (emailInputRef.current && !isLoading && !checkingEmail) {
+                  if (emailInputRef.current && !loading && !checkingEmail) {
                     emailInputRef.current.focus();
                   }
                 }}
@@ -871,7 +862,7 @@ const SignupAc = () => {
               </p>
             </div>
 
-            {/* Password - Enabled only after phone is completed */}
+            {/* Password - type="text" always, CSS masking */}
             <div className="w-full">
               <div className="flex justify-between items-center mb-1">
                 <label className="text-[14px] sm:text-[15px] font-[500] poppins-font text-[#030303]">
@@ -908,7 +899,8 @@ const SignupAc = () => {
               >
                 <input
                   ref={passwordInputRef}
-                  type={showPassword ? "text" : "password"}
+                  type="text"
+                  inputMode="text"
                   required
                   value={password}
                   onChange={handlePasswordChange}
@@ -919,12 +911,8 @@ const SignupAc = () => {
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  style={{
-                    fontSize: '16px',
-                    letterSpacing: showPassword ? 'normal' : '2px',
-                    WebkitTextFillColor: '#030303'
-                  }}
-                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] text-[#030303] placeholder:text-[#03030380] ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
+                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380] ${showPassword ? "password-visible" : "password-masked"} ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
+                  style={{ fontSize: '16px' }}
                 />
               </div>
 
@@ -935,7 +923,7 @@ const SignupAc = () => {
               )}
             </div>
 
-            {/* Confirm Password - Enabled only after password is completed */}
+            {/* Confirm Password - type="text" always, CSS masking */}
             <div className="w-full">
               <div className="flex justify-between items-center mb-1">
                 <label className="text-[14px] sm:text-[15px] font-[500] poppins-font text-[#030303]">
@@ -975,7 +963,8 @@ const SignupAc = () => {
               >
                 <input
                   ref={confirmPasswordInputRef}
-                  type={showConfirmPassword ? "text" : "password"}
+                  type="text"
+                  inputMode="text"
                   required
                   value={confirmPassword}
                   onChange={handleConfirmPasswordChange}
@@ -986,7 +975,7 @@ const SignupAc = () => {
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380] ${loading || !isPasswordCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
+                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380] ${showConfirmPassword ? "password-visible" : "password-masked"} ${loading || !isPasswordCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
                   style={{ fontSize: '16px' }}
                 />
               </div>

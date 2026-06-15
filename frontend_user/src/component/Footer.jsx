@@ -253,7 +253,7 @@ const Footer = () => {
   </div>
   
   {/* DOWNLOAD OUR APP */}
-  <div className="text-right sm:text-right">
+  {/* <div className="text-right sm:text-right">
     <p className="uppercase tracking-[1.5px] sm:tracking-[2px] text-[9px] sm:text-[11px] mb-1.5 sm:mb-2" style={gradientStyle}>
       Download Our App
     </p>
@@ -283,7 +283,7 @@ const Footer = () => {
         </g>
       </svg>
     </div>
-  </div>
+  </div> */}
 </div>
           </div>
         </div>
@@ -470,7 +470,7 @@ const Footer = () => {
                 </div>
               </div>
               {/* DOWNLOAD OUR APP */}
-              <div>
+              {/* <div>
                 <p className="uppercase tracking-[2px] text-[13px] whitespace-nowrap mb-2" style={gradientStyle}>
                   Download Our App
                 </p>
@@ -501,7 +501,7 @@ const Footer = () => {
                   </svg>
                    
                 </div>
-              </div>
+              </div> */}
               
             </div>
           </div>
