@@ -1,0 +1,1112 @@
+
+
+
+#fastapi_app/routes/creator.py
+from typing import Any, Dict, Optional, List
+from django.db.models import Q
+from fastapi import APIRouter, File, Form, HTTPException, Path, Query, Request, UploadFile
+from pydantic import BaseModel
+
+# ✅ DATABASE CONNECTION MANAGEMENT (Import from dbconnection)
+from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
+
+from creator_app.models import Review, SubscriptionHistory, SubscriptionPlan, UserData, CreatorProfile, UserSubscription, UserVerification, Notification
+from creator_app.models import UserData, CollaboratorProfile, JobPost, PortfolioItem
+from pathlib import Path as PathLib
+from asgiref.sync import sync_to_async
+import random
+import string
+from django.core.files.base import ContentFile
+import pycountry
+import pytz
+from django.db.models import Avg, Count
+from datetime import datetime, timedelta
+from timezonefinder import TimezoneFinder
+from fastapi_app.services.notification_service import create_notification
+
+
+router = APIRouter(prefix="/creator", tags=["Creator"])
+
+FASTAPI_BASE_DIR = PathLib(__file__).resolve().parent.parent
+
+
+def generate_random_digits(length=4):
+    """Generate random digits for filename"""
+    return ''.join(random.choices(string.digits, k=length))
+
+def build_full_url(request: Request, path: str | None) -> str | None:
+    """Build full URL from relative path"""
+    if not path:
+        return None
+    if path.startswith('http'):
+        return path
+    base_url = str(request.base_url).rstrip('/')
+    # Remove leading slash if present to avoid double slashes
+    clean_path = path.lstrip('/')
+    return f"{base_url}/media/{clean_path}"
+
+def get_or_create_basic_plan(role: str):
+    """
+    Returns a SubscriptionPlan object for the given role with price=0 and duration='monthly'.
+    Creates it if it doesn't exist.
+    """
+    plan_name = "Basic"
+    duration = "monthly"
+    price = 0.00
+
+    plan, created = SubscriptionPlan.objects.get_or_create(
+        name=plan_name,
+        role=role,
+        duration=duration,
+        defaults={
+            "price": price,
+            "description": f"Free basic plan for {role}s",
+            "is_active": True,
+            "is_popular": False,
+            "limits": {
+                "max_users": 1,
+                "max_upload_storage_gb": 1,
+                "max_proposals": 5,
+                "max_job_posts": 2,
+                "max_invitations": 5,
+                "max_contracts": 1,
+            },
+            "features": [
+                {"title": "Up to 1 project", "description": "Work on one active project", "is_active": True},
+                {"title": "Basic support", "description": "Email support only", "is_active": True},
+            ],
+        }
+    )
+    if created:
+        print(f"✅ Created new Basic plan for {role}")
+    return plan
+# ------------------------------------------------
+# FILTER CREATORS
+# ------------------------------------------------
+@router.get("/search")
+def search_creators(
+    search: Optional[str] = None,
+    niche: Optional[str] = None,
+    creator_type: Optional[str] = None,
+    location: Optional[str] = None,
+    min_followers: Optional[int] = None,
+    max_followers: Optional[int] = None,
+    platforms: Optional[List[str]] = Query(None),
+    experience_level: Optional[str] = None,
+    collaboration_type: Optional[str] = None,
+):
+    # Ensure database connection
+    ensure_db_connection()
+    
+    profiles = CreatorProfile.objects.all()
+
+    # Text search
+    if search:
+        profiles = profiles.filter(
+            # Q(creator_name__icontains=search) |
+            Q(user__full_name__icontains=search) |
+            Q(primary_niche__icontains=search)
+        )
+
+    # Filters
+    if niche:
+        profiles = profiles.filter(primary_niche__iexact=niche)
+
+    if creator_type:
+        profiles = profiles.filter(creator_type__iexact=creator_type)
+
+    if location:
+        profiles = profiles.filter(location__icontains=location)
+
+    if min_followers is not None:
+        profiles = profiles.filter(followers__gte=min_followers)
+
+    if max_followers is not None:
+        profiles = profiles.filter(followers__lte=max_followers)
+
+    if experience_level:
+        profiles = profiles.filter(experience_level__iexact=experience_level)
+
+    if collaboration_type:
+        profiles = profiles.filter(collaboration_type__iexact=collaboration_type)
+
+    # Multi-platform filter (OR logic)
+    if platforms:
+        q = Q()
+        for p in platforms:
+            q |= Q(platforms__icontains=p)
+        profiles = profiles.filter(q)
+
+    return [
+        {
+            "user_id": p.user.id,
+            "email": p.user.email,
+            # "creator_name": p.creator_name,
+            "name": p.user.full_name,
+            "creator_type": p.creator_type,
+            "primary_niche": p.primary_niche,
+            "location": p.location,
+            "followers": p.followers,
+            "platforms": p.platforms,
+            "experience_level": p.experience_level,
+            "collaboration_type": p.collaboration_type,
+            "project_type": p.project_type,
+        }
+        for p in profiles
+    ]
+
+
+@router.post("/save/{user_id}")
+async def save_creator_profile(
+    user_id: int,
+    creator_name: str = Form(...),
+    creator_type: str = Form(...),
+    experience_level: str = Form(...),
+    primary_niche: str = Form(...),
+    secondary_niche: Optional[str] = Form(None),
+    platforms: Optional[str] = Form(None),
+    followers: Optional[int] = Form(None),
+    about: Optional[str] = Form(None),
+    portfolio_category: str = Form(...),
+    collaboration_type: str = Form(...),
+    project_type: str = Form(...),
+    location: Optional[str] = Form(None),
+    portfolio_link: Optional[str] = Form(None),   # ← ADD THIS
+    portfolio_uploads: Optional[UploadFile] = File(None),
+    profile_picture: Optional[UploadFile] = File(None),
+):
+    # Ensure database connection
+    ensure_db_connection()
+    
+    try:
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # ---------------- Profile Picture ----------------
+    if profile_picture:
+        ext = PathLib(profile_picture.filename).suffix
+        filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+        content = await profile_picture.read()
+        await sync_to_async(user.profile_picture.save)(
+            filename,
+            ContentFile(content),
+            save=True
+        )
+
+    # ---------------- Save / Update Creator Profile ----------------
+    defaults = {
+        # "creator_name": creator_name,
+        
+        "creator_type": creator_type,
+        "experience_level": experience_level,
+        "primary_niche": primary_niche,
+        "secondary_niche": secondary_niche,
+        "platforms": platforms,
+        "followers": followers,
+        "about": about,
+        "portfolio_category": portfolio_category,
+        "collaboration_type": collaboration_type,
+        "project_type": project_type,
+        "location": location,
+    }
+
+    profile, _ = await sync_to_async(
+        lambda: CreatorProfile.objects.update_or_create(
+            user=user,
+            defaults=defaults
+        )
+    )()
+
+    # ---------------- SAVE PORTFOLIO INTO PortfolioItem ----------------
+    if portfolio_uploads:
+        ext = PathLib(portfolio_uploads.filename).suffix
+        filename = f"{user_id}_{generate_random_digits()}{ext}"
+        content = await portfolio_uploads.read()
+
+        # Create the item first, then use .file.save() so Django's
+        # upload_to path is respected and storage tracking can work.
+        portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
+            user=user,
+            role="creator",
+            title=portfolio_category or "Portfolio",
+            media_link=portfolio_link.strip() if portfolio_link else None,
+        )
+        await sync_to_async(portfolio_item.file.save)(
+            filename,
+            ContentFile(content),
+            save=True,
+        )
+    elif portfolio_link and portfolio_link.strip():
+        # No file uploaded but a link was provided — store the link alone.
+        await sync_to_async(PortfolioItem.objects.create)(
+            user=user,
+            role="creator",
+            title=portfolio_category or "Portfolio",
+            media_link=portfolio_link.strip(),
+        )
+    # ---------------- Update user role ----------------
+    user.role = "creator"
+    user.full_name = creator_name 
+    await sync_to_async(user.save)()
+
+    # Ensure Basic plan exists for creator role
+    basic_plan = await sync_to_async(get_or_create_basic_plan)("creator")
+
+    # Create a UserSubscription only if the user doesn't have one yet
+    subscription_exists = await sync_to_async(
+        lambda: UserSubscription.objects.filter(user=user).exists()
+    )()
+    if not subscription_exists:
+        now = datetime.now()
+        subscription = await sync_to_async(UserSubscription.objects.create)(
+            user=user,
+            email=user.email or "",
+            current_plan=basic_plan.name,
+            plan_name=basic_plan.name,
+            duration=basic_plan.duration.capitalize(),  # "Monthly"
+            plan_price=basic_plan.price,
+            plan_start_date=now,
+            plan_end_date=now + timedelta(days=365*100),   # Never expires (100 years)
+            renewal_date=now + timedelta(days=365*100),
+            status="active",
+            is_trial=False,
+        )
+        print(f"✅ Created Basic subscription for creator {user.email}")
+
+        # ─── CREATE SUBSCRIPTION HISTORY ────────────────────────────────
+        await sync_to_async(SubscriptionHistory.objects.create)(
+            user=user,
+            email=user.email or "",
+            plan_name=basic_plan.name,
+            duration=basic_plan.duration,
+            plan_price=basic_plan.price,
+            start_date=now,
+            end_date=subscription.plan_end_date,
+            status="active",
+            action="created",
+            plan_id=basic_plan.id,
+            stripe_subscription_id=subscription.stripe_subscription_id,
+        )
+        print(f"✅ Subscription history created for creator {user.email}")
+    return {
+        "message": "Creator profile saved successfully"
+    }
+
+
+# ------------------------------------------------
+# Get Creator Profile by USER ID
+# ------------------------------------------------
+
+tf = TimezoneFinder()
+
+def get_country_code(country_name: str | None):
+    if not country_name:
+        return None
+    try:
+        country = pycountry.countries.search_fuzzy(country_name)[0]
+        return country.alpha_2
+    except Exception:
+        return None
+
+
+def get_local_time_from_country(country_name: str | None):
+    """
+    Returns formatted local time like: 7:45 PM
+    """
+    if not country_name:
+        return None
+
+    try:
+        code = get_country_code(country_name)
+        if not code:
+            return None
+
+        timezones = pytz.country_timezones.get(code)
+        if not timezones:
+            return None
+
+        tz = pytz.timezone(timezones[0])
+        now = datetime.now(tz)
+
+        return now.strftime("%I:%M %p").lstrip("0")
+
+    except Exception:
+        return None
+
+
+@router.get("/get/{user_id}")
+def get_creator_profile(user_id: int, request: Request):
+    # Ensure database connection
+    ensure_db_connection()
+
+    try:
+        user = UserData.objects.get(id=user_id)
+
+        try:
+            profile = CreatorProfile.objects.get(user=user)
+        except CreatorProfile.DoesNotExist:
+            profile = None
+
+        # Get country code from profile location (country)
+        country_code = get_country_code(profile.location if profile else None)
+        local_time = get_local_time_from_country(profile.location if profile else None)
+        verification = UserVerification.objects.filter(user=user).first()
+
+        phone_verified = verification.phone_verified if verification else False
+        email_verified = verification.email_verified if verification else False
+
+        review_stats = Review.objects.filter(recipient=user).aggregate(
+            avg_rating=Avg("rating"),
+            total_reviews=Count("id")
+        )
+
+        avg_rating = round(review_stats["avg_rating"] or 0, 1)
+        total_reviews = review_stats["total_reviews"] or 0
+
+        return {
+            "user_id": user_id,
+            "email": user.email,
+            "full_name": user.full_name or "",
+            "profile_picture": f"{request.base_url}media/{user.profile_picture.name}" if user.profile_picture else None,
+            "state": profile.state if profile else "",
+            "country_code": country_code,
+            "local_time": local_time,
+            "country": profile.location if profile else "",
+            "about": profile.about if profile else "",
+            "creator_type": profile.creator_type if profile else "",
+            "primary_niche": profile.primary_niche if profile else "",
+            "experience_level": profile.experience_level if profile else "",
+            "joined_date": profile.created_at.strftime("%B %d, %Y") if profile and profile.created_at else "Joined December 5, 2020",
+            "skills_required": profile.skills_required if profile else [],
+            "phone_verified": phone_verified,
+            "phone_number": user.phone_number or "",
+            "email_verified": email_verified,
+            "rating": avg_rating,
+            "reviews_count": total_reviews,
+        }
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+
+@router.put("/edit/{user_id}")
+async def edit_creator_profile(
+    user_id: int,
+    full_name: Optional[str] = Form(None),
+    phone_number: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),  # ADD THIS LINE
+    about: Optional[str] = Form(None),
+    state: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
+    profile_picture: Optional[UploadFile] = File(None),
+):
+    # Ensure database connection
+    ensure_db_connection()
+    
+    # ---------------- FETCH USER ----------------
+    try:
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # ---------------- UPDATE FULL NAME ----------------
+    if full_name is not None:
+        user.full_name = full_name.strip()
+
+    # ---------------- UPDATE PHONE NUMBER ----------------
+    if phone_number is not None:
+        user.phone_number = phone_number
+
+    # ---------------- UPDATE EMAIL (with validation) ----------------
+    if email is not None and email.strip():
+        email_clean = email.strip().lower()
+        
+        # Check if email already exists for another user
+        email_exists = await sync_to_async(
+            lambda: UserData.objects.filter(email=email_clean).exclude(id=user_id).exists()
+        )()
+        
+        if email_exists:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, email_clean):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        user.email = email_clean
+
+    # ---------------- PROFILE PICTURE ----------------
+    if profile_picture:
+        # Delete old image ONLY if it's a local file (not an external URL)
+        if user.profile_picture:
+            old_picture_name = user.profile_picture.name
+            # Check if it's a local file path (not starting with http:// or https://)
+            if old_picture_name and not (old_picture_name.startswith('http://') or old_picture_name.startswith('https://')):
+                try:
+                    await sync_to_async(user.profile_picture.delete)(save=False)
+                except Exception as e:
+                    # Log error but continue - don't fail the whole operation
+                    print(f"Warning: Could not delete old profile picture: {e}")
+
+        ext = PathLib(profile_picture.filename).suffix
+        filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+        content = await profile_picture.read()
+        await sync_to_async(user.profile_picture.save)(
+            filename,
+            ContentFile(content),
+            save=False
+        )
+
+    # ---------------- SAVE USER ----------------
+    await sync_to_async(user.save)()
+    
+    # ---------------- GET OR CREATE CREATOR PROFILE ----------------
+    profile = await sync_to_async(
+        lambda: CreatorProfile.objects.filter(user=user).first()
+    )()
+    
+    if not profile:
+        # Create profile if it doesn't exist
+        profile = await sync_to_async(CreatorProfile.objects.create)(
+            user=user,
+            creator_name=user.full_name or "",
+            creator_type="",
+            experience_level="",
+            primary_niche="",
+            portfolio_category="",
+            collaboration_type="",
+            project_type=""
+        )
+    
+    # ---------------- UPDATE PROFILE FIELDS ----------------
+    if about is not None:
+        profile.about = about
+    
+    if state is not None:
+        profile.state = state
+    
+    if country is not None:
+        profile.location = country  # Using location field for country
+    
+    await sync_to_async(profile.save)()
+    
+    # ---------------- CREATE NOTIFICATION ----------------
+    await sync_to_async(create_notification)(
+        user=user,
+        notification_type="profile_updated",
+        title="Profile Updated",
+        message="Your creator profile has been updated successfully.",
+        url="/creator-edit-profile"
+    )
+
+    # ---------------- RESPONSE ----------------
+    return {
+        "status": "success",
+        "message": "Profile updated successfully"
+    }
+
+# ------------------------------------------------
+# List All Creators
+# ------------------------------------------------
+@router.get("/list")
+def list_creators():
+    # Ensure database connection
+    ensure_db_connection()
+    
+    profiles = CreatorProfile.objects.all()
+
+    return [
+        {
+            "user_id": p.user.id,
+            "email": p.user.email,
+            # "creator_name": p.creator_name,
+            "name": p.user.full_name,
+            "creator_type": p.creator_type,
+            "primary_niche": p.primary_niche,
+            "location": p.location,
+            "followers": p.followers,
+        }
+        for p in profiles
+    ]
+
+
+# ------------------------------------------------
+# Delete Creator Profile by USER ID
+# ------------------------------------------------
+@router.delete("/delete/{user_id}")
+def delete_creator_profile(user_id: int):
+    # Ensure database connection
+    ensure_db_connection()
+    
+    try:
+        user = UserData.objects.get(id=user_id)
+        CreatorProfile.objects.get(user=user).delete()
+    except (UserData.DoesNotExist, CreatorProfile.DoesNotExist):
+        raise HTTPException(status_code=404, detail="Creator profile not found")
+
+    return {"message": "Creator profile deleted"}
+
+
+
+# ------------------------------------------------
+# BEST MATCH COLLABORATORS (For Creator Dashboard)
+# ------------------------------------------------
+@router.get("/collaborators/best-match/{user_id}")
+def get_best_match_collaborators(user_id: int, request: Request):
+    """Get best match collaborators with scoring"""
+    ensure_db_connection()
+
+    try:
+        user = UserData.objects.get(id=user_id)
+
+        active_jobs = JobPost.objects.filter(employer=user, status="posted")
+
+        needed_skills = set()
+
+        # Collect required skills from active jobs
+        for job in active_jobs:
+            if job.skills:
+                if isinstance(job.skills, list):
+                    for skill in job.skills:
+                        needed_skills.add(skill.lower().strip())
+                elif isinstance(job.skills, str):
+                    # Handle string format
+                    try:
+                        import json
+                        skills_list = json.loads(job.skills)
+                        for skill in skills_list:
+                            needed_skills.add(skill.lower().strip())
+                    except:
+                        # Split by comma if not JSON
+                        for skill in job.skills.split(','):
+                            needed_skills.add(skill.lower().strip())
+
+            if job.title:
+                needed_skills.add(job.title.lower().strip())
+
+        if not needed_skills:
+            # Return empty list if no skills needed
+            return []
+
+        all_collaborators = CollaboratorProfile.objects.select_related("user").all()
+
+        scored_results = []
+
+        for collab in all_collaborators:
+            score = 0
+
+            # Parse skills properly
+            collab_skills = set()
+            if collab.skills:
+                if isinstance(collab.skills, list):
+                    collab_skills = set([s.lower().strip() for s in collab.skills])
+                elif isinstance(collab.skills, str):
+                    try:
+                        import json
+                        skills_list = json.loads(collab.skills)
+                        collab_skills = set([s.lower().strip() for s in skills_list])
+                    except:
+                        collab_skills = set([s.lower().strip() for s in collab.skills.split(',') if s.strip()])
+
+            collab_category = (collab.skill_category or "").lower()
+
+            # Skill Matching
+            for req in needed_skills:
+                if req in collab_skills:
+                    score += 20
+                elif any(req in skill or skill in req for skill in collab_skills):
+                    score += 10
+                elif req in collab_category:
+                    score += 5
+
+            # Experience Boost
+            if collab.experience:
+                exp_lower = collab.experience.lower()
+                if "expert" in exp_lower or "senior" in exp_lower or "experienced" in exp_lower:
+                    score += 10
+                elif "medium" in exp_lower or "intermediate" in exp_lower:
+                    score += 5
+                elif "beginner" in exp_lower:
+                    score += 2
+
+            # Followers Boost
+            if collab.followers:
+                if collab.followers > 10000:
+                    score += 10
+                elif collab.followers > 1000:
+                    score += 5
+                elif collab.followers > 100:
+                    score += 2
+
+            review_rating = getattr(collab, 'rating', 0)
+
+            skill_rating = (
+                float(collab.skills_rating)
+                if collab.skills_rating is not None
+                else 0
+)
+
+            if score > 0:
+                # BASE URL
+                base_url = str(request.base_url).rstrip('/')
+
+                # ========== FIXED: Proper pricing formatting ==========
+                hourly_rate = None
+                formatted_rate = "Rate not specified"
+                pricing_type_display = "hourly"
+
+                if collab.pricing_amount:
+                    amount = float(collab.pricing_amount)
+                    # Get pricing_type from database
+                    pricing_type = getattr(collab, 'pricing_type', None)
+                    if not pricing_type:
+                        pricing_type = getattr(collab, 'pricing_unit', 'hourly')
+
+                    pricing_type_display = pricing_type
+
+                    # Format based on pricing type
+                    if pricing_type in ['hourly', 'hour', 'hr']:
+                        formatted_rate = f"₹{amount:.2f}/hr"
+                        hourly_rate = amount
+                    elif pricing_type in ['daily', 'day']:
+                        formatted_rate = f"₹{amount:.2f}/day"
+                        hourly_rate = amount / 8
+                    elif pricing_type in ['weekly', 'week']:
+                        formatted_rate = f"₹{amount:.2f}/week"
+                        hourly_rate = amount / 40
+                    elif pricing_type in ['monthly', 'month']:
+                        formatted_rate = f"₹{amount:.2f}/month"
+                        hourly_rate = amount / 160
+                    elif pricing_type == 'project':
+                        formatted_rate = f"₹{amount:.2f}/project"
+                        hourly_rate = amount
+                    else:
+                        # Default to hourly if unknown
+                        formatted_rate = f"₹{amount:.2f}/hr"
+                        hourly_rate = amount
+                        pricing_type_display = 'hourly'
+                else:
+                    hourly_rate = 20
+                    formatted_rate = "₹20.00/hr"
+                    pricing_type_display = "hourly"
+
+                # Get the correct name from user.full_name
+                collaborator_name = "Collaborator"
+                if collab.user:
+                    if collab.user.full_name:
+                        collaborator_name = collab.user.full_name
+                    elif collab.user.name:
+                        collaborator_name = collab.user.name
+                    else:
+                        collaborator_name = collab.user.email.split('@')[0] if collab.user.email else "Collaborator"
+
+                # Handle profile picture URL
+                profile_picture_url = None
+                if collab.user and collab.user.profile_picture:
+                    profile_pic = str(collab.user.profile_picture)
+                    if profile_pic.startswith(('http://', 'https://')):
+                        profile_picture_url = profile_pic
+                    else:
+                        profile_picture_url = f"{base_url}/media/{profile_pic.lstrip('/')}"
+
+                scored_results.append({
+                    "user_id": collab.user.id if collab.user else None,
+                    "id": collab.user.id if collab.user else None,  # Add id for frontend
+                    "name": collaborator_name,
+                    "full_name": collaborator_name,
+                    "skill_category": collab.skill_category,
+                    "skills": collab.skills,
+                    "job_title": collab.skill_category or "Professional",  # Add job_title
+                    "match_score": score,
+                    # CRITICAL: Add pricing fields with correct formatting
+                    "pricing_amount": collab.pricing_amount,
+                    "pricing_type": pricing_type_display,  # Added pricing_type
+                    "pricing_unit": collab.pricing_unit,
+                    "formatted_rate": formatted_rate,  # Added formatted_rate
+                    "hourly_rate": hourly_rate,
+                    "location": collab.location,
+                    "experience": collab.experience,
+                    "followers": collab.followers,
+                    "about": collab.about or "No description available.",
+                    "portfolio_link": collab.portfolio_link,
+                    "country_code": get_country_code(collab.location),
+                    # ⭐ Review Rating
+                    "rating": review_rating,
+                    "ratingValue": review_rating,
+
+                    # 🎯 Skill Rating
+                    "skill_rating": skill_rating,
+                    "skills_rating": skill_rating,
+                    "reviews_count": getattr(collab, 'reviews_count', 0),
+                    "reviewsCount": getattr(collab, 'reviews_count', 0),  # Add for frontend
+                    "total_earnings": getattr(collab, 'total_earnings', 0),
+                    "is_online": getattr(collab, 'is_online', True),
+                    "profile_picture": profile_picture_url,
+                    "badge": getattr(collab, 'badge', None),
+                })
+
+        # Sort by score descending
+        scored_results.sort(key=lambda x: x["match_score"], reverse=True)
+
+        return scored_results
+
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+    except Exception as e:
+        print(f"Error in get_best_match_collaborators: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+ 
+
+
+@router.get("/review-stats/{user_id}")
+async def get_review_stats(user_id: int):
+    ensure_db_connection()   # ← already present, good
+    
+    try:
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    stats = await sync_to_async(
+        lambda: Review.objects.filter(recipient=user_id).aggregate(
+            avg_rating=Avg("rating"),
+            total_reviews=Count("id")
+        )
+    )()
+
+    avg_rating = round(stats["avg_rating"] or 0, 1)
+    total_reviews = stats["total_reviews"] or 0
+
+    return {
+        "avg_rating": avg_rating,
+        "total_reviews": total_reviews
+    }
+
+
+@router.get("/review-latest/{user_id}")
+async def get_latest_reviews(user_id: int, request: Request):
+    # Ensure database connection
+    ensure_db_connection()
+    
+    try:
+        recipient = await sync_to_async(UserData.objects.get)(id=user_id)
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Get latest 3 reviews instead of 2
+    reviews = await sync_to_async(list)(
+        Review.objects.filter(recipient=recipient)
+        .select_related("reviewer")
+        .order_by("-created_at")[:3]  # Changed to 3
+    )
+
+    results = []
+    for r in reviews:
+        reviewer = r.reviewer
+        
+        # Get collaborator profile if exists
+        collaborator_profile = await sync_to_async(
+            lambda: CollaboratorProfile.objects.filter(user=reviewer).first()
+        )()
+        
+        # Get creator profile if exists (for role)
+        creator_profile = await sync_to_async(
+            lambda: CreatorProfile.objects.filter(user=reviewer).first()
+        )()
+        
+        role = ""
+        if collaborator_profile and collaborator_profile.skill_category:
+            role = collaborator_profile.skill_category
+        elif creator_profile and creator_profile.creator_type:
+            role = creator_profile.creator_type
+        
+        # Handle profile picture
+        profile_pic_url = None
+        if reviewer.profile_picture:
+            profile_pic_url = build_full_url(request, reviewer.profile_picture.name)
+        
+        results.append({
+            "id": r.id,
+            "rating": r.rating,
+            "comment": r.comment or "",
+            "reviewer_name": (
+                reviewer.full_name.strip() if reviewer.full_name else reviewer.email.split('@')[0]
+            ),
+            "reviewer_role": role,
+            "reviewer_profile_picture": profile_pic_url,
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        })
+
+    # Return as array directly (not wrapped in {"reviews": results})
+    return results
+
+@router.get("/profile-completion/{user_id}")
+async def get_creator_profile_completion(user_id: int) -> Dict[str, Any]:
+
+    try:
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        profile = await sync_to_async(CreatorProfile.objects.get)(user=user)
+    except CreatorProfile.DoesNotExist:
+        profile = None
+
+    # portfolio items
+    portfolio_items = await sync_to_async(list)(
+        PortfolioItem.objects.filter(user=user, role="creator")
+    )
+
+    completed = 0
+    total = 10
+    missing_fields = []
+
+    # 1 profile picture
+    if user.profile_picture:
+        completed += 1
+    else:
+        missing_fields.append("profile_picture")
+
+    ## 2 full name
+    if user.full_name:
+      completed += 2   # replaces first + last
+    else:
+        missing_fields.append("full_name")
+    
+    
+    
+    
+    # 4 bio/about
+    if profile and profile.about:
+        completed += 1
+    else:
+        missing_fields.append("about")
+
+    # 5 primary niche
+    if profile and profile.primary_niche:
+        completed += 1
+    else:
+        missing_fields.append("primary_niche")
+
+    # 6 location
+    if profile and profile.location:
+        completed += 1
+    else:
+        missing_fields.append("location")
+
+    # 7 title
+    if profile and profile.creator_name:
+        completed += 1
+    else:
+        missing_fields.append("title")
+
+    # 8 phone verification
+    if getattr(user, "phone_verified", False):
+        completed += 1
+    else:
+        missing_fields.append("phone_verification")
+
+    # 9 email verification
+    if getattr(user, "email_verified", False):
+        completed += 1
+    else:
+        missing_fields.append("email_verification")
+
+    # 10 portfolio
+    if len(portfolio_items) > 0:
+        completed += 1
+    else:
+        missing_fields.append("portfolio")
+
+    completion_percentage = round((completed / total) * 100)
+
+    return {
+        "user_id": user_id,
+        "completion": completion_percentage,
+        "completed_fields": completed,
+        "total_fields": total,
+        "missing_fields": missing_fields
+    }
+
+class SkillsUpdateRequest(BaseModel):
+    skills_required: List[str]
+
+@router.put("/update-skills/{user_id}")
+async def update_creator_skills(
+    user_id: int,
+    request: SkillsUpdateRequest
+):
+    """
+    Update creator's required skills
+    """
+
+    ensure_db_connection()
+
+    try:
+        # GET USER
+        user = await sync_to_async(UserData.objects.get)(
+            id=user_id
+        )
+
+        print(f"✅ User found: {user.email}")
+
+        # GET OR CREATE PROFILE
+        try:
+            profile = await sync_to_async(
+                CreatorProfile.objects.get
+            )(user=user)
+
+            print("✅ Existing creator profile found")
+
+        except CreatorProfile.DoesNotExist:
+
+            profile = await sync_to_async(
+                CreatorProfile.objects.create
+            )(
+                user=user,
+                creator_name=user.full_name or "",
+                creator_type="",
+                experience_level="",
+                primary_niche="",
+                portfolio_category="",
+                collaboration_type="",
+                project_type="",
+                skills_required=request.skills_required
+            )
+
+            print("✅ New creator profile created")
+
+            # CREATE NOTIFICATION
+            try:
+                await sync_to_async(create_notification)(
+                    user=user,
+                    notification_type="skills",
+                    title="Skills Updated",
+                    message="Your skills have been updated successfully.",
+                    url="/creator-edit-profile"
+                )
+
+                print(
+                    f"✅ Skills notification created for {user.email}"
+                )
+
+            except Exception as notification_error:
+
+                print(
+                    f"❌ Skills notification error: {notification_error}"
+                )
+
+            return {
+                "status": "success",
+                "message": "Skills updated successfully",
+                "skills": request.skills_required
+            }
+
+        # UPDATE SKILLS
+        profile.skills_required = request.skills_required
+
+        await sync_to_async(profile.save)()
+
+        print(f"✅ Skills updated for {user.email}")
+
+        # CREATE NOTIFICATION
+        try:
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="skills",
+                title="Skills Updated",
+                message="Your skills have been updated successfully.",
+                url="/creator-edit-profile"
+            )
+
+            print(
+                f"✅ Skills notification created for {user.email}"
+            )
+
+        except Exception as notification_error:
+
+            print(
+                f"❌ Skills notification error: {notification_error}"
+            )
+
+        return {
+            "status": "success",
+            "message": "Skills updated successfully",
+            "skills": request.skills_required
+        }
+
+    except UserData.DoesNotExist:
+
+        print(f"❌ User not found: {user_id}")
+
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    except Exception as e:
+
+        print(f"❌ UPDATE SKILLS ERROR: {str(e)}")
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+    
+@router.get("/reviews/{user_id}")
+async def get_all_reviews(user_id: int, request: Request):
+    """Get all reviews for a user (for View All popup)"""
+    ensure_db_connection()
+    
+    try:
+        recipient = await sync_to_async(UserData.objects.get)(id=user_id)
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    reviews = await sync_to_async(list)(
+        Review.objects.filter(recipient=recipient)
+        .select_related("reviewer")
+        .order_by("-created_at")
+    )
+
+    results = []
+    for r in reviews:
+        reviewer = r.reviewer
+        
+        collaborator_profile = await sync_to_async(
+            lambda: CollaboratorProfile.objects.filter(user=reviewer).first()
+        )()
+        
+        creator_profile = await sync_to_async(
+            lambda: CreatorProfile.objects.filter(user=reviewer).first()
+        )()
+        
+        role = ""
+        if collaborator_profile and collaborator_profile.skill_category:
+            role = collaborator_profile.skill_category
+        elif creator_profile and creator_profile.creator_type:
+            role = creator_profile.creator_type
+        
+        profile_pic_url = None
+        if reviewer.profile_picture:
+            profile_pic_url = build_full_url(request, reviewer.profile_picture.name)
+        
+        results.append({
+            "id": r.id,
+            "rating": r.rating,
+            "comment": r.comment or "",
+            "reviewer_name": (
+                reviewer.full_name.strip() if reviewer.full_name else reviewer.email.split('@')[0]
+            ),
+            "reviewer_role": role,
+            "reviewer_profile_picture": profile_pic_url,
+            "created_at": r.created_at.isoformat() if r.created_at else None
+        })
+
+    return results

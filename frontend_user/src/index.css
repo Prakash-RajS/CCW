@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+
+/* Chrome, Safari, Edge, Opera */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+.no-spinner {
+  -moz-appearance: textfield;
+}
+
+button {
+  cursor: pointer;
+}
+
+
+/* Remove browser autofill white background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: 0 0 0 1000px transparent inset !important;
+
+  -webkit-text-fill-color: #030303 !important;
+  caret-color: #030303 !important;
+
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Hide Edge default password reveal icon */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
+/* Hide Chrome/Safari autofill and password icons */
+input::-webkit-credentials-auto-fill-button,
+input::-webkit-password-toggle-button {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Hide Firefox native password reveal button */
+input[type="password"]::-webkit-textfield-decoration-container {
+  display: none;
+}

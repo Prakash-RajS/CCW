@@ -1,0 +1,49 @@
+Akash and Sandeep : 
+Bug-signup -Bug-031-Verify that the signup page should not accept non-Gmail email IDs.
+BUG_mobile_testing_My_Profile page- Header options is not fixed at the top of the page
+BUG_mobile_testing_My_Profile page- UI Design issue in Add portfolio
+Bug-Before Signup Bug-027-Verify Forgot Password on Signup Page
+Bug-Beforesignup-Bug-011 - Verify visibility of footer links on Before  Signup page at 100% zoom
+Bug _Footer Section _Bug-030Verify “For Creator” and “For Collaborator” links functionality in Footer section
+Bug-Footer-Bug-031Verify Email field displays correct email format in Footer section
+BUG_ mobile testing_ Collaborator My Profile  _ Content is shifted to left and empty space is visible on right side.
+BUG_mobile_testing_My_Profile page- Header options is not fixed at the top of the page
+BUG_mobile_testing_My_Profile page- UI Design issue in Add portfolio
+BUG_ mobile testing_ Creator My Profile  _ Header, profile text, notification and messages are overlapping when scrolling in mobile view
+BUG_ mobile testing_ Collaborator My Profile  _ When click on Hamburger menu icon, it is overlapped by profile content
+Bug-Footer Homepage Mobile Version-Bug-033-Verify “Assign a Complete Project” Text Overflow
+BUG_Mobile_testing_HomePage- pop-up message repeating
+
+
+Re-opened : (Deepakrajan)
+Bug_Admin_Dashboard_BUG_001_User is not updating automatically
+Bug_Admin_Dashboard_BUG_003_Complete projects are not showing
+Bug_ Collaborator My Profile _Bug_004_OTP did not received to given number 
+
+
+Re-opened : (Sravan)
+BUG_UserPanel_MyProfile page- Numbers alone should not accept in Profile Name 
+BUG_UserPanel_Homepage- Pop up message should display after searched job
+
+Re-opened : (Prakash Raj)
+Bug-Beforesignup-Bug-004_Continue with Terms of Use not redirecting to Respective Page
+Bug-Beforesignup -Bug-005_Continue with Privacy Use Not redirecting to respective page
+Bug-Beforesignup- Bug-006_Continue With Cookie Use Not redirecting to Respective page
+Bug_Homepage _Bug-024_Description of the top skill category shows diffrent Language
+BUG_UserPanel_Home page-Button fault in Footer section
+BUG_UserPanel_Home_page- Social media connect is not working
+Bug-signup-Bug-032-Verify that the system should not proceed to verification when an invalid email is entered.
+BUG_Admin_Settings page-Show password (Eye button) is not present
+
+
+New :
+BUG_User panel_Financials_BUG_003_Back button is not working in the stripe 
+Bug_ Creator My Profile _ After clicking Unread message in notification page, its not move to read
+Bug_ Collaborator My Profile _Bug 47_ After clicking the mark all read button, the unread notification not move to read.
+Bug_ Collaborator My Profile _Bug 48_ The experience field not accepting numbers after entering numbers it displayed validation like "Only alphabets and spaces are allowed"
+
+IDFB0040101
+
+
+
+
