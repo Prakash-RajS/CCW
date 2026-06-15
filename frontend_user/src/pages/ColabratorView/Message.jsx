@@ -1,3 +1,4 @@
+// message.jsx - Complete Fixed Version with Scroll Fix
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import EmojiPicker from 'emoji-picker-react';
@@ -6,15 +7,13 @@ import { useUser } from "../../contexts/UserContext";
 import { useNotification } from "../../contexts/NotificationContext";
 import toast from "../../component/Toast";
 
-
 import User1 from "../../assets/myproject/user1.png";
 import User2 from "../../assets/myproject/user2.png";
 import User3 from "../../assets/myproject/user3.png";
 import User4 from "../../assets/myproject/user4.png";
 import User5 from "../../assets/myproject/user5.png";
 
-import { CallButton, CallWindow } from "./CallComponents";
-
+import { CallButton, CallWindow, IncomingCallNotification } from "./CallComponents";
 
 /* ----------------------------------
    TEMP UI AVATARS
@@ -24,14 +23,110 @@ const avatarPool = [User1, User2, User3, User4, User5];
 /* ----------------------------------
    QUICK REACTIONS
 ---------------------------------- */
-const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+const DEFAULT_QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢"];
 
 /* ----------------------------------
-   CHAT HEADER ACTIONS COMPONENT (MOVED OUTSIDE)
+   QUICK REACTIONS BAR WITH CUSTOM EMOJIS
+---------------------------------- */
+const QuickReactionsBar = ({ onReact, customReactions, onAddCustomEmoji, onRemoveCustomEmoji, onClose }) => {
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        setShowPicker(false);
+      }
+    };
+    if (showPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showPicker]);
+
+  const allReactions = [...DEFAULT_QUICK_REACTIONS, ...customReactions].slice(0, 5);
+
+  const handleReactAndClose = (emoji) => {
+    onReact(emoji);
+    setTimeout(() => {
+      if (onClose) onClose();
+    }, 100);
+  };
+
+  return (
+    <div className="flex items-center justify-start px-2 py-2 bg-gray-50/80 border-b border-gray-100 gap-1">
+      {allReactions.map((emoji, idx) => (
+        <button
+          key={`${emoji}-${idx}`}
+          onClick={() => handleReactAndClose(emoji)}
+          className="text-lg hover:scale-125 transition-all duration-200 active:scale-95 p-1.5 rounded-lg hover:bg-gray-200 flex-shrink-0 relative group"
+          title={`React with ${emoji}`}
+        >
+          {emoji}
+          {customReactions.includes(emoji) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveCustomEmoji(emoji);
+              }}
+              className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3 h-3 text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              ×
+            </button>
+          )}
+        </button>
+      ))}
+      
+      {allReactions.length < 5 && (
+        <div className="relative" ref={pickerRef}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowPicker(!showPicker);
+            }}
+            className="text-lg hover:scale-125 transition-all duration-200 active:scale-95 p-1.5 rounded-lg hover:bg-gray-200 flex-shrink-0 w-8 h-8 flex items-center justify-center"
+            title="Add custom emoji"
+          >
+            ➕
+          </button>
+          
+          {showPicker && (
+            <div 
+              className="absolute bottom-full mb-2 left-0 z-50 animate-in fade-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-white rounded-xl shadow-2xl border border-gray-200 p-2">
+                <EmojiPicker
+                  onEmojiClick={(emojiData) => {
+                    onAddCustomEmoji(emojiData.emoji);
+                    setShowPicker(false);
+                  }}
+                  autoFocusSearch={false}
+                  theme="light"
+                  width={280}
+                  height={350}
+                  lazyLoadEmojis={true}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ----------------------------------
+   CHAT HEADER ACTIONS COMPONENT
 ---------------------------------- */
 const ChatHeaderActions = React.memo(({ 
   activeUser, 
   currentUserId, 
+  currentUserName,
   activeCall, 
   handleCallInitiated,
   showSearchInChat,
@@ -46,7 +141,6 @@ const ChatHeaderActions = React.memo(({
   const buttonRef = useRef(null);
   const timerRef = useRef(null);
 
-  // Clear timer
   const clearTimer = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -54,7 +148,6 @@ const ChatHeaderActions = React.memo(({
     }
   };
 
-  // Close menu after 1 minute
   const startAutoCloseTimer = () => {
     clearTimer();
     timerRef.current = setTimeout(() => {
@@ -81,7 +174,6 @@ const ChatHeaderActions = React.memo(({
     setShowMoreMenu(false);
   };
 
-  // Reset timer when interacting with menu
   const resetTimer = () => {
     if (showMoreMenu) {
       clearTimer();
@@ -89,19 +181,15 @@ const ChatHeaderActions = React.memo(({
     }
   };
 
-  // Handle click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Don't close if clicking the button
       if (buttonRef.current && buttonRef.current.contains(event.target)) {
         return;
       }
-      // Don't close if clicking inside menu - just reset timer
       if (menuRef.current && menuRef.current.contains(event.target)) {
         resetTimer();
         return;
       }
-      // Close if clicking outside
       clearTimer();
       setShowMoreMenu(false);
     };
@@ -117,81 +205,81 @@ const ChatHeaderActions = React.memo(({
     }
   }, [showMoreMenu]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => clearTimer();
   }, []);
 
   const menuContent = showMoreMenu && (
-  <div 
-    ref={menuRef}
-    className="absolute right-0 mt-2 w-48 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100/50 py-1.5 z-50"
-    onMouseEnter={resetTimer}
-    onMouseLeave={resetTimer}
-  >
-    <button
-      onClick={() => {
-        setShowSearchInChat((p) => !p);
-        setChatSearch("");
-        handleMenuAction(() => {});
-      }}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
-        showSearchInChat 
-          ? "text-purple-600" 
-          : "text-gray-600 hover:bg-gray-50"
-      }`}
-      type="button"
+    <div 
+      ref={menuRef}
+      className="absolute right-0 mt-2 w-48 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100/50 py-1.5 z-50"
+      onMouseEnter={resetTimer}
+      onMouseLeave={resetTimer}
     >
-      <span className="text-lg">🔍</span>
-      <span>Search</span>
-      {showSearchInChat && (
-        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-500" />
-      )}
-    </button>
+      <button
+        onClick={() => {
+          setShowSearchInChat((p) => !p);
+          setChatSearch("");
+          handleMenuAction(() => {});
+        }}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
+          showSearchInChat 
+            ? "text-purple-600" 
+            : "text-gray-600 hover:bg-gray-50"
+        }`}
+        type="button"
+      >
+        <span className="text-lg">🔍</span>
+        <span>Search</span>
+        {showSearchInChat && (
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-500" />
+        )}
+      </button>
 
-    <button
-      onClick={() => {
-        setShowStarred((p) => !p);
-        handleMenuAction(() => {});
-      }}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
-        showStarred 
-          ? "text-amber-600" 
-          : "text-gray-600 hover:bg-gray-50"
-      }`}
-      type="button"
-    >
-      <span className="text-lg">⭐</span>
-      <span>Starred</span>
-      {showStarred && (
-        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />
-      )}
-    </button>
+      <button
+        onClick={() => {
+          setShowStarred((p) => !p);
+          handleMenuAction(() => {});
+        }}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
+          showStarred 
+            ? "text-amber-600" 
+            : "text-gray-600 hover:bg-gray-50"
+        }`}
+        type="button"
+      >
+        <span className="text-lg">⭐</span>
+        <span>Starred</span>
+        {showStarred && (
+          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />
+        )}
+      </button>
 
-    <div className="my-1 h-px bg-gray-100 mx-3" />
+      <div className="my-1 h-px bg-gray-100 mx-3" />
 
-    <button
-      onClick={() => {
-        setShowDeleteConversation(true);
-        handleMenuAction(() => {});
-      }}
-      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-b-2xl"
-      type="button"
-    >
-      <span className="text-lg">🗑️</span>
-      <span>Delete</span>
-    </button>
-  </div>
-);
+      <button
+        onClick={() => {
+          setShowDeleteConversation(true);
+          handleMenuAction(() => {});
+        }}
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-b-2xl"
+        type="button"
+      >
+        <span className="text-lg">🗑️</span>
+        <span>Delete</span>
+      </button>
+    </div>
+  );
+  
   return (
     <div className="flex items-center gap-0.5 md:gap-2">
-      {/* Call buttons */}
       <div className="flex items-center gap-0.5 md:gap-1">
         <CallButton 
           otherUserId={activeUser?.id} 
           callType="audio" 
           onCallInitiated={handleCallInitiated} 
           currentUserId={currentUserId} 
+          currentUserName={currentUserName}
           disabled={!!activeCall} 
         />
         <CallButton 
@@ -199,11 +287,11 @@ const ChatHeaderActions = React.memo(({
           callType="video" 
           onCallInitiated={handleCallInitiated} 
           currentUserId={currentUserId} 
+          currentUserName={currentUserName}
           disabled={!!activeCall} 
         />
       </div>
 
-      {/* Desktop view */}
       <div className="hidden md:flex items-center gap-0.5 md:gap-2">
         <button
           onClick={() => { setShowSearchInChat((p) => !p); setChatSearch(""); }}
@@ -227,7 +315,6 @@ const ChatHeaderActions = React.memo(({
         </button>
       </div>
 
-      {/* Mobile view */}
       <div className="relative md:hidden">
         <button
           ref={buttonRef}
@@ -362,6 +449,9 @@ function MessageContextMenu({
   isOwnMessage,
   messageElement,
   topBarHeight = 56,
+  customReactions = [],
+  onAddCustomEmoji,
+  onRemoveCustomEmoji
 }) {
   const menuRef = useRef(null);
   const [mobilePosition, setMobilePosition] = useState({ top: 0, left: 0, placement: 'top' });
@@ -461,17 +551,13 @@ function MessageContextMenu({
             }}
           />
           
-          <div className="flex items-center justify-start px-2 py-2 bg-gray-50/80 border-b border-gray-100 gap-1">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => { onReact(emoji); onClose(); }}
-                className="text-lg hover:scale-125 transition-all duration-200 active:scale-95 p-1.5 rounded-lg hover:bg-gray-200 flex-shrink-0"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+          <QuickReactionsBar 
+            onReact={onReact}
+            customReactions={customReactions}
+            onAddCustomEmoji={onAddCustomEmoji}
+            onRemoveCustomEmoji={onRemoveCustomEmoji}
+            onClose={onClose}
+          />
           
           <div className="py-1">
             <ContextMenuItem icon="↩️" label="Reply" onClick={() => { onReply(message); onClose(); }} />
@@ -503,17 +589,13 @@ function MessageContextMenu({
         style={{ ...menuStyle, width: 'min(240px, calc(100vw - 32px))' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-start md:justify-around px-2 md:px-3 py-2 md:py-3 bg-gray-50/80 border-b border-gray-100 overflow-x-auto gap-1 md:gap-1">
-          {QUICK_REACTIONS.map((emoji) => (
-            <button
-              key={emoji}
-              onClick={() => { onReact(emoji); onClose(); }}
-              className="text-lg md:text-xl hover:scale-125 transition-all duration-200 active:scale-95 p-1.5 md:p-2 rounded-lg hover:bg-gray-200 flex-shrink-0"
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
+        <QuickReactionsBar 
+          onReact={onReact}
+          customReactions={customReactions}
+          onAddCustomEmoji={onAddCustomEmoji}
+          onRemoveCustomEmoji={onRemoveCustomEmoji}
+          onClose={onClose}
+        />
         
         <div className="py-1 md:py-2">
           <ContextMenuItem icon="↩️" label="Reply" onClick={() => { onReply(message); onClose(); }} />
@@ -656,8 +738,17 @@ function StarredMessagesSidebar({ messages, starredIds, onClose, onJumpTo, topBa
                 <p className="text-xs text-purple-600 font-medium mb-1">
                   {msg.from === "me" ? "You" : "Other"}
                 </p>
-                <p className="text-sm text-gray-700 line-clamp-2">
-                  {msg.text || (msg.file_url ? "📎 Attachment" : "")}
+                <p className="text-sm text-gray-700 line-clamp-2 flex items-center gap-1">
+                  {msg.file_url ? (
+                    <>
+                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <span className="truncate">{msg.file_url.split('/').pop() || "Attachment"}</span>
+                    </>
+                  ) : (
+                    msg.text
+                  )}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">{msg.time}</p>
               </button>
@@ -684,8 +775,17 @@ function PinnedMessageBanner({ message, onDismiss, onJump }) {
         <p className="text-xs text-purple-600 font-semibold flex items-center gap-1">
           <span>📌</span> Pinned Message
         </p>
-        <p className="text-sm text-gray-700 truncate">
-          {message.text || (message.file_url ? "📎 Attachment" : "")}
+        <p className="text-sm text-gray-700 truncate flex items-center gap-1">
+          {message.file_url ? (
+            <>
+              <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <span className="truncate">{message.file_url.split('/').pop() || "Attachment"}</span>
+            </>
+          ) : (
+            message.text
+          )}
         </p>
       </div>
       <button 
@@ -797,7 +897,7 @@ export default function Message() {
   const navigate = useNavigate();
   const location = useLocation();
   const { userData } = useUser();
-  const { clearUnreadMessages, soundEnabled, toggleSound } = useNotification();
+  const { clearUnreadMessages } = useNotification();
   const [searchParams] = useSearchParams();
   const targetUserIdFromUrl = searchParams.get("user");
   const jobIdFromUrl = searchParams.get("jobId");
@@ -810,18 +910,27 @@ export default function Message() {
   const longPressTimer = useRef(null);
   const pollIntervalRef = useRef(null);
   const isMounted = useRef(true);
-  const initialLoadRef = useRef(false);
   const heartbeatInterval = useRef(null);
   const initialScrollDone = useRef(false);
-  const dragTimeoutRef = useRef(null);
   const dragCounterRef = useRef(0);
   const messageRefs = useRef({});
-  const inputRef = useRef(null);
   const lastTapRef = useRef(0);
+  const scrollAfterSend = useRef(false);
+  const scrollTimeoutRef = useRef(null);
 
   const jobId = jobIdFromUrl ?? location.state?.jobId ?? null;
   const receiverId = targetUserIdFromUrl ?? location.state?.receiverId ?? null;
   const currentUserId = userData?.id ?? null;
+  
+  let currentUserName = userData?.name;
+  if (!currentUserName || currentUserName === '' || currentUserName === 'null' || currentUserName === 'undefined') {
+    currentUserName = userData?.full_name || userData?.display_name;
+  }
+  if (!currentUserName || currentUserName === '') {
+    currentUserName = userData?.email?.split('@')[0] || `User ${currentUserId}`;
+  }
+  currentUserName = currentUserName.replace(/[0-9]+$/, '');
+  currentUserName = currentUserName.charAt(0).toUpperCase() + currentUserName.slice(1).toLowerCase();
 
   const [allUsers, setAllUsers] = useState([]);
   const [conversationUsers, setConversationUsers] = useState([]);
@@ -862,9 +971,62 @@ export default function Message() {
   const [mobileActionMessage, setMobileActionMessage] = useState(null);
   const [mobileActionElement, setMobileActionElement] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [callerProfileImage, setCallerProfileImage] = useState(null);
+  const [calleeProfileImage, setCalleeProfileImage] = useState(null);
   const [topBarHeight, setTopBarHeight] = useState(56);
+  
+  const [customReactions, setCustomReactions] = useState(() => {
+    const saved = localStorage.getItem('custom_quick_reactions');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const activeUser = displayedUsers.find((u) => u.id === activeUserId) || null;
+
+  // SCROLL TO BOTTOM HELPER
+  const scrollToBottom = useCallback((smooth = false) => {
+    if (messagesContainerRef.current) {
+      if (smooth) {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      } else {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      }
+    }
+  }, []);
+
+  // Save custom reactions to localStorage
+  useEffect(() => {
+    localStorage.setItem('custom_quick_reactions', JSON.stringify(customReactions));
+  }, [customReactions]);
+
+  // Handle adding custom emoji
+  const handleAddCustomEmoji = useCallback((emoji) => {
+    setCustomReactions(prev => {
+      const currentTotal = DEFAULT_QUICK_REACTIONS.length + prev.length;
+      if (prev.includes(emoji)) {
+        toast.error("Emoji already exists");
+        return prev;
+      }
+      if (currentTotal >= 5) {
+        toast.error("Maximum 5 emojis allowed");
+        return prev;
+      }
+      toast.success(`Added ${emoji} to quick reactions`);
+      return [...prev, emoji];
+    });
+  }, []);
+
+  // Handle removing custom emoji
+  const handleRemoveCustomEmoji = useCallback((emoji) => {
+    setCustomReactions(prev => {
+      const newReactions = prev.filter(e => e !== emoji);
+      toast.success(`Removed ${emoji} from quick reactions`);
+      return newReactions;
+    });
+  }, []);
 
   useEffect(() => {
     const updateTopBarHeight = () => {
@@ -893,19 +1055,81 @@ export default function Message() {
       isMounted.current = false;
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       if (heartbeatInterval.current) clearInterval(heartbeatInterval.current);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
   }, []);
 
   useEffect(() => {
-    const handleAcceptCall = (e) => setActiveCall(e.detail);
-    const handleCallEnded = () => setActiveCall(null);
+    const handleIncomingCall = (e) => {
+      const callData = e.detail;
+      let callerName = callData.caller_name;
+      
+      if (!callerName || callerName === 'User' || callerName.includes('@')) {
+        const caller = allUsers.find(u => Number(u.id) === Number(callData.caller_id));
+        if (caller) {
+          callerName = caller.name || caller.email?.split('@')[0] || `User ${callData.caller_id}`;
+        }
+      }
+      
+      if (callerName && callerName !== 'User') {
+        callerName = callerName.replace(/[0-9]+$/, '');
+        callerName = callerName.charAt(0).toUpperCase() + callerName.slice(1).toLowerCase();
+      }
+      
+      if (!callerName || callerName === 'User') {
+        callerName = `User ${callData.caller_id}`;
+      }
+      
+      const enrichedCallData = {
+        ...callData,
+        caller_name: callerName
+      };
+      
+      setIncomingCall(enrichedCallData);
+    };
+    
+    window.addEventListener("incoming-call", handleIncomingCall);
+    
+    return () => {
+      window.removeEventListener("incoming-call", handleIncomingCall);
+    };
+  }, [allUsers]);
+
+  useEffect(() => {
+    const handleAcceptCall = async (e) => {
+      const callData = e.detail;
+      
+      const callerId = callData.caller_id;
+      const caller = allUsers.find(u => Number(u.id) === Number(callerId));
+      
+      if (caller && caller.avatar) {
+        setCallerProfileImage(caller.avatar);
+        setCalleeProfileImage(caller.avatar);
+      } else if (window.incomingCallProfileImage) {
+        setCallerProfileImage(window.incomingCallProfileImage);
+        setCalleeProfileImage(window.incomingCallProfileImage);
+      }
+      
+      setActiveCall(callData);
+      setIncomingCall(null);
+    };
+    
+    const handleCallEnded = () => {
+      setActiveCall(null);
+      setIncomingCall(null);
+      setCallerProfileImage(null);
+      setCalleeProfileImage(null);
+      delete window.incomingCallProfileImage;
+    };
+    
     window.addEventListener("accept-call", handleAcceptCall);
     window.addEventListener("call-ended", handleCallEnded);
+    
     return () => {
       window.removeEventListener("accept-call", handleAcceptCall);
       window.removeEventListener("call-ended", handleCallEnded);
     };
-  }, []);
+  }, [allUsers]);
 
   useEffect(() => {
     const handleNewMessage = (e) => {
@@ -939,13 +1163,13 @@ export default function Message() {
   }, [contextMenu, forwardMessage, showStarred, imageViewer.open, showDeleteConversation, showEmojiPicker, mobileActionMessage]);
 
   useEffect(() => {
-    if (imageViewer.open || showStarred || contextMenu || mobileActionMessage) {
+    if (imageViewer.open || showStarred || contextMenu || mobileActionMessage || incomingCall) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
     }
     return () => { document.body.style.overflow = ''; };
-  }, [imageViewer.open, showStarred, contextMenu, mobileActionMessage]);
+  }, [imageViewer.open, showStarred, contextMenu, mobileActionMessage, incomingCall]);
 
   const formatLastSeen = useCallback((timestamp) => {
     if (!timestamp) return "";
@@ -1421,7 +1645,7 @@ export default function Message() {
           if (!uid && convoUsers.length > 0) uid = convoUsers[0].id;
           if (uid) { setActiveUserId(uid); setShowChatMobile(true); clearUnreadMessages(uid); }
         }
-        setInitialLoadDone(true); initialLoadRef.current = true;
+        setInitialLoadDone(true);
       } catch (err) {
         console.error("Failed to load users", err); setInitialLoadDone(true);
       } finally { setIsLoadingUsers(false); }
@@ -1460,89 +1684,132 @@ export default function Message() {
     return () => window.removeEventListener('reaction-updated', handleReactionUpdate);
   }, [currentUserId, allUsers]);
 
+  // Initial scroll to bottom when opening chat
   useEffect(() => {
     if (!loading && messages.length > 0 && messagesContainerRef.current && !initialScrollDone.current) {
       setTimeout(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-          initialScrollDone.current = true; shouldAutoScroll.current = true; setUserScrolled(false);
-        }
-      }, 100);
+        scrollToBottom(false);
+        initialScrollDone.current = true;
+        shouldAutoScroll.current = true;
+        setUserScrolled(false);
+      }, 200);
     }
-  }, [loading, messages.length]);
-  
+  }, [loading, messages.length, scrollToBottom]);
 
+  // Reset scroll when switching chats
   useEffect(() => {
-    if (activeUserId) { initialScrollDone.current = false; shouldAutoScroll.current = true; setUserScrolled(false); }
+    if (activeUserId) { 
+      initialScrollDone.current = false; 
+      shouldAutoScroll.current = true; 
+      setUserScrolled(false);
+      scrollAfterSend.current = false;
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
+      }
+    }
   }, [activeUserId]);
 
+  // Poll for new messages - fixed scroll behavior
   useEffect(() => {
     if (activeUserId && currentUserId) {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = setInterval(() => {
         const container = messagesContainerRef.current;
-        const scrollTop = container?.scrollTop || 0;
-        const wasScrolledUp = container && (container.scrollHeight - scrollTop - container.clientHeight) > 20;
+        if (!container) return;
+        
+        const scrollTop = container.scrollTop;
+        const scrollHeight = container.scrollHeight;
+        const clientHeight = container.clientHeight;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        
+        // User is near bottom (within 100px) - considered "at bottom"
+        const isNearBottom = distanceFromBottom < 100;
+        
         fetchMessages(activeUserId).then(() => {
-          if (wasScrolledUp && container) {
-            requestAnimationFrame(() => { if (container) { container.scrollTop = scrollTop; shouldAutoScroll.current = false; setUserScrolled(true); } });
+          // If user was near bottom OR just sent a message, scroll to bottom
+          if (isNearBottom || scrollAfterSend.current) {
+            if (scrollAfterSend.current) {
+              scrollToBottom(true);
+              scrollAfterSend.current = false;
+            } else {
+              scrollToBottom(false);
+            }
+            shouldAutoScroll.current = true;
+            setUserScrolled(false);
           }
         });
       }, 5000);
-      return () => { if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); };
+      return () => { 
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); 
+      };
     }
-  }, [activeUserId, currentUserId, fetchMessages, userScrolled]);
+  }, [activeUserId, currentUserId, fetchMessages, scrollToBottom]);
 
-const handleScroll = useCallback(() => {
-  if (!messagesContainerRef.current) return;
-  const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-  
-  // Calculate distance from bottom
-  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-  
-  // Show button only when scrolled up more than 30px from bottom
-  const isScrolledUpMoreThan30px = distanceFromBottom > 30;
-  
-  setUserScrolled(isScrolledUpMoreThan30px);
-  shouldAutoScroll.current = !isScrolledUpMoreThan30px;
-}, []);
-
-// Check initial position on mount
-useEffect(() => {
-  if (messagesContainerRef.current) {
-    // Small delay to ensure content is rendered
-    setTimeout(() => handleScroll(), 100);
-  }
-}, []);
-
-useEffect(() => {
-  const c = messagesContainerRef.current;
-  if (c) { 
-    c.addEventListener("scroll", handleScroll); 
-    return () => c.removeEventListener("scroll", handleScroll); 
-  }
-}, [handleScroll]);
-
-// Re-check when new messages arrive
-useEffect(() => {
-  handleScroll(); // This will hide button if at bottom
-}, [messages]); // Add your messages array as dependency
-
-  useEffect(() => {
-    if (messagesEndRef.current && shouldAutoScroll.current && messages.length > 0 && !userScrolled && initialScrollDone.current) {
-      const container = messagesContainerRef.current;
-      if (container) {
-        const isAtBottom = Math.abs(container.scrollHeight - container.scrollTop - container.clientHeight) < 20;
-        if (isAtBottom) {
-          const t = setTimeout(() => {
-            if (shouldAutoScroll.current && messagesEndRef.current && !userScrolled)
-              messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
-          }, 150);
-          return () => clearTimeout(t);
-        }
+  // Handle scroll to show/hide jump-to-bottom button
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isScrolledUpMoreThan50px = distanceFromBottom > 50;
+    
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    if (isScrolledUpMoreThan50px) {
+      setUserScrolled(true);
+      shouldAutoScroll.current = false;
+      
+      scrollTimeoutRef.current = setTimeout(() => {
+        setUserScrolled(false);
+        scrollTimeoutRef.current = null;
+      }, 10000);
+    } else {
+      setUserScrolled(false);
+      shouldAutoScroll.current = true;
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
       }
     }
-  }, [messages, userScrolled]);
+  }, []);
+
+  useEffect(() => {
+    const c = messagesContainerRef.current;
+    if (c) { 
+      c.addEventListener("scroll", handleScroll); 
+      return () => c.removeEventListener("scroll", handleScroll); 
+    }
+  }, [handleScroll]);
+
+  // Scroll after sending a message
+  useEffect(() => {
+    if (messages.length > 0 && scrollAfterSend.current) {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = null;
+      }
+      
+      setTimeout(() => {
+        scrollToBottom(true);
+        scrollAfterSend.current = false;
+        shouldAutoScroll.current = true;
+        setUserScrolled(false);
+      }, 150);
+    }
+  }, [messages, scrollToBottom]);
+
+  const handleJumpToBottom = useCallback(() => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+    shouldAutoScroll.current = true;
+    setUserScrolled(false);
+    scrollToBottom(true);
+  }, [scrollToBottom]);
 
   const sendTypingStatus = useCallback(async (isTyping) => {
     if (!currentUserId || !activeUserId) return;
@@ -1628,15 +1895,29 @@ useEffect(() => {
     if (!currentUserId) { toast.error("Missing required data."); return; }
     const messageText = input.trim();
     setSending(true);
+    
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = null;
+    }
+    scrollAfterSend.current = true;
+    
     const tempId = Date.now();
     const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     const tempMessage = {
-      id: tempId, text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""), from: "me", time, timestamp: new Date().toISOString(),
+      id: tempId, 
+      text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""), 
+      from: "me", 
+      time, 
+      timestamp: new Date().toISOString(),
       file_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
       message_type: selectedFile ? (selectedFile.type.startsWith("image/") ? "image" : "file") : "text",
-      is_seen: false, isTemp: true,
+      is_seen: false, 
+      isTemp: true,
     };
+    
     setMessages((p) => [...p, tempMessage]);
+    
     try {
       const formData = new FormData();
       formData.append("sender_id", String(currentUserId));
@@ -1644,14 +1925,29 @@ useEffect(() => {
       if (messageText) formData.append("content", messageText);
       if (selectedFile) formData.append("file", selectedFile);
       if (replyingTo) formData.append("reply_to", String(replyingTo.id));
-      const response = await api.post("/message/send", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      
+      const response = await api.post("/message/send", formData, { 
+        headers: { "Content-Type": "multipart/form-data" } 
+      });
+      
       setMessages((p) =>
         p.map((m) =>
           m.id === tempId
-            ? { id: response.data.message_id, text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""), from: "me", time, timestamp: new Date().toISOString(), file_url: response.data.file_url || tempMessage.file_url, message_type: response.data.message_type || tempMessage.message_type, is_seen: false }
+            ? { 
+                id: response.data.message_id, 
+                text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""), 
+                from: "me", 
+                time, 
+                timestamp: new Date().toISOString(), 
+                file_url: response.data.file_url || tempMessage.file_url, 
+                message_type: response.data.message_type || tempMessage.message_type, 
+                is_seen: false,
+                isTemp: false,
+              }
             : m
         )
       );
+      
       const newLast = messageText || (selectedFile ? `📎 ${selectedFile.name}` : "");
       setAllUsers((p) => p.map((u) => (u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: new Date().toISOString(), hasConversation: true } : u)));
       setConversationUsers((p) => {
@@ -1664,20 +1960,73 @@ useEffect(() => {
         const nu = allUsers.find((u) => u.id === activeUserId);
         return nu ? [...p, { ...nu, lastMessage: newLast, last_message_time: new Date().toISOString(), hasConversation: true }] : p;
       });
-      setInput(""); clearSelectedFile(); clearReply(); sendTypingStatus(false);
-      shouldAutoScroll.current = true; setUserScrolled(false);
-    } catch {
+      
+      setInput(""); 
+      clearSelectedFile(); 
+      clearReply(); 
+      sendTypingStatus(false);
+      
+    } catch (error) {
       setMessages((p) => p.filter((m) => m.id !== tempId));
       toast.error("Failed to send message");
-    } finally { setSending(false); }
+      scrollAfterSend.current = false;
+    } finally { 
+      setSending(false); 
+    }
   };
 
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  const handleCallInitiated = (callData) => setActiveCall(callData);
-  const handleEndCall = () => setActiveCall(null);
+  const handleCallInitiated = (callData) => {
+    if (activeUser && activeUser.avatar) {
+      setCallerProfileImage(activeUser.avatar);
+      setCalleeProfileImage(activeUser.avatar);
+    }
+    
+    let cleanCallerName = currentUserName;
+    if (cleanCallerName && cleanCallerName.includes('@')) {
+      cleanCallerName = cleanCallerName.split('@')[0];
+    }
+    cleanCallerName = cleanCallerName.replace(/[0-9]+$/, '');
+    cleanCallerName = cleanCallerName.charAt(0).toUpperCase() + cleanCallerName.slice(1).toLowerCase();
+    
+    const enrichedCallData = {
+      ...callData,
+      caller_id: currentUserId,
+      caller_name: cleanCallerName,
+      receiver_id: activeUser?.id,
+      receiver_name: activeUser?.name || activeUser?.email?.split('@')[0] || `User ${activeUser?.id}`,
+    };
+    
+    setActiveCall(enrichedCallData);
+  };
+
+  const handleEndCall = () => {
+    setActiveCall(null);
+    setIncomingCall(null);
+    setCallerProfileImage(null);
+    setCalleeProfileImage(null);
+    delete window.incomingCallProfileImage;
+  };
+
+  const handleAcceptIncomingCall = () => {
+    if (incomingCall) {
+      window.dispatchEvent(new CustomEvent("accept-call", { detail: incomingCall }));
+    }
+  };
+
+  const handleDeclineIncomingCall = async () => {
+    if (incomingCall) {
+      try {
+        await api.post(`/message/call/${incomingCall.call_id}/end?user_id=${currentUserId}`);
+      } catch (e) {
+        console.warn('Decline call API:', e);
+      }
+      setIncomingCall(null);
+    }
+  };
 
   const renderMessage = useCallback((msg, index) => {
     const showDate = index === 0 || new Date(msg.timestamp).toDateString() !== new Date(messages[index - 1]?.timestamp).toDateString();
@@ -1726,18 +2075,34 @@ useEffect(() => {
                 <span className="text-sm text-amber-400">⭐</span>
               </div>
             )}
-
             {msg.reply_to && (
               <div
                 className={`mb-1.5 text-xs bg-black/5 p-2 rounded-xl cursor-pointer hover:bg-black/10 transition-colors ${isOwn ? "ml-2" : "mr-2"}`}
                 onClick={() => msg.reply_to?.id && jumpToMessage(msg.reply_to.id)}
               >
-                <span className="font-semibold opacity-70">↩ Replying to:</span>
-                <span className="ml-1 opacity-60">
-                  {msg.reply_to.file_url ? "📎 Attachment" : msg.reply_to.content?.substring(0, 50)}
-                  {msg.reply_to.content?.length > 50 && "..."}
-                  {msg.reply_to.edited && <span className="ml-1 text-[10px] opacity-40 italic">(edited)</span>}
-                </span>
+                <div className="flex items-start gap-1.5">
+                  <span className="font-semibold opacity-70 flex-shrink-0">↩ Replying to:</span>
+                  <div className="flex-1 min-w-0">
+                    {msg.reply_to.file_url ? (
+                      <div className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        <span className="opacity-60 truncate">
+                          {msg.reply_to.file_url.split('/').pop() || "Attachment"}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="opacity-60">
+                        {msg.reply_to.content?.substring(0, 50)}
+                        {msg.reply_to.content?.length > 50 && "..."}
+                      </span>
+                    )}
+                    {msg.reply_to.edited && (
+                      <span className="ml-1 text-[10px] opacity-40 italic">(edited)</span>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1830,18 +2195,69 @@ useEffect(() => {
               <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isOwn ? "text-purple-200" : "text-gray-400"}`}>
                 <span>{msg.time}</span>
                 {isOwn && (
-                  <span className="flex items-center gap-0.5" title={msg.is_seen ? "Seen" : "Sent"}>
+                  <div
+                    className="flex items-center"
+                    title={msg.is_seen ? "Seen" : "Sent"}
+                  >
                     {msg.is_seen ? (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#86efac" strokeWidth="2.5">
-                        <polyline points="20 6 9 17 4 12" />
-                        <polyline points="16 6 9 17 4 12" style={{ transform: "translateX(4px)" }} />
-                      </svg>
+                      <span
+                        style={{
+                          position: "relative",
+                          display: "inline-block",
+                          width: "16px",
+                          height: "12px",
+                        }}
+                      >
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#1d9bf0"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{
+                            position: "absolute",
+                            left: "0px",
+                            top: "0px",
+                          }}
+                        >
+                          <path d="M20 6L9 17L4 12" />
+                        </svg>
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#1d9bf0"
+                          strokeWidth="3.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{
+                            position: "absolute",
+                            left: "4px",
+                            bottom: "0px",
+                          }}
+                        >
+                          <path d="M20 6L9 17L4 12" />
+                        </svg>
+                      </span>
                     ) : (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points="20 6 9 17 4 12" />
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M20 6L9 17L4 12" />
                       </svg>
                     )}
-                  </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -1936,106 +2352,39 @@ useEffect(() => {
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
         
-        /* 4K Screen Optimizations (2560px and above) - Left sidebar fixed, chat area full width */
         @media (min-width: 2560px) {
-          .chat-main-wrapper {
-            display: flex;
-            width: 100%;
-          }
-          .chat-list-container {
-            width: 480px !important;
-            min-width: 480px !important;
-            flex-shrink: 0 !important;
-          }
-          .chat-area-container {
-            flex: 1 !important;
-            width: calc(100% - 480px) !important;
-          }
-          .chat-header-name {
-            font-size: 1.25rem !important;
-          }
-          .chat-header-status {
-            font-size: 0.875rem !important;
-          }
-          .message-bubble {
-            max-width: 45% !important;
-          }
-          .message-text {
-            font-size: 1rem !important;
-          }
-          .message-time {
-            font-size: 0.75rem !important;
-          }
-          .search-input {
-            height: 48px !important;
-            font-size: 1rem !important;
-          }
-          .user-list-item {
-            padding: 1rem !important;
-          }
-          .user-name {
-            font-size: 1rem !important;
-          }
-          .user-message-preview {
-            font-size: 0.875rem !important;
-          }
-          .input-textarea {
-            font-size: 1rem !important;
-          }
+          .chat-main-wrapper { display: flex; width: 100%; }
+          .chat-list-container { width: 480px !important; min-width: 480px !important; flex-shrink: 0 !important; }
+          .chat-area-container { flex: 1 !important; width: calc(100% - 480px) !important; }
+          .chat-header-name { font-size: 1.25rem !important; }
+          .chat-header-status { font-size: 0.875rem !important; }
+          .message-text { font-size: 1rem !important; }
+          .message-time { font-size: 0.75rem !important; }
+          .search-input { height: 48px !important; font-size: 1rem !important; }
+          .user-list-item { padding: 1rem !important; }
+          .user-name { font-size: 1rem !important; }
+          .user-message-preview { font-size: 0.875rem !important; }
+          .input-textarea { font-size: 1rem !important; }
         }
         
-        /* Large Desktop Screens (1920px to 2559px) */
         @media (min-width: 1920px) and (max-width: 2559px) {
-          .chat-list-container {
-            width: 420px !important;
-            min-width: 420px !important;
-          }
-          .message-bubble {
-            max-width: 50% !important;
-          }
-          .message-text {
-            font-size: 0.95rem !important;
-          }
+          .chat-list-container { width: 420px !important; min-width: 420px !important; }
+          .message-text { font-size: 0.95rem !important; }
         }
         
-        /* Ultra-wide screens (3840px and above) */
         @media (min-width: 3840px) {
-          .chat-list-container {
-            width: 600px !important;
-            min-width: 600px !important;
-          }
-          .message-bubble {
-            max-width: 35% !important;
-          }
-          .message-text {
-            font-size: 1.1rem !important;
-          }
-          .message-time {
-            font-size: 0.85rem !important;
-          }
-          .search-input {
-            height: 56px !important;
-            font-size: 1.1rem !important;
-          }
-          .user-list-item {
-            padding: 1.25rem !important;
-          }
-          .user-name {
-            font-size: 1.1rem !important;
-          }
-          .user-message-preview {
-            font-size: 1rem !important;
-          }
+          .chat-list-container { width: 600px !important; min-width: 600px !important; }
+          .message-text { font-size: 1.1rem !important; }
+          .message-time { font-size: 0.85rem !important; }
+          .search-input { height: 56px !important; font-size: 1.1rem !important; }
+          .user-list-item { padding: 1.25rem !important; }
+          .user-name { font-size: 1.1rem !important; }
+          .user-message-preview { font-size: 1rem !important; }
         }
         
-        /* Mobile styles remain unchanged */
         @media (max-width: 767px) {
-          .chat-list-container {
-            width: 100% !important;
-          }
-          .message-bubble {
-            max-width: 85% !important;
-          }
+          .chat-list-container { width: 100% !important; }
+          .message-bubble { max-width: 85% !important; }
         }
       `}</style>
 
@@ -2056,11 +2405,11 @@ useEffect(() => {
       </div>
 
       <div className="flex flex-1 overflow-hidden bg-white sm:rounded-t-2xl md:m-4 md:rounded-2xl chat-main-wrapper"
-  style={{
-    boxShadow: '0 0 30px rgba(81, 33, 143, 0.5), 0 25px 50px -12px rgba(81, 33, 143, 0.6), 0 0 0 1px rgba(124, 58, 237, 0.3)'
-  }}
->
-        {/* LEFT: USER LIST - Fixed width on left */}
+        style={{
+          boxShadow: '0 0 30px rgba(81, 33, 143, 0.5), 0 25px 50px -12px rgba(81, 33, 143, 0.6), 0 0 0 1px rgba(124, 58, 237, 0.3)'
+        }}
+      >
+        {/* LEFT: USER LIST */}
         <div className={`${showChatMobile ? "hidden md:flex" : "flex"} w-full md:w-[320px] lg:w-[360px] flex-col border-r border-gray-200 bg-white flex-shrink-0 chat-list-container`}>
           <div className="p-3 sm:p-4 pb-2">
             <div className="relative">
@@ -2097,7 +2446,7 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* RIGHT: CHAT AREA - Takes remaining full width */}
+        {/* RIGHT: CHAT AREA */}
         {activeUser ? (
           <div className={`flex-1 flex flex-col h-full ${showChatMobile ? "flex" : "hidden md:flex"} bg-gray-50 min-w-0 chat-area-container`}>
             <div className="h-14 sm:h-16 md:h-[72px] px-2 sm:px-3 md:px-5 flex items-center gap-2 sm:gap-3 border-b border-gray-200 bg-white flex-shrink-0">
@@ -2130,6 +2479,7 @@ useEffect(() => {
               <ChatHeaderActions 
                 activeUser={activeUser}
                 currentUserId={currentUserId}
+                currentUserName={currentUserName}
                 activeCall={activeCall}
                 handleCallInitiated={handleCallInitiated}
                 showSearchInChat={showSearchInChat}
@@ -2184,42 +2534,38 @@ useEffect(() => {
               onDragOver={handleDragOver}
               onDrop={handleDrop}
             >
-             <div className="space-y-2 max-w-full lg:max-w-7xl xl:max-w-[90%] 2xl:max-w-[1400px] mx-auto px-2 sm:px-3 md:px-4">
-  {loading && messages.length === 0 ? (
-    <div className="flex justify-center items-center h-64">
-      <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin" />
-    </div>
-  ) : messages.length === 0 ? (
-    <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
-      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
-        <span className="text-2xl sm:text-3xl">💬</span>
-      </div>
-      <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
-    </div>
-  ) : (
-    <>
-      {messages.map((msg, i) => renderMessage(msg, i))}
-      {isTyping && <TypingIndicator user={activeUser} />}
-      <div ref={messagesEndRef} />
-    </>
-  )}
-</div>
-{userScrolled && (
-  <button
-    onClick={() => { 
-      shouldAutoScroll.current = true; 
-      setUserScrolled(false); 
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); 
-    }}
-    className="fixed bottom-20 sm:bottom-24 right-3 sm:right-4 md:bottom-28 md:right-6 text-white rounded-full p-2.5 shadow-lg transition-all transform hover:scale-105 z-10 active:scale-95"
-    style={{ background: "linear-gradient(135deg, #51218F 0%, #7c3aed 100%)" }}
-    aria-label="Jump to bottom"
-  >
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <path d="M12 5v14M19 12l-7 7-7-7" />
-    </svg>
-  </button>
-)}
+              <div className="space-y-2 max-w-full lg:max-w-7xl xl:max-w-[90%] 2xl:max-w-[1400px] mx-auto px-2 sm:px-3 md:px-4">
+                {loading && messages.length === 0 ? (
+                  <div className="flex justify-center items-center h-64">
+                    <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
+                      <span className="text-2xl sm:text-3xl">💬</span>
+                    </div>
+                    <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
+                  </div>
+                ) : (
+                  <>
+                    {messages.map((msg, i) => renderMessage(msg, i))}
+                    {isTyping && <TypingIndicator user={activeUser} />}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
+              </div>
+              {userScrolled && (
+                <button
+                  onClick={handleJumpToBottom}
+                  className="fixed bottom-20 sm:bottom-24 right-3 sm:right-4 md:bottom-28 md:right-9 text-white rounded-full p-2.5 shadow-lg transition-all transform hover:scale-105 z-10 active:scale-95"
+                  style={{ background: "linear-gradient(135deg, #51218F 0%, #7c3aed 100%)" }}
+                  aria-label="Jump to bottom"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 5v14M19 12l-7 7-7-7" />
+                  </svg>
+                </button>
+              )}
             </div>
 
             {isDragOver && (
@@ -2239,7 +2585,18 @@ useEffect(() => {
                 <div className="w-1 h-8 bg-purple-400 rounded-full flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs text-purple-600 font-semibold">↩ Replying to</p>
-                  <p className="text-sm text-gray-700 truncate">{replyingTo.text || (replyingTo.file_url ? "📎 Attachment" : "")}</p>
+                  <p className="text-sm text-gray-700 truncate flex items-center gap-1.5">
+                    {replyingTo.file_url ? (
+                      <>
+                        <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        <span className="truncate">Attachment</span>
+                      </>
+                    ) : (
+                      replyingTo.text
+                    )}
+                  </p>
                 </div>
                 <button onClick={clearReply} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-white/50 flex-shrink-0">
                   <span>✕</span>
@@ -2249,10 +2606,17 @@ useEffect(() => {
 
             {selectedFileName && (
               <div className="px-3 sm:px-4 py-2.5 bg-gray-100 border-t border-gray-200 flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                <span className="text-xl sm:text-2xl">📎</span>
+                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
                 <span className="text-sm text-gray-700 truncate flex-1">{selectedFileName}</span>
-                <button onClick={clearSelectedFile} className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white/50 flex-shrink-0">
-                  <span>✕</span>
+                <button 
+                  onClick={clearSelectedFile} 
+                  className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white/50 flex-shrink-0 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             )}
@@ -2266,7 +2630,9 @@ useEffect(() => {
                     className="p-1.5 sm:p-2 text-purple-600 hover:bg-purple-100 rounded-full transition-colors disabled:opacity-40"
                     title="Attach file"
                   >
-                    <span className="text-base sm:text-lg">📎</span>
+                    <svg className="w-5 h-5 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
                   </button>
                   <div className="relative" ref={emojiPickerRef}>
                     <button
@@ -2373,6 +2739,9 @@ useEffect(() => {
           onReact={(emoji) => handleReact(emoji, contextMenu.message.id)}
           messageElement={contextMenuElement}
           topBarHeight={topBarHeight}
+          customReactions={customReactions}
+          onAddCustomEmoji={handleAddCustomEmoji}
+          onRemoveCustomEmoji={handleRemoveCustomEmoji}
         />
       )}
 
@@ -2396,7 +2765,21 @@ useEffect(() => {
         />
       )}
 
-      {activeCall && <CallWindow callData={activeCall} onClose={handleEndCall} currentUserId={currentUserId} />}
+      {incomingCall && (
+        <IncomingCallNotification 
+          callData={incomingCall} 
+          onAccept={handleAcceptIncomingCall}
+          onDecline={handleDeclineIncomingCall}
+        />
+      )}
+
+      {activeCall && (
+        <CallWindow 
+          callData={activeCall} 
+          onClose={handleEndCall} 
+          currentUserId={currentUserId}
+        />
+      )}
 
       {showDeleteConversation && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }} onClick={() => setShowDeleteConversation(false)}>

@@ -1,366 +1,343 @@
-// // src/components/collaboratorview/CallComponents.jsx
-// import React, { useState, useEffect, useRef } from 'react';
-// import { LiveKitRoom, VideoConference, RoomAudioRenderer } from '@livekit/components-react';
-// import '@livekit/components-styles';
-// import api from "../../utils/axiosConfig";
-
-// export const CallButton = ({ otherUserId, callType, onCallInitiated, currentUserId, disabled }) => {
-//   const [isInitiating, setIsInitiating] = useState(false);
-//   const [error, setError] = useState(null);
-
-//   const initiateCall = async () => {
-//     if (isInitiating || disabled) return;
-
-//     setIsInitiating(true);
-//     setError(null);
-    
-//     try {
-//       console.log(`📞 Initiating ${callType} call to user ${otherUserId}`);
-      
-//       const response = await api.post('/message/call/initiate', {
-//         caller_id: currentUserId,
-//         receiver_id: otherUserId,
-//         call_type: callType
-//       });
-
-//       console.log('✅ Call initiated response:', response.data);
-
-//       if (response.data.status === 'success') {
-//         onCallInitiated(response.data);
-//       } else {
-//         throw new Error('Failed to initiate call: Invalid response');
-//       }
-//     } catch (error) {
-//       console.error('❌ Failed to initiate call:', error);
-      
-//       let errorMessage = 'Failed to start call. Please try again.';
-      
-//       if (error.response) {
-//         console.error('Error response data:', error.response.data);
-//         console.error('Error response status:', error.response.status);
-        
-//         if (error.response.data && error.response.data.detail) {
-//           errorMessage = error.response.data.detail;
-//         } else if (error.response.status === 500) {
-//           errorMessage = 'Server error. Please check if LiveKit is configured correctly.';
-//         }
-//       } else if (error.request) {
-//         console.error('No response received:', error.request);
-//         errorMessage = 'No response from server. Please check your connection.';
-//       }
-      
-//       setError(errorMessage);
-//       alert(errorMessage);
-//     } finally {
-//       setIsInitiating(false);
-//     }
-//   };
-
-//   return (
-//     <button
-//       onClick={initiateCall}
-//       disabled={isInitiating || disabled}
-//       className={`p-2 hover:bg-gray-100 rounded-full transition-colors relative ${
-//         isInitiating || disabled ? 'opacity-50 cursor-not-allowed' : ''
-//       }`}
-//       title={`Start ${callType} call`}
-//     >
-//       {isInitiating ? (
-//         <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-//       ) : callType === 'video' ? (
-//         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-//           <path d="M23 7l-7 5 7 5V7z" />
-//           <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-//         </svg>
-//       ) : (
-//         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-//           <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
-//         </svg>
-//       )}
-//     </button>
-//   );
-// };
-
-// export const CallWindow = ({ callData, onClose, currentUserId }) => {
-//   const [isJoining, setIsJoining] = useState(true);
-//   const [error, setError] = useState(null);
-//   const [token, setToken] = useState(null);
-//   const [livekitUrl, setLivekitUrl] = useState(null);
-//   const [roomName, setRoomName] = useState(null);
-
-//   useEffect(() => {
-//     const joinCall = async () => {
-//       try {
-//         console.log('🎥 Joining LiveKit Cloud call with data:', callData);
-        
-//         // Get token for joining
-//         const response = await api.post(`/message/call/${callData.call_id}/join`, {
-//           user_id: currentUserId,
-//           call_id: callData.call_id
-//         });
-
-//         console.log('✅ Join response:', response.data);
-
-//         setToken(response.data.token);
-//         setLivekitUrl(response.data.livekit_url);
-//         setRoomName(response.data.room_name);
-//         setIsJoining(false);
-
-//       } catch (error) {
-//         console.error('❌ Failed to join call:', error);
-//         let errorMessage = 'Failed to join call. Please try again.';
-        
-//         if (error.response) {
-//           console.error('Error response:', error.response.data);
-//           if (error.response.data && error.response.data.detail) {
-//             errorMessage = error.response.data.detail;
-//           }
-//         } else if (error.request) {
-//           errorMessage = 'No response from server. Please check your connection.';
-//         }
-        
-//         setError(errorMessage);
-//         setIsJoining(false);
-//       }
-//     };
-
-//     if (callData) {
-//       joinCall();
-//     }
-//   }, [callData, currentUserId]);
-
-//   const handleEndCall = async () => {
-//     try {
-//       console.log('🔚 Ending call:', callData?.call_id);
-//       if (callData?.call_id) {
-//         await api.post(`/message/call/${callData.call_id}/end?user_id=${currentUserId}`);
-//       }
-//     } catch (error) {
-//       console.error('Failed to end call properly:', error);
-//     } finally {
-//       onClose();
-//     }
-//   };
-
-//   // If we have a token and LiveKit URL, render the LiveKit room
-//   if (token && livekitUrl && roomName) {
-//     return (
-//       <>
-//         {/* Overlay */}
-//         <div 
-//           className="fixed inset-0 bg-black/70 z-[999]"
-//         />
-
-//         {/* Call container */}
-//         <div className="fixed inset-0 z-[1000] flex items-center justify-center">
-//           <div className="relative w-[95%] h-[95%] max-w-[1400px] bg-black rounded-xl overflow-hidden shadow-2xl">
-//             <LiveKitRoom
-//   serverUrl={livekitUrl}
-//   token={token}
-//   connect={true}
-//   audio={true}
-//   video={true}
-//   onDisconnected={() => console.log("Disconnected")}
-//   className="w-full h-full"
-//   connectOptions={{
-//     autoSubscribe: true,
-//   }}
-//   data-lk-theme="default"
-// >
-//   <VideoConference />
-//   <RoomAudioRenderer />
-// </LiveKitRoom>
-
-//             {/* Close button (top right) */}
-//             <button
-//               onClick={handleEndCall}
-//               className="absolute top-4 right-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 transition-colors z-20 shadow-lg"
-//               title="End call"
-//             >
-//               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-//                 <path d="M18 6L6 18M6 6l12 12" />
-//               </svg>
-//             </button>
-
-//             {/* Info badge */}
-//             <div className="absolute bottom-4 left-4 bg-black/50 text-white text-xs px-2 py-1 rounded">
-//               LiveKit Cloud
-//             </div>
-//           </div>
-//         </div>
-//       </>
-//     );
-//   }
-
-//   // Loading or error state
-//   return (
-//     <>
-//       <div 
-//         className="fixed inset-0 bg-black/70 z-[999]"
-//         onClick={onClose}
-//       />
-
-//       <div className="fixed inset-0 z-[1000] flex items-center justify-center">
-//         <div className="relative w-[95%] h-[95%] max-w-[1400px] bg-black rounded-xl overflow-hidden shadow-2xl">
-//           <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-//             <div className="bg-white p-8 rounded-lg shadow-xl text-center max-w-md">
-//               {error ? (
-//                 <>
-//                   <div className="text-red-600 text-xl mb-4">⚠️</div>
-//                   <p className="text-gray-800 mb-4">{error}</p>
-//                   <p className="text-sm text-gray-500 mb-4">
-//                     {error.includes('LiveKit') ? 
-//                       'Please check your LiveKit Cloud configuration.' : 
-//                       'Please try again or contact support.'}
-//                   </p>
-//                   <button
-//                     onClick={onClose}
-//                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-//                   >
-//                     Close
-//                   </button>
-//                 </>
-//               ) : (
-//                 <>
-//                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-//                   <p className="text-gray-600">Connecting to LiveKit Cloud...</p>
-//                   <p className="text-sm text-gray-400 mt-2">Please allow camera and microphone access</p>
-//                 </>
-//               )}
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-//     </>
-//   );
-// };
-
-// export const IncomingCallNotification = ({ callData, onAccept, onDecline }) => {
-//   const [isRinging, setIsRinging] = useState(true);
-//   const audioContextRef = useRef(null);
-//   const oscillatorRef = useRef(null);
-
-//   useEffect(() => {
-//     // Play ringtone using Web Audio API
-//     const playRingtone = async () => {
-//       try {
-//         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-//         audioContextRef.current = new AudioContextClass();
-        
-//         // Resume audio context (required by browser policies)
-//         await audioContextRef.current.resume();
-        
-//         const oscillator = audioContextRef.current.createOscillator();
-//         const gainNode = audioContextRef.current.createGain();
-        
-//         oscillator.connect(gainNode);
-//         gainNode.connect(audioContextRef.current.destination);
-        
-//         oscillator.frequency.value = 440; // A4 note
-//         gainNode.gain.value = 0.3;
-        
-//         oscillator.start();
-//         oscillatorRef.current = oscillator;
-        
-//         // Create a repeating pattern
-//         const interval = setInterval(() => {
-//           if (!isRinging) {
-//             clearInterval(interval);
-//             return;
-//           }
-//           if (gainNode.gain.value === 0.3) {
-//             gainNode.gain.value = 0;
-//           } else {
-//             gainNode.gain.value = 0.3;
-//           }
-//         }, 500);
-        
-//         return () => {
-//           clearInterval(interval);
-//           if (oscillatorRef.current) {
-//             oscillatorRef.current.stop();
-//           }
-//           if (audioContextRef.current) {
-//             audioContextRef.current.close();
-//           }
-//         };
-//       } catch (e) {
-//         console.log('Audio play failed:', e);
-//       }
-//     };
-    
-//     const cleanup = playRingtone();
-    
-//     return () => {
-//       setIsRinging(false);
-//       if (cleanup) {
-//         cleanup.then(cleanupFn => cleanupFn && cleanupFn());
-//       }
-//       if (oscillatorRef.current) {
-//         oscillatorRef.current.stop();
-//       }
-//       if (audioContextRef.current) {
-//         audioContextRef.current.close();
-//       }
-//     };
-//   }, [isRinging]);
-
-//   return (
-//     <div className="fixed top-4 right-4 bg-white rounded-lg shadow-2xl p-6 z-50 animate-slide-down w-80">
-//       <div className="flex items-center gap-4 mb-4">
-//         <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center animate-pulse">
-//           {callData.call_type === 'video' ? (
-//             <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-//             </svg>
-//           ) : (
-//             <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-//               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-//             </svg>
-//           )}
-//         </div>
-//         <div>
-//           <h3 className="font-semibold text-lg">Incoming {callData.call_type} call</h3>
-//           <p className="text-sm text-gray-600">{callData.caller_name}</p>
-//         </div>
-//       </div>
-
-//       <div className="flex gap-3">
-//         <button
-//           onClick={onAccept}
-//           className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-//         >
-//           Accept
-//         </button>
-//         <button
-//           onClick={onDecline}
-//           className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-//         >
-//           Decline
-//         </button>
-//       </div>
-//     </div>
-//   );
-// };
-// src/components/collaboratorview/CallComponents.jsx
+// CallComponents.jsx - Complete Fixed Version
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from "../../utils/axiosConfig";
 
+// ─── Simple Audio Context ───────────────────────────────────────────────
+let globalAudioContext = null;
+let currentSoundRef = null;
+
+const getAudioContext = () => {
+  if (!globalAudioContext) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    globalAudioContext = new AudioContextClass();
+  }
+  return globalAudioContext;
+};
+
+const stopAllSounds = () => {
+  if (currentSoundRef) {
+    if (currentSoundRef.oscillator) {
+      try { currentSoundRef.oscillator.stop(); } catch(e) {}
+    }
+    if (currentSoundRef.interval) {
+      clearInterval(currentSoundRef.interval);
+    }
+    if (currentSoundRef.timeout) {
+      clearTimeout(currentSoundRef.timeout);
+    }
+    currentSoundRef = null;
+  }
+};
+
+const closeAudioContext = () => {
+  stopAllSounds();
+  if (globalAudioContext) {
+    globalAudioContext.close().catch(e => console.log('Audio close error:', e));
+    globalAudioContext = null;
+  }
+};
+
+// Simple dialing sound (gentle beep every 2 seconds)
+const playDialingSound = (isActiveRef) => {
+  stopAllSounds();
+  
+  const audioCtx = getAudioContext();
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  
+  let isActive = true;
+  let oscillator = null;
+  let intervalId = null;
+  
+  const beep = () => {
+    if (!isActive || !isActiveRef.current) return;
+    try {
+      oscillator = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      oscillator.connect(gain);
+      gain.connect(audioCtx.destination);
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 450;
+      gain.gain.value = 0.1;
+      oscillator.start();
+      gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.4);
+      setTimeout(() => {
+        try { oscillator.stop(); } catch(e) {}
+      }, 400);
+    } catch(e) {}
+  };
+  
+  beep();
+  intervalId = setInterval(() => {
+    if (isActive && isActiveRef.current) {
+      beep();
+    } else {
+      clearInterval(intervalId);
+    }
+  }, 2500);
+  
+  currentSoundRef = { oscillator, interval: intervalId };
+  
+  return () => {
+    isActive = false;
+    if (intervalId) clearInterval(intervalId);
+  };
+};
+
+// Simple ringtone (two beeps repeating)
+const playRingtone = (isActiveRef) => {
+  stopAllSounds();
+  
+  const audioCtx = getAudioContext();
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  
+  let isActive = true;
+  let timeouts = [];
+  
+  const beep = (frequency, delay, duration = 0.4, volume = 0.12) => {
+    const timeoutId = setTimeout(() => {
+      if (!isActive || !isActiveRef.current) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        gain.gain.value = volume;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        setTimeout(() => {
+          try { osc.stop(); } catch(e) {}
+        }, duration * 1000);
+      } catch(e) {}
+    }, delay);
+    timeouts.push(timeoutId);
+  };
+  
+  const playPattern = () => {
+    if (!isActive || !isActiveRef.current) return;
+    beep(525, 0, 0.4, 0.12);
+    beep(525, 700, 0.4, 0.12);
+    
+    const patternTimeout = setTimeout(() => {
+      if (isActive && isActiveRef.current) playPattern();
+    }, 2000);
+    timeouts.push(patternTimeout);
+  };
+  
+  playPattern();
+  
+  currentSoundRef = { timeouts };
+  
+  return () => {
+    isActive = false;
+    timeouts.forEach(id => clearTimeout(id));
+  };
+};
+
+// Simple connected sound (short double beep)
+const playConnectedSound = () => {
+  const audioCtx = getAudioContext();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  
+  const beep = (frequency, delay, volume = 0.15) => {
+    setTimeout(() => {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        gain.gain.value = volume;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
+        setTimeout(() => osc.stop(), 200);
+      } catch(e) {}
+    }, delay);
+  };
+  
+  beep(587.33, 0);
+  beep(783.99, 150);
+};
+
+// Simple end call sound (short descending beep)
+const playEndSound = () => {
+  const audioCtx = getAudioContext();
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  
+  const beep = (frequency, delay, volume = 0.12) => {
+    setTimeout(() => {
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        gain.gain.value = volume;
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.3);
+        setTimeout(() => osc.stop(), 300);
+      } catch(e) {}
+    }, delay);
+  };
+  
+  beep(392.00, 0);
+  beep(349.23, 120);
+  beep(293.66, 240);
+};
+
+// Helper to get initials from name
+const getInitials = (name) => {
+  if (!name || name === 'User' || name === 'Caller' || name === 'undefined' || name === 'null' || name === '') return '??';
+  
+  let cleanName = name.split('@')[0];
+  cleanName = cleanName.replace(/[0-9]+$/, '');
+  
+  if (!cleanName || cleanName.length === 0) return 'U';
+  
+  const nameParts = cleanName.split(/[\s._-]+/);
+  
+  if (nameParts.length === 1) {
+    const singleName = nameParts[0];
+    if (singleName.length >= 2) {
+      return singleName.substring(0, 2).toUpperCase();
+    }
+    return singleName.substring(0, 1).toUpperCase();
+  }
+  
+  const firstInitial = nameParts[0]?.charAt(0) || '';
+  const lastInitial = nameParts[nameParts.length - 1]?.charAt(0) || '';
+  const result = (firstInitial + lastInitial).toUpperCase();
+  return result || 'U';
+};
+
+// Helper to get random color based on name
+const getAvatarColor = (name) => {
+  const colors = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+    '#DDA0DD', '#98D8C8', '#F7B731', '#5D9BEC', '#F06292',
+    '#BA68C8', '#4DB6AC', '#FF8A65', '#A1887F', '#E57373',
+    '#7986CB', '#4FC3F7', '#4DD0E1', '#4DB6AC', '#81C784',
+    '#FFB74D', '#FF8A65', '#A1887F', '#E57373', '#F06292'
+  ];
+  
+  let hash = 0;
+  const nameStr = String(name || 'User');
+  for (let i = 0; i < nameStr.length; i++) {
+    hash = ((hash << 5) - hash) + nameStr.charCodeAt(i);
+    hash = hash & hash;
+  }
+  
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
+
+// FIXED: Convert any raw name/email into a clean display name
+const formatDisplayName = (rawName) => {
+  if (!rawName || rawName === 'User' || rawName === 'Caller' || rawName === 'undefined' || rawName === 'null' || rawName === '') {
+    return null;
+  }
+
+  let name = String(rawName);
+
+  // If it's an email, extract username part and clean it
+  if (name.includes('@')) {
+    name = name.split('@')[0];
+    // Remove numbers at the end (e.g., "priya123" -> "priya")
+    name = name.replace(/[0-9]+$/, '');
+    // Capitalize first letter
+    if (name.length > 0) {
+      name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+    }
+    return name || null;
+  }
+
+  // Remove trailing numbers
+  name = name.replace(/[0-9]+$/, '');
+  
+  if (!name) return null;
+
+  // Split by common separators and capitalize each part
+  const parts = name.split(/[\s._-]+/).filter(Boolean);
+  if (parts.length === 0) return null;
+
+  const formatted = parts
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(' ');
+  
+  return formatted;
+};
+
+// ─── Avatar with Initials Component ──────────────────────────────────────
+const InitialsAvatar = ({ name, size = 'large' }) => {
+  const safeName = name && name !== 'undefined' && name !== 'null' && name !== '' ? name : 'User';
+  const initials = getInitials(safeName);
+  const backgroundColor = getAvatarColor(safeName);
+  
+  const sizeClasses = {
+    small: 'w-12 h-12 text-lg',
+    medium: 'w-16 h-16 text-xl',
+    large: 'w-20 h-20 sm:w-28 sm:h-28 text-2xl sm:text-4xl',
+    xlarge: 'w-32 h-32 text-4xl'
+  };
+  
+  const sizeClass = sizeClasses[size] || sizeClasses.large;
+  
+  return (
+    <div 
+      className={`${sizeClass} rounded-full flex items-center justify-center font-bold shadow-lg transition-all duration-300`}
+      style={{ backgroundColor, color: 'white' }}
+    >
+      {initials}
+    </div>
+  );
+};
+
 // ─── CallButton ───────────────────────────────────────────────────────────────
-export const CallButton = ({ otherUserId, callType, onCallInitiated, currentUserId, disabled }) => {
+export const CallButton = ({ otherUserId, callType, onCallInitiated, currentUserId, currentUserName, disabled }) => {
   const [isInitiating, setIsInitiating] = useState(false);
 
   const initiateCall = async () => {
     if (isInitiating || disabled) return;
     setIsInitiating(true);
+    
+    // Clean the caller name before sending
+    let cleanCallerName = currentUserName;
+    if (cleanCallerName && cleanCallerName.includes('@')) {
+      cleanCallerName = cleanCallerName.split('@')[0];
+      cleanCallerName = cleanCallerName.replace(/[0-9]+$/, '');
+      cleanCallerName = cleanCallerName.charAt(0).toUpperCase() + cleanCallerName.slice(1).toLowerCase();
+    }
+    
+    console.log('📞 CallButton - Original caller_name:', currentUserName);
+    console.log('📞 CallButton - Clean caller_name:', cleanCallerName);
+    console.log('📞 CallButton - receiver_id:', otherUserId);
+    
     try {
       const response = await api.post('/message/call/initiate', {
         caller_id: currentUserId,
+        caller_name: cleanCallerName || currentUserName, // Send cleaned name
         receiver_id: otherUserId,
         call_type: callType
       });
       if (response.data.status === 'success') {
-        onCallInitiated({ ...response.data, caller_id: currentUserId });
+        onCallInitiated({ 
+          ...response.data, 
+          caller_id: currentUserId, 
+          caller_name: cleanCallerName || currentUserName
+        });
       } else {
         throw new Error('Invalid response');
       }
@@ -376,17 +353,17 @@ export const CallButton = ({ otherUserId, callType, onCallInitiated, currentUser
     <button
       onClick={initiateCall}
       disabled={isInitiating || disabled}
-      className={`p-2 hover:bg-gray-100 rounded-full transition-colors ${isInitiating || disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+      className={`p-1.5 sm:p-2 hover:bg-gray-100 rounded-full transition-colors ${isInitiating || disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       title={`Start ${callType} call`}
     >
       {isInitiating ? (
-        <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
       ) : callType === 'video' ? (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
         </svg>
       ) : (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
         </svg>
       )}
@@ -401,13 +378,18 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
   const pcRef              = useRef(null);
   const localStreamRef     = useRef(null);
   const wsRef              = useRef(null);
-  const wsConnectedRef     = useRef(false);       // WS open guard
-  const hasJoinedRef       = useRef(false);        // sent join guard
-  const iceCandidateQueue  = useRef([]);           // buffer ICE before remoteDesc
+  const wsConnectedRef     = useRef(false);
+  const hasJoinedRef       = useRef(false);
+  const iceCandidateQueue  = useRef([]);
   const isCleanedUpRef     = useRef(false);
   const isEndedRef         = useRef(false);
   const callTimerRef       = useRef(null);
-  const mountedRef         = useRef(true);         // StrictMode guard
+  const mountedRef         = useRef(true);
+  
+  // Sound refs
+  const isDialingRef = useRef(false);
+  const isRingtoneRef = useRef(false);
+  const hasConnectedPlayedRef = useRef(false);
 
   const [isJoining,    setIsJoining]    = useState(true);
   const [error,        setError]        = useState(null);
@@ -416,9 +398,44 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
   const [callStatus,   setCallStatus]   = useState('connecting');
   const [callDuration, setCallDuration] = useState(0);
   const [isCallActive, setIsCallActive] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [isSpeakerOn, setIsSpeakerOn] = useState(false);
 
-  // caller_id must be in callData — callers pass it, callees get it via incoming_call WS event
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const isCaller = Number(currentUserId) === Number(callData.caller_id);
+  
+  // FIXED: Better name extraction for CallWindow
+  useEffect(() => {
+    let rawName;
+    if (isCaller) {
+      // Caller sees the receiver's name
+      rawName = callData.receiver_name || callData.receiver_name_from_api;
+    } else {
+      // Receiver sees the caller's name
+      rawName = callData.caller_name || callData.caller_name_from_api;
+    }
+    
+    // Format the name properly
+    const formatted = formatDisplayName(rawName);
+    setDisplayName(formatted || (isCaller ? 'Other User' : 'Caller'));
+  }, [isCaller, callData]);
+
+  // Stop all sounds immediately
+  const stopSounds = useCallback(() => {
+    isDialingRef.current = false;
+    isRingtoneRef.current = false;
+    stopAllSounds();
+  }, []);
 
   const ICE_SERVERS = {
     iceServers: [
@@ -428,18 +445,19 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     ]
   };
 
-  // ── helpers ───────────────────────────────────────────────────────────────
   const sendSignal = useCallback((msg) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(msg));
     }
   }, []);
 
-  // ── cleanup ───────────────────────────────────────────────────────────────
   const cleanup = useCallback(() => {
     if (isCleanedUpRef.current) return;
     isCleanedUpRef.current = true;
     mountedRef.current = false;
+
+    stopSounds();
+    closeAudioContext();
 
     if (callTimerRef.current) clearInterval(callTimerRef.current);
 
@@ -453,7 +471,6 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
       pcRef.current.ontrack = null;
       pcRef.current.onicecandidate = null;
       pcRef.current.onconnectionstatechange = null;
-      pcRef.current.oniceconnectionstatechange = null;
       pcRef.current.close();
       pcRef.current = null;
     }
@@ -468,12 +485,15 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     }
     wsConnectedRef.current = false;
     hasJoinedRef.current   = false;
-  }, []);
+  }, [stopSounds]);
 
-  // ── end call ─────────────────────────────────────────────────────────────
   const handleEndCall = useCallback(async () => {
     if (isEndedRef.current) return;
     isEndedRef.current = true;
+    
+    stopSounds();
+    playEndSound();
+    
     if (mountedRef.current) setCallStatus('ended');
     try {
       await api.post(`/message/call/${callData.call_id}/end?user_id=${currentUserId}`);
@@ -483,9 +503,8 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
       cleanup();
       setTimeout(onClose, 400);
     }
-  }, [callData.call_id, currentUserId, cleanup, onClose]);
+  }, [callData.call_id, currentUserId, cleanup, onClose, stopSounds]);
 
-  // ── timer ─────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!isCallActive) return;
     callTimerRef.current = setInterval(() => {
@@ -494,7 +513,6 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     return () => clearInterval(callTimerRef.current);
   }, [isCallActive]);
 
-  // ── drain ICE candidate queue ─────────────────────────────────────────────
   const drainIceCandidateQueue = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc || !pc.remoteDescription) return;
@@ -508,48 +526,40 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     }
   }, []);
 
-  // ── create offer (caller only) ────────────────────────────────────────────
   const createOffer = useCallback(async () => {
     const pc = pcRef.current;
     if (!pc) return;
     try {
-      console.log('📤 Creating offer...');
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: callData.call_type === 'video',
       });
       await pc.setLocalDescription(offer);
       sendSignal({ type: 'offer', offer: pc.localDescription, call_id: callData.call_id, from: Number(currentUserId) });
-      console.log('📤 Offer sent');
     } catch (e) {
       console.error('createOffer failed:', e);
     }
   }, [callData, currentUserId, sendSignal]);
 
-  // ── handle offer (callee only) ────────────────────────────────────────────
   const handleOffer = useCallback(async (offer) => {
     const pc = pcRef.current;
     if (!pc) return;
     try {
-      console.log('📥 Handling offer...');
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
       await drainIceCandidateQueue();
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       sendSignal({ type: 'answer', answer: pc.localDescription, call_id: callData.call_id, from: Number(currentUserId) });
-      console.log('📤 Answer sent');
     } catch (e) {
       console.error('handleOffer failed:', e);
     }
   }, [callData, currentUserId, sendSignal, drainIceCandidateQueue]);
 
-  // ── handle answer (caller only) ───────────────────────────────────────────
   const handleAnswer = useCallback(async (answer) => {
     const pc = pcRef.current;
     if (!pc) return;
     try {
       if (pc.signalingState !== 'have-local-offer') return;
-      console.log('📥 Handling answer...');
       await pc.setRemoteDescription(new RTCSessionDescription(answer));
       await drainIceCandidateQueue();
     } catch (e) {
@@ -557,7 +567,6 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     }
   }, [drainIceCandidateQueue]);
 
-  // ── handle ICE candidate ──────────────────────────────────────────────────
   const handleIceCandidate = useCallback(async (candidate) => {
     const pc = pcRef.current;
     if (!pc) return;
@@ -565,12 +574,10 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
       try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
       catch (e) { console.warn('ICE add error:', e); }
     } else {
-      // Buffer until remote description is set
       iceCandidateQueue.current.push(candidate);
     }
   }, []);
 
-  // ── setup peer connection ─────────────────────────────────────────────────
   const setupPeerConnection = useCallback((stream) => {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
@@ -578,9 +585,10 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
     pc.ontrack = (e) => {
-      console.log('🎥 Remote track received');
       if (remoteVideoRef.current && e.streams[0]) {
         remoteVideoRef.current.srcObject = e.streams[0];
+        // Speaker is off by default — leave audio on the default route
+        // (e.g. connected earphones) until the user taps the speaker button.
       }
       if (mountedRef.current) {
         setCallStatus('active');
@@ -595,40 +603,37 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('🔗 Connection state:', pc.connectionState);
       if (!mountedRef.current) return;
       if (pc.connectionState === 'connected') {
         setCallStatus('active');
         setIsCallActive(true);
+        
+        if (!hasConnectedPlayedRef.current) {
+          hasConnectedPlayedRef.current = true;
+          stopSounds();
+          playConnectedSound();
+        }
       }
       if (pc.connectionState === 'failed') handleEndCall();
       if (pc.connectionState === 'disconnected') setCallStatus('disconnected');
     };
 
     return pc;
-  }, [callData, currentUserId, sendSignal, handleEndCall]);
+  }, [callData, currentUserId, sendSignal, handleEndCall, stopSounds, isSpeakerOn]);
 
-  // ── signaling WebSocket ───────────────────────────────────────────────────
-  // KEY: only one WS ever created per mount, guarded by wsConnectedRef
   const connectSignaling = useCallback(() => {
-    // StrictMode / double-mount guard
-    if (wsConnectedRef.current) {
-      console.log('⚠️ Signaling WS already connecting, skipping duplicate');
-      return;
-    }
+    if (wsConnectedRef.current) return;
     wsConnectedRef.current = true;
 
     const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const wsBase  = apiBase.replace(/^http/, 'ws');
     const url     = `${wsBase}/message/call/${callData.call_id}/signal`;
 
-    console.log('🔌 Opening signaling WS:', url);
     const ws = new WebSocket(url);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log('✅ Signaling WS open');
-      if (hasJoinedRef.current) return; // guard against re-sends
+      if (hasJoinedRef.current) return;
       hasJoinedRef.current = true;
       ws.send(JSON.stringify({
         type: 'join',
@@ -644,46 +649,32 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
       try { msg = JSON.parse(event.data); }
       catch (e) { return; }
 
-      console.log('📩 Signal:', msg.type, '| from:', msg.from ?? msg.user_id ?? '?');
-
       switch (msg.type) {
-        // Server tells us another peer joined
         case 'user-joined': {
           const joinedId = Number(msg.user_id);
-          // Caller creates offer when the OTHER user (callee) joins
           if (isCaller && joinedId !== Number(currentUserId)) {
-            console.log('✅ Callee joined → creating offer');
             await createOffer();
           }
-          // Callee does nothing here — waits for the offer
           break;
         }
-
         case 'offer':
-          // Only callee handles offers
           if (!isCaller && msg.from !== Number(currentUserId)) {
             await handleOffer(msg.offer);
           }
           break;
-
         case 'answer':
-          // Only caller handles answers
           if (isCaller && msg.from !== Number(currentUserId)) {
             await handleAnswer(msg.answer);
           }
           break;
-
         case 'ice-candidate':
           if (msg.from !== Number(currentUserId)) {
             await handleIceCandidate(msg.candidate);
           }
           break;
-
         case 'user-left':
-          console.log('👋 Other peer left');
           handleEndCall();
           break;
-
         default:
           break;
       }
@@ -693,16 +684,19 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
       console.error('Signaling WS error:', e);
       if (mountedRef.current) setError('Signaling connection error. Please try again.');
     };
-
-    ws.onclose = () => {
-      console.log('Signaling WS closed');
-    };
   }, [callData, currentUserId, isCaller, createOffer, handleOffer, handleAnswer, handleIceCandidate, handleEndCall]);
 
-  // ── join call ─────────────────────────────────────────────────────────────
   const joinCall = useCallback(async () => {
     try {
       setCallStatus('requesting-media');
+      
+      if (isCaller) {
+        isDialingRef.current = true;
+        playDialingSound(isDialingRef);
+      } else {
+        isRingtoneRef.current = true;
+        playRingtone(isRingtoneRef);
+      }
 
       const constraints = {
         audio: true,
@@ -726,13 +720,11 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
 
       if (mountedRef.current) setCallStatus('connecting');
 
-      // Tell server we're in (updates call state)
       await api.post(`/message/call/${callData.call_id}/join`, {
         user_id: Number(currentUserId),
         call_id: callData.call_id,
       });
 
-      // Set up PC first, then open signaling WS
       setupPeerConnection(stream);
       connectSignaling();
 
@@ -747,40 +739,37 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
       setError(msg);
       setIsJoining(false);
       setCallStatus('failed');
+      stopSounds();
       cleanup();
     }
-  }, [callData, currentUserId, setupPeerConnection, connectSignaling, cleanup]);
+  }, [callData, currentUserId, setupPeerConnection, connectSignaling, cleanup, isCaller, stopSounds]);
 
-  // ── mount/unmount ─────────────────────────────────────────────────────────
   useEffect(() => {
     mountedRef.current = true;
-
     joinCall();
 
     const onCallEnded = (e) => {
-      if (!e.detail?.call_id || e.detail.call_id === callData.call_id) handleEndCall();
+      if (!e.detail?.call_id || e.detail.call_id === callData.call_id) {
+        stopSounds();
+        handleEndCall();
+      }
     };
     window.addEventListener('call-ended', onCallEnded);
 
     return () => {
       window.removeEventListener('call-ended', onCallEnded);
-      // Don't call cleanup() here in dev — StrictMode unmounts immediately.
-      // Let the WS guard prevent duplicate connections.
-      // Actual cleanup happens in handleEndCall or on hard unmount.
+      stopSounds();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // empty deps — run once
+  }, []);
 
-  // Hard cleanup on true unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
+      stopSounds();
       cleanup();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [cleanup, stopSounds]);
 
-  // ── controls ──────────────────────────────────────────────────────────────
   const toggleMute = () => {
     const track = localStreamRef.current?.getAudioTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled); }
@@ -790,6 +779,51 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     const track = localStreamRef.current?.getVideoTracks()[0];
     if (track) { track.enabled = !track.enabled; setIsVideoOff(!track.enabled); }
   };
+
+  // Speaker is OFF by default — audio follows whatever output the OS has
+  // chosen (e.g. connected earphones/Bluetooth). Tapping the button forces
+  // playback through the device's built-in/loud speaker, even if earphones
+  // are plugged in. Tapping again returns to the default route.
+  const toggleSpeaker = useCallback(async () => {
+    const mediaEl = remoteVideoRef.current;
+    const nextState = !isSpeakerOn;
+
+    if (mediaEl) {
+      if (typeof mediaEl.setSinkId === 'function' && navigator.mediaDevices?.enumerateDevices) {
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const outputs = devices.filter(d => d.kind === 'audiooutput');
+
+          // DEBUG: log what audio output devices this browser actually exposes.
+          // Check the console — if labels are blank/generic, setSinkId has
+          // nothing useful to target and the OS controls routing instead.
+          console.log('🔊 Available audio outputs:', outputs.map(d => ({ id: d.deviceId, label: d.label })));
+
+          if (nextState) {
+            // Force the device's built-in/loud speaker, bypassing earphones/headset
+            const builtInSpeaker = outputs.find(d => /speaker|built[- ]?in/i.test(d.label));
+            if (builtInSpeaker) {
+              await mediaEl.setSinkId(builtInSpeaker.deviceId);
+            } else {
+              // No labeled built-in speaker available — at least max the volume
+              mediaEl.volume = 1.0;
+            }
+          } else {
+            // Return audio to the default route (earphone/headset if connected)
+            await mediaEl.setSinkId('default');
+          }
+        } catch (e) {
+          console.warn('setSinkId not available, using volume fallback:', e);
+          mediaEl.volume = nextState ? 1.0 : 0.7;
+        }
+      } else {
+        // No output-switching support on this browser/device — use volume as the cue
+        mediaEl.volume = nextState ? 1.0 : 0.7;
+      }
+    }
+
+    setIsSpeakerOn(nextState);
+  }, [isSpeakerOn]);
 
   const fmt = (s) => {
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
@@ -808,50 +842,48 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
     'ended':            'Call ended',
   }[callStatus] ?? '…';
 
-  // ── render ────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="fixed inset-0 z-[999]" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)' }} />
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-        <div className="relative overflow-hidden rounded-3xl shadow-2xl" style={{
-          width: '100%', maxWidth: '900px', height: '90vh', maxHeight: '680px',
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-2 sm:p-4">
+        <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl shadow-2xl w-full" style={{
+          width: '100%', 
+          maxWidth: isMobile ? '100%' : '900px', 
+          height: isMobile ? '100%' : '90vh', 
+          maxHeight: isMobile ? '100%' : '680px',
           background: 'linear-gradient(160deg, #0f0a1e 0%, #1a0f2e 50%, #0a0f1e 100%)',
           border: '1px solid rgba(139,92,246,0.15)',
         }}>
-          {/* ambient glow */}
           <div className="absolute inset-0 pointer-events-none" style={{
             background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(139,92,246,0.12) 0%, transparent 70%)',
           }} />
 
-          {/* remote video */}
-          <div className="absolute inset-0">
+         <div className="absolute inset-0">
             <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover"
-              style={{ opacity: callStatus === 'active' ? 1 : 0, transition: 'opacity 0.6s ease' }} />
+              style={{ opacity: (callStatus === 'active' && callData.call_type === 'video') ? 1 : 0, transition: 'opacity 0.6s ease' }} />
           </div>
 
-          {/* waiting overlay */}
-          {callStatus !== 'active' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="relative mb-8">
-                <div className="absolute inset-[-16px] rounded-full animate-ping"
-                  style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)', animationDuration: '2s' }} />
-                <div className="w-28 h-28 rounded-full flex items-center justify-center" style={{
-                  background: 'linear-gradient(135deg, rgba(139,92,246,0.3) 0%, rgba(109,40,217,0.4) 100%)',
-                  border: '2px solid rgba(139,92,246,0.5)',
-                }}>
-                  <svg className="w-14 h-14" fill="none" stroke="rgba(196,181,253,0.9)" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
+          {(callStatus !== 'active' || callData.call_type !== 'video') && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+              <div className="relative mb-4 sm:mb-8">
+                {callStatus !== 'active' && (
+                  <div className="absolute inset-[-12px] sm:inset-[-16px] rounded-full animate-ping"
+                    style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.25) 0%, transparent 70%)', animationDuration: '2s' }} />
+                )}
+                <InitialsAvatar name={displayName || 'User'} size="large" />
               </div>
-              <p style={{ color: 'rgba(196,181,253,0.95)', fontSize: '18px', fontWeight: 600 }}>
-                {callStatus === 'ended' ? 'Call Ended' : callStatus === 'failed' ? 'Connection Failed' : 'Connecting…'}
+              <p style={{ color: 'rgba(196,181,253,0.95)', fontSize: '14px', sm: '18px', fontWeight: 600 }}>
+                {displayName || 'User'}
+              </p>
+              <p style={{ color: 'rgba(196,181,253,0.7)', fontSize: '12px', marginTop: '4px' }}>
+                {callStatus === 'ended' ? 'Call Ended' : callStatus === 'failed' ? 'Connection Failed' :
+                  callStatus === 'active' ? fmt(callDuration) :
+                  isCaller ? 'Calling...' : 'Incoming call...'}
               </p>
               {['connecting','requesting-media'].includes(callStatus) && (
-                <div className="mt-3 flex gap-1.5">
+                <div className="mt-2 sm:mt-3 flex gap-1 sm:gap-1.5">
                   {[0,1,2].map(i => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-purple-400"
+                    <div key={i} className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-purple-400"
                       style={{ animation: 'dotBounce 1.2s ease-in-out infinite', animationDelay: `${i*0.2}s` }} />
                   ))}
                 </div>
@@ -859,105 +891,104 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
             </div>
           )}
 
-          {/* local video PiP */}
           {callData.call_type === 'video' && (
-            <div className="absolute top-5 right-5 overflow-hidden shadow-2xl z-10" style={{
-              width: '180px', height: '135px', borderRadius: '16px',
+            <div className="absolute top-2 right-2 sm:top-5 sm:right-5 overflow-hidden shadow-2xl z-10" style={{
+              width: isMobile ? '80px' : '180px', 
+              height: isMobile ? '60px' : '135px', 
+              borderRadius: isMobile ? '10px' : '16px',
               border: '1px solid rgba(255,255,255,0.15)', background: '#111',
             }}>
               <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover"
                 style={{ display: isVideoOff ? 'none' : 'block' }} />
               {isVideoOff && (
                 <div className="w-full h-full flex items-center justify-center" style={{ background: 'rgba(30,10,50,0.9)' }}>
-                  <svg className="w-10 h-10" fill="none" stroke="rgba(139,92,246,0.7)" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6 sm:w-10 sm:h-10" fill="none" stroke="rgba(139,92,246,0.7)" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
                       d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </div>
               )}
-              <div style={{ position: 'absolute', bottom: 6, left: 8, fontSize: '10px', color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>You</div>
+              <div style={{ position: 'absolute', bottom: 4, left: 6, fontSize: isMobile ? '8px' : '10px', color: 'rgba(255,255,255,0.6)', fontFamily: 'monospace' }}>You</div>
             </div>
           )}
 
-          {/* loading / error overlay */}
           {(isJoining || error) && (
-            <div className="absolute inset-0 flex items-center justify-center z-20"
+            <div className="absolute inset-0 flex items-center justify-center z-20 p-4"
               style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}>
-              <div className="text-center p-8 rounded-2xl" style={{
-                background: 'rgba(15,10,30,0.95)', border: '1px solid rgba(139,92,246,0.2)', maxWidth: '360px',
+              <div className="text-center p-4 sm:p-8 rounded-2xl" style={{
+                background: 'rgba(15,10,30,0.95)', border: '1px solid rgba(139,92,246,0.2)', maxWidth: '320px',
               }}>
                 {error ? (
                   <>
-                    <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-                    <p style={{ color: 'rgba(255,255,255,0.85)', marginBottom: '20px', lineHeight: 1.5 }}>{error}</p>
-                    <button onClick={handleEndCall} className="px-6 py-2.5 rounded-xl font-medium"
+                    <div style={{ fontSize: '36px', marginBottom: '12px' }}>⚠️</div>
+                    <p style={{ color: 'rgba(255,255,255,0.85)', marginBottom: '16px', lineHeight: 1.5, fontSize: '13px' }}>{error}</p>
+                    <button onClick={handleEndCall} className="px-4 py-2 rounded-xl font-medium text-sm"
                       style={{ background: 'rgba(139,92,246,0.8)', color: 'white' }}>Close</button>
                   </>
                 ) : (
                   <>
-                    <div className="mx-auto mb-5 rounded-full border-4 border-t-transparent animate-spin" style={{
-                      width: '52px', height: '52px',
+                    <div className="mx-auto mb-4 rounded-full border-4 border-t-transparent animate-spin" style={{
+                      width: '40px', height: '40px',
                       borderColor: 'rgba(139,92,246,0.8) rgba(139,92,246,0.2) rgba(139,92,246,0.2) rgba(139,92,246,0.2)',
                     }} />
-                    <p style={{ color: 'rgba(196,181,253,0.9)', fontWeight: 500 }}>Connecting…</p>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '8px' }}>Allow camera &amp; microphone access</p>
+                    <p style={{ color: 'rgba(196,181,253,0.9)', fontWeight: 500, fontSize: '13px' }}>Connecting…</p>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '6px' }}>Allow camera & microphone access</p>
                   </>
                 )}
               </div>
             </div>
           )}
 
-          {/* top status bar */}
-          <div className="absolute top-5 left-5 z-20 flex items-center gap-3">
+          <div className="absolute top-2 left-2 sm:top-5 sm:left-5 z-20 flex items-center gap-2 sm:gap-3">
             <div style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
+              display: 'flex', alignItems: 'center', gap: '4px', sm: '8px',
               background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(12px)',
-              borderRadius: '999px', padding: '6px 14px', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '999px', padding: '3px 8px', sm: '6px 14px', border: '1px solid rgba(255,255,255,0.08)',
             }}>
               <div style={{
-                width: 8, height: 8, borderRadius: '50%', background: statusColor,
+                width: 6, height: 6, borderRadius: '50%', background: statusColor,
                 boxShadow: `0 0 8px ${statusColor}`,
                 animation: callStatus === 'active' ? 'none' : 'pulse 1.5s ease-in-out infinite',
               }} />
-              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '13px', fontFamily: 'monospace', letterSpacing: '0.03em' }}>
+              <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: '10px', sm: '13px', fontFamily: 'monospace', letterSpacing: '0.03em' }}>
                 {statusLabel}
               </span>
             </div>
             <div style={{
               background: 'rgba(139,92,246,0.25)', backdropFilter: 'blur(8px)',
-              borderRadius: '999px', padding: '5px 12px', border: '1px solid rgba(139,92,246,0.3)',
+              borderRadius: '999px', padding: '3px 8px', sm: '5px 12px', border: '1px solid rgba(139,92,246,0.3)',
             }}>
-              <span style={{ color: 'rgba(196,181,253,0.9)', fontSize: '12px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              <span style={{ color: 'rgba(196,181,253,0.9)', fontSize: '9px', sm: '12px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                 {callData.call_type === 'video' ? '📹 Video' : '🎙️ Audio'}
               </span>
             </div>
           </div>
 
-          {/* bottom controls */}
           <div className="absolute bottom-0 left-0 right-0 z-20" style={{
-            padding: '32px 32px 28px',
-            background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)',
+            padding: isMobile ? '12px 12px 16px' : '32px 32px 28px',
+            background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)',
           }}>
-            <div className="flex items-center justify-center gap-4">
-              <ControlBtn active={isMuted} onClick={toggleMute} label={isMuted ? 'Unmute' : 'Mute'} activeColor="#ef4444"
+            <div className="flex items-center justify-center gap-2 sm:gap-4">
+              <ControlBtn active={isMuted} onClick={toggleMute} label={isMuted ? 'Unmute' : 'Mute'} activeColor="#ef4444" isMobile={isMobile}
                 icon={isMuted
-                  ? <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
-                  : <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                  ? <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" /></svg>
+                  : <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                 }
               />
 
               {callData.call_type === 'video' && (
-                <ControlBtn active={isVideoOff} onClick={toggleVideo} label={isVideoOff ? 'Camera on' : 'Camera off'} activeColor="#ef4444"
+                <ControlBtn active={isVideoOff} onClick={toggleVideo} label={isVideoOff ? 'Camera on' : 'Camera off'} activeColor="#ef4444" isMobile={isMobile}
                   icon={isVideoOff
-                    ? <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3l18 18" /></svg>
-                    : <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    ? <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3l18 18" /></svg>
+                    : <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   }
                 />
               )}
 
-              {/* End call */}
               <button onClick={handleEndCall} title="End call" style={{
-                width: '64px', height: '64px', borderRadius: '50%',
+                width: isMobile ? '44px' : '58px', 
+                height: isMobile ? '44px' : '58px', 
+                borderRadius: '50%',
                 background: 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)',
                 border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 0 24px rgba(220,38,38,0.45)', transition: 'transform 0.2s ease',
@@ -965,21 +996,32 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.08)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.12-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z" />
-                  <line x1="1" y1="1" x2="23" y2="23" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+                <svg width={isMobile ? "18" : "22"} height={isMobile ? "18" : "22"} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" transform="rotate(135)">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
                 </svg>
               </button>
 
-              <ControlBtn active={false} onClick={() => {}} label="Speaker"
-                icon={<svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.536 8.464a5 5 0 010 7.072M12 6v12m-3.536-9.536a5 5 0 000 7.072" /></svg>}
+              <ControlBtn active={isSpeakerOn} onClick={toggleSpeaker} label={isSpeakerOn ? 'Speaker on' : 'Speaker off'} activeColor="#7c3aed" isMobile={isMobile}
+                icon={isSpeakerOn
+                  ? <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5L6 9H2v6h4l5 4V5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.54 8.46a5 5 0 010 7.07" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.07 5.93a9 9 0 010 12.73" />
+                    </svg>
+                  : <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5L6 9H2v6h4l5 4V5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 9l5 5m0-5l-5 5" />
+                    </svg>
+                }
               />
 
-              <ControlBtn active={false}
-                onClick={() => !document.fullscreenElement ? document.documentElement.requestFullscreen?.() : document.exitFullscreen?.()}
-                label="Fullscreen"
-                icon={<svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>}
-              />
+              {!isMobile && (
+                <ControlBtn active={false}
+                  onClick={() => !document.fullscreenElement ? document.documentElement.requestFullscreen?.() : document.exitFullscreen?.()}
+                  label="Fullscreen"
+                  icon={<svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -987,14 +1029,17 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
 
       <style>{`
         @keyframes dotBounce { 0%,80%,100%{transform:translateY(0);opacity:.6} 40%{transform:translateY(-6px);opacity:1} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
       `}</style>
     </>
   );
 };
 
-const ControlBtn = ({ icon, onClick, label, active = false, activeColor = '#374151' }) => (
+const ControlBtn = ({ icon, onClick, label, active = false, activeColor = '#374151', isMobile = false }) => (
   <button onClick={onClick} title={label} style={{
-    width: '52px', height: '52px', borderRadius: '50%',
+    width: isMobile ? '38px' : '52px', 
+    height: isMobile ? '38px' : '52px', 
+    borderRadius: '50%',
     background: active ? activeColor : 'rgba(255,255,255,0.1)',
     border: `1px solid ${active ? 'transparent' : 'rgba(255,255,255,0.12)'}`,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1007,110 +1052,199 @@ const ControlBtn = ({ icon, onClick, label, active = false, activeColor = '#3741
   </button>
 );
 
-// ─── IncomingCallNotification ─────────────────────────────────────────────────
+// ─── IncomingCallNotification with ringtone and Initials Avatar ─────────────────
 export const IncomingCallNotification = ({ callData, onAccept, onDecline }) => {
   const isVideo = callData?.call_type === 'video';
   const [dismissed, setDismissed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const isPlayingRef = useRef(true);
+  const timeoutsRef = useRef([]);
+  
+  // FIXED: Better name extraction for incoming call
+  let rawCallerName = callData?.caller_name || callData?.name || callData?.from_name;
+  
+  // Clean the name
+  let displayName = formatDisplayName(rawCallerName);
+  
+  // If still no name, try to get from email
+  if (!displayName && callData?.caller_email) {
+    displayName = callData.caller_email.split('@')[0];
+    displayName = displayName.replace(/[0-9]+$/, '');
+    displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1).toLowerCase();
+  }
+  
+  // Final fallback
+  if (!displayName) {
+    displayName = 'Caller';
+  }
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Play ringtone when notification appears
+  useEffect(() => {
+    const playRingtone = async () => {
+      try {
+        const audioCtx = getAudioContext();
+        await audioCtx.resume();
+        
+        const beep = (frequency, delay, duration = 0.4, volume = 0.12) => {
+          const timeoutId = setTimeout(() => {
+            if (!isPlayingRef.current) return;
+            try {
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.type = 'sine';
+              osc.frequency.value = frequency;
+              gain.gain.value = volume;
+              osc.start();
+              gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+              setTimeout(() => {
+                try { osc.stop(); } catch(e) {}
+              }, duration * 1000);
+            } catch(e) {}
+          }, delay);
+          timeoutsRef.current.push(timeoutId);
+        };
+        
+        const playPattern = () => {
+          if (!isPlayingRef.current) return;
+          beep(525, 0, 0.4, 0.12);
+          beep(525, 700, 0.4, 0.12);
+          
+          const patternTimeout = setTimeout(() => {
+            if (isPlayingRef.current) playPattern();
+          }, 2000);
+          timeoutsRef.current.push(patternTimeout);
+        };
+        
+        playPattern();
+      } catch (e) {
+        console.log('Ringtone error:', e);
+      }
+    };
+    
+    playRingtone();
+    
+    return () => {
+      isPlayingRef.current = false;
+      timeoutsRef.current.forEach(id => clearTimeout(id));
+      timeoutsRef.current = [];
+      stopAllSounds();
+    };
+  }, []);
+
+  const handleAccept = () => {
+    isPlayingRef.current = false;
+    timeoutsRef.current.forEach(id => clearTimeout(id));
+    timeoutsRef.current = [];
+    stopAllSounds();
+    onAccept();
+  };
+
+  const handleDecline = () => {
+    isPlayingRef.current = false;
+    timeoutsRef.current.forEach(id => clearTimeout(id));
+    timeoutsRef.current = [];
+    stopAllSounds();
+    onDecline();
+  };
 
   useEffect(() => {
     const onEnded = (e) => {
       if (!e.detail?.call_id || e.detail.call_id === callData?.call_id) {
         setDismissed(true);
-        onDecline?.();
+        isPlayingRef.current = false;
+        timeoutsRef.current.forEach(id => clearTimeout(id));
+        timeoutsRef.current = [];
+        stopAllSounds();
       }
     };
     window.addEventListener('call-ended', onEnded);
     return () => window.removeEventListener('call-ended', onEnded);
-  }, [callData?.call_id, onDecline]);
+  }, [callData?.call_id]);
 
+  // Don't render if dismissed
   if (dismissed) return null;
 
   return (
-    <>
-      <div className="fixed inset-0 z-[9998]" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }} />
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ pointerEvents: 'none' }}>
-        <div style={{
-          pointerEvents: 'auto', width: '100%', maxWidth: '360px', borderRadius: '28px', overflow: 'hidden',
-          background: 'linear-gradient(160deg, #12072a 0%, #1e0d3c 60%, #0d1226 100%)',
-          border: '1px solid rgba(139,92,246,0.25)',
-          boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
-          animation: 'slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
-        }}>
-          <div className="flex flex-col items-center" style={{ padding: '36px 28px 24px' }}>
-            <div style={{ position: 'relative', marginBottom: '20px' }}>
-              {[0,1,2].map(i => (
-                <div key={i} style={{
-                  position: 'absolute', inset: `-${(i+1)*12}px`, borderRadius: '50%',
-                  border: '1px solid rgba(139,92,246,0.25)',
-                  animation: 'ripple 2s ease-out infinite', animationDelay: `${i*0.5}s`,
-                }} />
-              ))}
-              <div style={{
-                width: '96px', height: '96px', borderRadius: '50%', position: 'relative', zIndex: 1,
-                background: 'linear-gradient(135deg, rgba(139,92,246,0.4) 0%, rgba(109,40,217,0.6) 100%)',
-                border: '2px solid rgba(139,92,246,0.5)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <svg width="48" height="48" fill="none" stroke="rgba(216,180,254,0.9)" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-            </div>
-
-            <p style={{ color: 'rgba(196,181,253,0.7)', fontSize: '11px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '6px' }}>
-              Incoming {isVideo ? 'Video' : 'Audio'} Call
-            </p>
-            <h2 style={{ color: 'rgba(255,255,255,0.95)', fontSize: '22px', fontWeight: 700, textAlign: 'center', marginBottom: '4px' }}>
-              {callData?.caller_name?.split('@')[0] || 'Unknown Caller'}
-            </h2>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '12px', height: '18px' }}>
-              {[0.4,0.7,1,0.6,0.9,0.5,0.8,0.4,0.7,1,0.5,0.9].map((h, i) => (
-                <div key={i} style={{ width: '3px', height: `${h*18}px`, borderRadius: '2px',
-                  background: `rgba(167,139,250,${h*0.7})`,
-                  animation: 'wave 0.8s ease-in-out infinite', animationDelay: `${i*0.07}s` }} />
-              ))}
-            </div>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }}>
+      <div style={{
+        width: '100%', maxWidth: isMobile ? '320px' : '360px', 
+        borderRadius: isMobile ? '24px' : '28px', overflow: 'hidden',
+        background: 'linear-gradient(160deg, #12072a 0%, #1e0d3c 60%, #0d1226 100%)',
+        border: '1px solid rgba(139,92,246,0.25)',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.7)',
+        animation: 'slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1) both',
+      }}>
+        <div className="flex flex-col items-center" style={{ padding: isMobile ? '24px 20px 20px' : '36px 28px 24px' }}>
+          <div style={{ position: 'relative', marginBottom: isMobile ? '16px' : '20px' }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                position: 'absolute', inset: isMobile ? `-${(i+1)*8}px` : `-${(i+1)*12}px`, 
+                borderRadius: '50%', border: '1px solid rgba(139,92,246,0.25)',
+                animation: 'ripple 2s ease-out infinite', animationDelay: `${i*0.5}s`,
+              }} />
+            ))}
+            <InitialsAvatar name={displayName} size="large" />
           </div>
 
-          <div style={{ display: 'flex', borderTop: '1px solid rgba(139,92,246,0.15)' }}>
-            {/* Decline */}
-            <button onClick={onDecline} style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-              padding: '20px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
-              borderRight: '1px solid rgba(139,92,246,0.15)', transition: 'background 0.2s',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'linear-gradient(135deg,#dc2626,#b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg width="22" height="22" fill="currentColor" style={{ color: 'white' }} viewBox="0 0 24 24">
-                  <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
-                  <line x1="1" y1="1" x2="23" y2="23" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <span style={{ color: 'rgba(252,165,165,0.85)', fontSize: '12px', fontWeight: 600 }}>Decline</span>
-            </button>
+          <p style={{ color: 'rgba(196,181,253,0.7)', fontSize: isMobile ? '10px' : '11px', fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }}>
+            Incoming {isVideo ? 'Video' : 'Audio'} Call
+          </p>
+          <h2 style={{ color: 'rgba(255,255,255,0.95)', fontSize: isMobile ? '18px' : '22px', fontWeight: 700, textAlign: 'center', marginBottom: '2px' }}>
+            {displayName}
+          </h2>
 
-            {/* Accept */}
-            <button onClick={onAccept} style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-              padding: '20px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
-              transition: 'background 0.2s',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <div style={{ width: '52px', height: '52px', borderRadius: '50%', background: 'linear-gradient(135deg,#16a34a,#15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {isVideo
-                  ? <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                  : <svg width="22" height="22" fill="none" stroke="white" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-                }
-              </div>
-              <span style={{ color: 'rgba(134,239,172,0.85)', fontSize: '12px', fontWeight: 600 }}>Accept</span>
-            </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginTop: '10px', height: isMobile ? '14px' : '18px' }}>
+            {[0.4,0.7,1,0.6,0.9,0.5,0.8,0.4,0.7,1,0.5,0.9].map((h, i) => (
+              <div key={i} style={{ width: isMobile ? '2px' : '3px', height: `${h * (isMobile ? 12 : 18)}px`, borderRadius: '2px',
+                background: `rgba(167,139,250,${h*0.7})`,
+                animation: 'wave 0.8s ease-in-out infinite', animationDelay: `${i*0.07}s` }} />
+            ))}
           </div>
+          <p style={{ color: 'rgba(167,139,250,0.6)', fontSize: '10px', marginTop: '8px' }}>Ringing...</p>
+        </div>
+
+        <div style={{ display: 'flex', borderTop: '1px solid rgba(139,92,246,0.15)' }}>
+          <button onClick={handleDecline} style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? '6px' : '8px',
+            padding: isMobile ? '14px 12px' : '20px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
+            borderRight: '1px solid rgba(139,92,246,0.15)',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px', borderRadius: '50%', background: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width={isMobile ? "22" : "26"} height={isMobile ? "22" : "26"} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" transform="rotate(135)">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+            </div>
+            <span style={{ color: '#f87171', fontSize: isMobile ? '11px' : '12px', fontWeight: 600 }}>Decline</span>
+          </button>
+
+          <button onClick={handleAccept} style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isMobile ? '6px' : '8px',
+            padding: isMobile ? '14px 12px' : '20px 16px', background: 'transparent', border: 'none', cursor: 'pointer',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(34,197,94,0.08)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            <div style={{ width: isMobile ? '48px' : '56px', height: isMobile ? '48px' : '56px', borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <svg width={isMobile ? "22" : "26"} height={isMobile ? "22" : "26"} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" transform="rotate(-45)">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+              </svg>
+            </div>
+            <span style={{ color: '#86efac', fontSize: isMobile ? '11px' : '12px', fontWeight: 500 }}>Accept</span>
+          </button>
         </div>
       </div>
 
@@ -1119,6 +1253,6 @@ export const IncomingCallNotification = ({ callData, onAccept, onDecline }) => {
         @keyframes ripple { 0%{opacity:.6;transform:scale(1)} 100%{opacity:0;transform:scale(1.4)} }
         @keyframes wave { 0%,100%{transform:scaleY(.5)} 50%{transform:scaleY(1)} }
       `}</style>
-    </>
+    </div>
   );
 };
