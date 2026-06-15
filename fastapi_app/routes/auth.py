@@ -1111,6 +1111,17 @@ def auth0_callback(
     email = user_info.get("email")
     picture = user_info.get("picture")
 
+    if email:
+        email = email.strip().lower()
+
+    # Protect against Auth0 IDs ending up as emails
+    if email and (
+        email.startswith("apple|")
+        or email.startswith("facebook|")
+        or email.startswith("google-oauth2|")
+    ):
+        email = None
+
     # =====================================================
     # Detect Provider
     # =====================================================
@@ -1211,7 +1222,7 @@ def auth0_callback(
     # -----------------------------------------
     # Link existing email account
     # -----------------------------------------
-    if not user and email:
+    if not user and email and "@" in email:
 
         try:
             user = UserData.objects.get(
@@ -1258,7 +1269,7 @@ def auth0_callback(
         ).strip()
 
         user = UserData.objects.create(
-            email=email if email else None,
+            email=email if email and "@" in email else None,
             userid=auth0_user_id,
             password=random_password,
             full_name=full_name,

@@ -117,6 +117,16 @@ const SignupAc = () => {
 
   const navigate = useNavigate();
 
+  useEffect(() => {
+  if (window.location.hash === "#_=_") {
+    window.history.replaceState(
+      null,
+      document.title,
+      window.location.pathname + window.location.search
+    );
+  }
+}, []);
+
   // Detect iOS
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
