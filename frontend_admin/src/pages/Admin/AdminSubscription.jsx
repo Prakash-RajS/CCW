@@ -247,29 +247,26 @@ const SubscriptionPage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [planToDelete, setPlanToDelete] = useState(null);
   const [touchedFields, setTouchedFields] = useState({
-  name: false,
-  price: false,
-  description: false,
-  discount_code: false,
-  discount_description: false,
-  features: false,
-});
+    name: false,
+    price: false,
+    description: false,
+    discount_code: false,
+    discount_description: false,
+    features: false,
+  });
 
   // Search state for subscription history
   const [historySearchTerm, setHistorySearchTerm] = useState("");
 
   // Validation errors
-  // In the useState for validationErrors:
-const [validationErrors, setValidationErrors] = useState({
-  name: "",
-  price: "",
-  description: "",
-  discount_code: "",
-  discount_description: "",
-  features: "",
-});
-
-
+  const [validationErrors, setValidationErrors] = useState({
+    name: "",
+    price: "",
+    description: "",
+    discount_code: "",
+    discount_description: "",
+    features: "",
+  });
 
   // Pagination states
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
@@ -303,7 +300,13 @@ const [validationErrors, setValidationErrors] = useState({
     max_contracts: 10,
   });
 
-  const [stats, setStats] = useState({ total_subscribers: 0 });
+  const [stats, setStats] = useState({ 
+    total_subscribers: 0,
+    users_without_subscription: 0,
+    plans: []  // Dynamic plans array
+  });
+
+  const [dynamicPlanCards, setDynamicPlanCards] = useState([]); // NEW: For stats cards
   const [pricingPlans, setPricingPlans] = useState([]);
   const [subscriptionHistory, setSubscriptionHistory] = useState([]);
   const [selectedRow, setSelectedRow] = useState(null);
@@ -402,20 +405,21 @@ const [validationErrors, setValidationErrors] = useState({
   };
 
   const validateName = (name) => {
-  if (!name || name.trim() === "") return "Plan name is required";
-  if (name.length > 25) return "Plan name must be 25 characters or less";
-  const regex = /^[A-Za-z\s]+$/;
-  if (!regex.test(name))
-    return "Only alphabets and spaces allowed (no numbers or special characters)";
-  return "";
-};
-const validateDiscountDescription = (description) => {
-  if (!description || description.trim() === "") {
+    if (!name || name.trim() === "") return "Plan name is required";
+    if (name.length > 25) return "Plan name must be 25 characters or less";
+    const regex = /^[A-Za-z\s]+$/;
+    if (!regex.test(name))
+      return "Only alphabets and spaces allowed (no numbers or special characters)";
     return "";
-  }
-  if (description.length > 50) return "Discount description must be 50 characters or less";
-  return "";
-};
+  };
+
+  const validateDiscountDescription = (description) => {
+    if (!description || description.trim() === "") {
+      return "";
+    }
+    if (description.length > 50) return "Discount description must be 50 characters or less";
+    return "";
+  };
 
   const validatePrice = (price) => {
     if (price === "" || price === null) return "Price is required";
@@ -427,16 +431,16 @@ const validateDiscountDescription = (description) => {
   };
 
   const validateDescription = (description) => {
-  if (!description || description.trim() === "") {
+    if (!description || description.trim() === "") {
+      return "";
+    }
+    if (description.length > 100) return "Description must be 100 characters or less";
+    const regex = /^[A-Za-z\s]+$/;
+    if (!regex.test(description)) {
+      return "Only alphabets and spaces allowed (no numbers or special characters like @, #, $, etc.)";
+    }
     return "";
-  }
-  if (description.length > 100) return "Description must be 100 characters or less";
-  const regex = /^[A-Za-z\s]+$/;
-  if (!regex.test(description)) {
-    return "Only alphabets and spaces allowed (no numbers or special characters like @, #, $, etc.)";
-  }
-  return "";
-};
+  };
 
   const validateDiscountCode = (code) => {
     if (!code || code.trim() === "") return "";
@@ -447,22 +451,22 @@ const validateDiscountDescription = (description) => {
   };
 
   const validateFeatures = (features) => {
-  const nonEmptyFeatures = features.filter((f) => f && f.trim() !== "");
-  if (nonEmptyFeatures.length === 0)
-    return "At least one feature is required";
-  for (let i = 0; i < features.length; i++) {
-    if (features[i] && features[i].trim() !== "") {
-      if (features[i].length > 100) {
-        return `Feature ${i + 1} must be 100 characters or less`;
-      }
-      const regex = /^[A-Za-z0-9\s]+$/;
-      if (!regex.test(features[i])) {
-        return `Feature ${i + 1} contains invalid characters. Only alphabets, numbers and spaces allowed`;
+    const nonEmptyFeatures = features.filter((f) => f && f.trim() !== "");
+    if (nonEmptyFeatures.length === 0)
+      return "At least one feature is required";
+    for (let i = 0; i < features.length; i++) {
+      if (features[i] && features[i].trim() !== "") {
+        if (features[i].length > 100) {
+          return `Feature ${i + 1} must be 100 characters or less`;
+        }
+        const regex = /^[A-Za-z0-9\s]+$/;
+        if (!regex.test(features[i])) {
+          return `Feature ${i + 1} contains invalid characters. Only alphabets, numbers and spaces allowed`;
+        }
       }
     }
-  }
-  return "";
-};
+    return "";
+  };
 
   const sanitizeNumericInput = (value) => {
     if (value === "" || value === null) return "";
@@ -511,36 +515,117 @@ const validateDiscountDescription = (description) => {
     }
   };
 
+  // UPDATED: fetchStats with dynamic plan cards
   const fetchStats = async () => {
-    setIsLoading((prev) => ({ ...prev, stats: true }));
-    try {
-      const response = await api.get(`${ADMIN_API_URL}/subscriptions/stats`);
-      setStats({
-        total_subscribers: response.data.total_subscribers || 0,
+  setIsLoading((prev) => ({ ...prev, stats: true }));
+  try {
+    const response = await api.get(`${ADMIN_API_URL}/subscriptions/stats`);
+    console.log("📊 Dynamic Stats API Response:", response.data);
+    
+    setStats({
+      total_subscribers: response.data.total_subscribers || 0,
+      users_without_subscription: response.data.users_without_subscription || 0,
+      plans: response.data.plans || []
+    });
+    
+    // Create dynamic plan cards from ALL plans (including those with 0)
+    const cards = [];
+    if (response.data.plans && response.data.plans.length > 0) {
+      response.data.plans.forEach(plan => {
+        // Add Creator card ONLY if plan supports creator role
+        if (plan.role === 'creator' || plan.role === 'both') {
+          cards.push({
+            id: `${plan.name}_creator`,
+            name: plan.name,
+            role: "creator",
+            users: plan.creator_count,  // Will be 0 for plans with no subscribers
+            price_value: 0,
+            duration: "monthly",
+            features: [],
+            is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
+          });
+        }
+        
+        // Add Collaborator card ONLY if plan supports collaborator role
+        if (plan.role === 'collaborator' || plan.role === 'both') {
+          cards.push({
+            id: `${plan.name}_collaborator`,
+            name: plan.name,
+            role: "collaborator",
+            users: plan.collaborator_count,  // Will be 0 for plans with no subscribers
+            price_value: 0,
+            duration: "monthly",
+            features: [],
+            is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
+          });
+        }
       });
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-      toast.error("Failed to fetch subscription statistics");
-    } finally {
-      setIsLoading((prev) => ({ ...prev, stats: false }));
     }
-  };
+    
+    setDynamicPlanCards(cards);
+    console.log("✅ Dynamic Plan Cards created (including 0 counts, with correct roles):", cards);
+    
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    toast.error("Failed to fetch subscription statistics");
+  } finally {
+    setIsLoading((prev) => ({ ...prev, stats: false }));
+  }
+};
 
   const fetchPlans = async () => {
-    setIsLoading((prev) => ({ ...prev, plans: true }));
+  setIsLoading((prev) => ({ ...prev, plans: true }));
 
-    try {
-      const response = await api.get(`${PLANS_API_URL}/admin/list-all`);
+  try {
+    // Fetch both plans and stats in parallel
+    const [plansResponse, statsResponse] = await Promise.all([
+      api.get(`${PLANS_API_URL}/admin/list-all`),
+      api.get(`${ADMIN_API_URL}/subscriptions/stats`)
+    ]);
 
-      if (response.data && response.data.plans) {
-        const transformedPlans = response.data.plans.map((plan) => ({
+    console.log("📊 Plans API Response:", plansResponse.data);
+    console.log("📊 Stats API Response:", statsResponse.data);
+
+    if (plansResponse.data && plansResponse.data.plans) {
+      // Create a map of real user counts from stats
+      const statsMap = {};
+      if (statsResponse.data && statsResponse.data.plans) {
+        statsResponse.data.plans.forEach(plan => {
+          statsMap[`${plan.name}_creator`] = plan.creator_count;
+          statsMap[`${plan.name}_collaborator`] = plan.collaborator_count;
+        });
+      }
+
+      console.log("📊 Stats Map:", statsMap);
+
+      // Transform plans with REAL user counts
+      const transformedPlans = [];
+      
+      plansResponse.data.plans.forEach((plan) => {
+        // Get real counts from stats
+        const creatorCount = statsMap[`${plan.name}_creator`] || 0;
+        const collaboratorCount = statsMap[`${plan.name}_collaborator`] || 0;
+        
+        // For role-specific plans, use the appropriate count
+        let userCount = 0;
+        if (plan.role === "creator") {
+          userCount = creatorCount;
+        } else if (plan.role === "collaborator") {
+          userCount = collaboratorCount;
+        } else if (plan.role === "both") {
+          userCount = creatorCount + collaboratorCount;
+        } else {
+          userCount = creatorCount + collaboratorCount;
+        }
+        
+        transformedPlans.push({
           id: plan.id,
           name: plan.name,
           price_display: plan.price === 0 ? "Free" : plan.billing_cycle === "yearly"
             ? `₹${plan.price}/year`
             : `₹${plan.price}/month`,
           price_value: plan.price,
-          users: plan.user_count || "0",
+          users: userCount, // ✅ REAL COUNT from database (will be 1 for each role)
           features: plan.features.map((f) => typeof f === "string" ? f : f.title || f.description || ""),
           duration: plan.billing_cycle,
           role: plan.role || "creator",
@@ -557,18 +642,20 @@ const validateDiscountDescription = (description) => {
           max_contracts: plan.max_contracts,
           is_popular: plan.is_popular,
           is_basic_or_free: isBasicOrFreePlan(plan.name),
-        }));
+        });
+      });
 
-        setPricingPlans(transformedPlans);
-        setPlansCurrentPage(1);
-      }
-    } catch (error) {
-      console.error("Error fetching plans:", error);
-      toast.error("Failed to fetch subscription plans");
-    } finally {
-      setIsLoading((prev) => ({ ...prev, plans: false }));
+      console.log("✅ Transformed Plans with real counts:", transformedPlans);
+      setPricingPlans(transformedPlans);
+      setPlansCurrentPage(1);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching plans:", error);
+    toast.error("Failed to fetch subscription plans");
+  } finally {
+    setIsLoading((prev) => ({ ...prev, plans: false }));
+  }
+};
 
   const fetchSubscriptionHistory = async () => {
     setIsLoading((prev) => ({ ...prev, history: true }));
@@ -781,33 +868,33 @@ const validateDiscountDescription = (description) => {
   };
 
   const validateAllFields = () => {
-  const nameError = validateName(planForm.name);
-  const priceError = validatePrice(planForm.price);
-  const descriptionError = validateDescription(planForm.description);
-  const discountCodeError = validateDiscountCode(planForm.discount_code);
-  const discountDescriptionError = validateDiscountDescription(planForm.discount_description);
-  const featuresError = validateFeatures(planForm.features);
+    const nameError = validateName(planForm.name);
+    const priceError = validatePrice(planForm.price);
+    const descriptionError = validateDescription(planForm.description);
+    const discountCodeError = validateDiscountCode(planForm.discount_code);
+    const discountDescriptionError = validateDiscountDescription(planForm.discount_description);
+    const featuresError = validateFeatures(planForm.features);
 
-  setValidationErrors({
-    name: nameError,
-    price: priceError,
-    description: descriptionError,
-    discount_code: discountCodeError,
-    discount_description: discountDescriptionError,
-    features: featuresError,
-  });
+    setValidationErrors({
+      name: nameError,
+      price: priceError,
+      description: descriptionError,
+      discount_code: discountCodeError,
+      discount_description: discountDescriptionError,
+      features: featuresError,
+    });
 
-  setTouchedFields({
-    name: true,
-    price: true,
-    description: true,
-    discount_code: true,
-    discount_description: true,
-    features: true,
-  });
+    setTouchedFields({
+      name: true,
+      price: true,
+      description: true,
+      discount_code: true,
+      discount_description: true,
+      features: true,
+    });
 
-  return !(nameError || priceError || descriptionError || discountCodeError || discountDescriptionError || featuresError);
-};
+    return !(nameError || priceError || descriptionError || discountCodeError || discountDescriptionError || featuresError);
+  };
 
   const createPlan = async () => {
     if (!validateAllFields()) {
@@ -820,7 +907,6 @@ const validateDiscountDescription = (description) => {
       return;
     }
 
-    // UPDATED: Check for duplicate plan (same name OR same price)
     const { duplicateByName, duplicateByPrice } = checkDuplicatePlan(planForm.name, planForm.price, planForm.role);
     
     if (duplicateByName) {
@@ -891,7 +977,6 @@ const validateDiscountDescription = (description) => {
       return;
     }
 
-    // UPDATED: Check for duplicate plan (excluding current plan being edited)
     const { duplicateByName, duplicateByPrice } = checkDuplicatePlan(planForm.name, planForm.price, planForm.role, selectedPlan?.id);
     
     if (duplicateByName) {
@@ -951,11 +1036,7 @@ const validateDiscountDescription = (description) => {
     }
   };
 
-  // ======================================================
-  // Delete Plan with Basic/Free protection
-  // ======================================================
   const deletePlan = (planId, planName, isBasicOrFree) => {
-    // Check if it's a Basic or Free plan
     if (isBasicOrFree) {
       toast.error("You cannot delete a Basic or Free plan. These plans are mandatory and required for the system to function properly.");
       return;
@@ -985,40 +1066,40 @@ const validateDiscountDescription = (description) => {
     }
   };
 
- const resetPlanForm = () => {
-  setPlanForm({
-    name: "",
-    price: "",
-    duration: "monthly",
-    role: "creator",
-    description: "",
-    features: [""],
-    discount_code: "",
-    discount_percentage: "",
-    discount_description: "",
-    is_popular: false,
-    max_users: 10,
-    max_upload_storage_gb: 10,
-    max_proposals: 10,
-    max_job_posts: 10,
-    max_invitations: 10,
-    max_contracts: 10,
-  });
-  setValidationErrors({
-    name: "",
-    price: "",
-    description: "",
-    discount_code: "",
-    features: "",
-  });
-  setTouchedFields({
-    name: false,
-    price: false,
-    description: false,
-    discount_code: false,
-    features: false,
-  });
-};
+  const resetPlanForm = () => {
+    setPlanForm({
+      name: "",
+      price: "",
+      duration: "monthly",
+      role: "creator",
+      description: "",
+      features: [""],
+      discount_code: "",
+      discount_percentage: "",
+      discount_description: "",
+      is_popular: false,
+      max_users: 10,
+      max_upload_storage_gb: 10,
+      max_proposals: 10,
+      max_job_posts: 10,
+      max_invitations: 10,
+      max_contracts: 10,
+    });
+    setValidationErrors({
+      name: "",
+      price: "",
+      description: "",
+      discount_code: "",
+      features: "",
+    });
+    setTouchedFields({
+      name: false,
+      price: false,
+      description: false,
+      discount_code: false,
+      features: false,
+    });
+  };
 
   const addFeature = () => {
     setPlanForm({
@@ -1049,7 +1130,6 @@ const validateDiscountDescription = (description) => {
     setValidationErrors((prev) => ({ ...prev, features: featuresError }));
   };
 
-  // ── sort filtered plans by price low → high ──
   const getFilteredPlans = () => {
     const filtered =
       planRoleFilter === "all"
@@ -1098,28 +1178,27 @@ const validateDiscountDescription = (description) => {
   };
 
   const getSearchedHistory = () => {
-  let filtered = getFilteredHistory();
-  if (historySearchTerm.trim() === "") {
-    return filtered;
-  }
-  const searchLower = historySearchTerm.toLowerCase();
-  return filtered.filter((item) => {
-    const name = (item.full_name || "").toLowerCase();
-    const role = (item.role || "").toLowerCase();
-    const plan = (item.plan || "").toLowerCase();
-    // Get billing cycle value
-    const cycleValue = item.billing_cycle || item.duration || "monthly";
-    const isYearly = cycleValue === "yearly" || cycleValue === "Yearly" || 
-                     cycleValue === "annual" || cycleValue === "Annual" || 
-                     cycleValue === "year";
-    const billingCycle = isYearly ? "yearly" : "monthly";
-    
-    return name.includes(searchLower) || 
-           role.includes(searchLower) || 
-           plan.includes(searchLower) ||
-           billingCycle.includes(searchLower);
-  });
-};
+    let filtered = getFilteredHistory();
+    if (historySearchTerm.trim() === "") {
+      return filtered;
+    }
+    const searchLower = historySearchTerm.toLowerCase();
+    return filtered.filter((item) => {
+      const name = (item.full_name || "").toLowerCase();
+      const role = (item.role || "").toLowerCase();
+      const plan = (item.plan || "").toLowerCase();
+      const cycleValue = item.billing_cycle || item.duration || "monthly";
+      const isYearly = cycleValue === "yearly" || cycleValue === "Yearly" || 
+                       cycleValue === "annual" || cycleValue === "Annual" || 
+                       cycleValue === "year";
+      const billingCycle = isYearly ? "yearly" : "monthly";
+      
+      return name.includes(searchLower) || 
+             role.includes(searchLower) || 
+             plan.includes(searchLower) ||
+             billingCycle.includes(searchLower);
+    });
+  };
 
   const filteredPlans = getFilteredPlans();
   const visiblePlanStats = getVisiblePlanStats();
@@ -1217,7 +1296,7 @@ const validateDiscountDescription = (description) => {
 
         {/* Stats Cards - IMPROVED DARK MODE VISIBILITY */}
 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-  {/* Total Subscribers Card */}
+  {/* Total Subscribers Card - Always First */}
   <div
     className={`flex items-center gap-4 px-6 py-5 rounded-xl shadow-xl transition-all duration-300 ${
       isDarkMode 
@@ -1239,14 +1318,15 @@ const validateDiscountDescription = (description) => {
     </div>
   </div>
 
-  {isLoading.plans ? (
+  {/* Dynamic Plan Cards - Maximum 4 per row with View All/Show Less */}
+  {isLoading.stats ? (
     <div className="col-span-3 flex justify-center py-12">
       <Loader className="animate-spin" size={40} />
     </div>
-  ) : pricingPlans.length > 0 ? (
+  ) : dynamicPlanCards.length > 0 ? (
     <>
-      {/* Show first 5 plans or all if showAllPlans is true */}
-      {(showAllPlans ? pricingPlans : pricingPlans.slice(0, 5)).map((plan, index) => (
+      {/* Show first 3 cards (or 4 minus the Total Subscribers card = 3) or all if showAllPlans is true */}
+      {(showAllPlans ? dynamicPlanCards : dynamicPlanCards.slice(0, 3)).map((plan, index) => (
         <div
           key={plan.id}
           className={`flex items-center gap-4 px-6 py-5 rounded-xl shadow-xl transition-all duration-300 ${
@@ -1264,7 +1344,11 @@ const validateDiscountDescription = (description) => {
           }
         >
           <div className="flex-shrink-0">
-            {plan.role === "creator" ? <User size={26} className={isDarkMode ? "text-blue-400" : "text-white"} /> : <Users2 size={26} className={isDarkMode ? "text-green-400" : "text-white"} />}
+            {plan.role === "creator" ? (
+              <User size={26} className={isDarkMode ? "text-blue-400" : "text-white"} />
+            ) : (
+              <Users2 size={26} className={isDarkMode ? "text-green-400" : "text-white"} />
+            )}
           </div>
           <div className="flex flex-col items-start flex-1">
             <div className="flex justify-between w-full items-center">
@@ -1280,8 +1364,8 @@ const validateDiscountDescription = (description) => {
         </div>
       ))}
       
-      {/* View All Button - only show if there are more than 5 plans and not showing all */}
-      {pricingPlans.length > 5 && !showAllPlans && (
+      {/* View All Button - only show if there are more than 3 cards and not showing all */}
+      {dynamicPlanCards.length > 3 && !showAllPlans && (
         <button
           onClick={() => setShowAllPlans(true)}
           className={`flex items-center justify-center gap-2 px-4 py-5 rounded-xl shadow-xl transition-all duration-300 ${
@@ -1291,12 +1375,12 @@ const validateDiscountDescription = (description) => {
           }`}
         >
           <Eye size={20} />
-          <span className="font-medium">View All ({pricingPlans.length})</span>
+          <span className="font-medium">View All ({dynamicPlanCards.length})</span>
         </button>
       )}
       
-      {/* Show Less button - only show when showing all plans and there are more than 5 */}
-      {pricingPlans.length > 5 && showAllPlans && (
+      {/* Show Less button - only show when showing all cards and there are more than 3 */}
+      {dynamicPlanCards.length > 3 && showAllPlans && (
         <button
           onClick={() => setShowAllPlans(false)}
           className={`flex items-center justify-center gap-2 px-4 py-5 rounded-xl shadow-xl transition-all duration-300 ${
@@ -1312,12 +1396,13 @@ const validateDiscountDescription = (description) => {
     </>
   ) : (
     <div className="col-span-3 text-center py-12">
-      <p className="text-gray-500">No plans available</p>
+      <p className="text-gray-500">No active subscriptions</p>
     </div>
   )}
 </div>
 
-        {/* Role Filter Tabs - IMPROVED DARK MODE */}
+        {/* Rest of your component remains the same */}
+        {/* Role Filter Tabs */}
         {!isLoading.plans && pricingPlans.length > 0 && (
           <div className="flex gap-2 mb-6 flex-wrap">
             <button
@@ -1358,7 +1443,7 @@ const validateDiscountDescription = (description) => {
           </div>
         )}
 
-        {/* Pricing Cards - IMPROVED DARK MODE VISIBILITY */}
+        {/* Pricing Cards - Keep as is for plan management */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 w-full">
           {isLoading.plans ? (
             <div className="col-span-3 flex justify-center py-12">
@@ -1528,7 +1613,7 @@ const validateDiscountDescription = (description) => {
           </div>
         )}
 
-        {/* Create/Edit Plan Modal */}
+        {/* Create/Edit Plan Modal - Keep as is */}
         {isPlanModalOpen && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 backdrop-blur-[2px] p-4">
             <div className={`rounded-[20px] p-6 w-full max-w-2xl shadow-2xl relative ${isDarkMode ? "bg-gray-900" : "bg-gray-100"}`}>
@@ -1551,35 +1636,35 @@ const validateDiscountDescription = (description) => {
                 style={{ maxHeight: "calc(85vh - 140px)", scrollbarWidth: "none", msOverflowStyle: "none" }}
               >
                 {/* Plan Name */}
-<div className="flex flex-col gap-1.5">
-  <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
-    Plan Name <span className="text-red-500">*</span>
-    <span className={`text-xs ml-2 ${planForm.name.length > 25 ? "text-red-500" : "text-gray-500"}`}>
-      ({planForm.name.length}/25)
-    </span>
-  </label>
-  <input
-    type="text"
-    value={planForm.name}
-    onChange={(e) => {
-      const value = e.target.value.slice(0, 25); // Limit to 25 characters
-      setPlanForm({ ...planForm, name: value });
-      if (touchedFields.name) {
-        setValidationErrors({ ...validationErrors, name: validateName(value) });
-      }
-    }}
-    onBlur={() => {
-      handleFieldBlur("name");
-      setValidationErrors({ ...validationErrors, name: validateName(planForm.name) });
-    }}
-    style={getInputStyle(isDarkMode)}
-    placeholder="e.g., Pro, Agent, Basic"
-    maxLength={25}
-  />
-  {touchedFields.name && validationErrors.name && (
-    <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.name}</p>
-  )}
-</div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
+                    Plan Name <span className="text-red-500">*</span>
+                    <span className={`text-xs ml-2 ${planForm.name.length > 25 ? "text-red-500" : "text-gray-500"}`}>
+                      ({planForm.name.length}/25)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={planForm.name}
+                    onChange={(e) => {
+                      const value = e.target.value.slice(0, 25);
+                      setPlanForm({ ...planForm, name: value });
+                      if (touchedFields.name) {
+                        setValidationErrors({ ...validationErrors, name: validateName(value) });
+                      }
+                    }}
+                    onBlur={() => {
+                      handleFieldBlur("name");
+                      setValidationErrors({ ...validationErrors, name: validateName(planForm.name) });
+                    }}
+                    style={getInputStyle(isDarkMode)}
+                    placeholder="e.g., Pro, Agent, Basic"
+                    maxLength={25}
+                  />
+                  {touchedFields.name && validationErrors.name && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.name}</p>
+                  )}
+                </div>
 
                 {/* Price and Duration */}
                 <div className="grid grid-cols-2 gap-4">
@@ -1644,73 +1729,73 @@ const validateDiscountDescription = (description) => {
                 </div>
 
                 {/* Description */}
-<div className="flex flex-col gap-1.5">
-  <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
-    Description
-    <span className={`text-xs ml-2 ${planForm.description.length > 100 ? "text-red-500" : "text-gray-500"}`}>
-      ({planForm.description.length}/100)
-    </span>
-  </label>
-  <textarea
-    value={planForm.description}
-    onChange={(e) => {
-      const newValue = e.target.value.slice(0, 100); // Limit to 100 characters
-      setPlanForm({ ...planForm, description: newValue });
-      if (touchedFields.description) {
-        setValidationErrors({ ...validationErrors, description: validateDescription(newValue) });
-      }
-    }}
-    onBlur={() => {
-      setTouchedFields((prev) => ({ ...prev, description: true }));
-      setValidationErrors({ ...validationErrors, description: validateDescription(planForm.description) });
-    }}
-    style={getTextareaStyle(isDarkMode)}
-    placeholder="Brief description of the plan (alphabets and spaces only)"
-    rows="3"
-    maxLength={100}
-  />
-  {touchedFields.description && validationErrors.description && (
-    <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.description}</p>
-  )}
-</div>
+                <div className="flex flex-col gap-1.5">
+                  <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
+                    Description
+                    <span className={`text-xs ml-2 ${planForm.description.length > 100 ? "text-red-500" : "text-gray-500"}`}>
+                      ({planForm.description.length}/100)
+                    </span>
+                  </label>
+                  <textarea
+                    value={planForm.description}
+                    onChange={(e) => {
+                      const newValue = e.target.value.slice(0, 100);
+                      setPlanForm({ ...planForm, description: newValue });
+                      if (touchedFields.description) {
+                        setValidationErrors({ ...validationErrors, description: validateDescription(newValue) });
+                      }
+                    }}
+                    onBlur={() => {
+                      setTouchedFields((prev) => ({ ...prev, description: true }));
+                      setValidationErrors({ ...validationErrors, description: validateDescription(planForm.description) });
+                    }}
+                    style={getTextareaStyle(isDarkMode)}
+                    placeholder="Brief description of the plan (alphabets and spaces only)"
+                    rows="3"
+                    maxLength={100}
+                  />
+                  {touchedFields.description && validationErrors.description && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.description}</p>
+                  )}
+                </div>
 
                 {/* Features */}
-<div>
-  <div className="flex justify-between items-center mb-2">
-    <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
-      Features <span className="text-red-500">*</span>
-    </label>
-    <button type="button" onClick={addFeature} className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700">
-      <Plus size={16} /> Add Feature
-    </button>
-  </div>
-  {planForm.features.map((feature, index) => (
-    <div key={index} className="flex gap-2 mb-2">
-      <div className="flex-1 relative">
-        <input
-          type="text"
-          value={feature}
-          onChange={(e) => {
-            const value = e.target.value.slice(0, 100); // Limit to 100 characters
-            updateFeature(index, value);
-          }}
-          placeholder={`Feature ${index + 1}`}
-          style={{ ...getInputStyle(isDarkMode), width: "100%" }}
-          maxLength={100}
-        />
-        <span className={`absolute right-2 bottom-1 text-xs ${feature.length > 100 ? "text-red-500" : "text-gray-500"}`}>
-          ({feature.length}/100)
-        </span>
-      </div>
-      <button type="button" onClick={() => removeFeature(index)} className="px-3 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition">
-        <X size={16} />
-      </button>
-    </div>
-  ))}
-  {(touchedFields.features || validationErrors.features) && validationErrors.features && (
-    <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.features}</p>
-  )}
-</div>
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
+                      Features <span className="text-red-500">*</span>
+                    </label>
+                    <button type="button" onClick={addFeature} className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700">
+                      <Plus size={16} /> Add Feature
+                    </button>
+                  </div>
+                  {planForm.features.map((feature, index) => (
+                    <div key={index} className="flex gap-2 mb-2">
+                      <div className="flex-1 relative">
+                        <input
+                          type="text"
+                          value={feature}
+                          onChange={(e) => {
+                            const value = e.target.value.slice(0, 100);
+                            updateFeature(index, value);
+                          }}
+                          placeholder={`Feature ${index + 1}`}
+                          style={{ ...getInputStyle(isDarkMode), width: "100%" }}
+                          maxLength={100}
+                        />
+                        <span className={`absolute right-2 bottom-1 text-xs ${feature.length > 100 ? "text-red-500" : "text-gray-500"}`}>
+                          ({feature.length}/100)
+                        </span>
+                      </div>
+                      <button type="button" onClick={() => removeFeature(index)} className="px-3 py-2 rounded-xl bg-red-500 text-white hover:bg-red-600 transition">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))}
+                  {(touchedFields.features || validationErrors.features) && validationErrors.features && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.features}</p>
+                  )}
+                </div>
 
                 {/* Limits Section */}
                 <div className="border-t pt-4 border-gray-200 dark:border-gray-700">
@@ -1744,30 +1829,30 @@ const validateDiscountDescription = (description) => {
                 </div>
 
                 {/* Discount Description */}
-<div className="mt-4 flex flex-col gap-1.5">
-  <label className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-    Discount Description
-    <span className={`text-xs ml-2 ${planForm.discount_description.length > 50 ? "text-red-500" : "text-gray-500"}`}>
-      ({planForm.discount_description.length}/50)
-    </span>
-  </label>
-  <input 
-    type="text" 
-    value={planForm.discount_description} 
-    onChange={(e) => {
-      const value = e.target.value.slice(0, 50); // Limit to 50 characters
-      setPlanForm({ ...planForm, discount_description: value });
-    }}
-    placeholder="e.g., 20% off for first year" 
-    style={getInputStyle(isDarkMode)}
-    maxLength={50}
-  />
-  {planForm.discount_description.length > 50 && (
-    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-      <span>⚠️</span> Discount description must be 50 characters or less
-    </p>
-  )}
-</div>
+                <div className="mt-4 flex flex-col gap-1.5">
+                  <label className={`text-sm ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
+                    Discount Description
+                    <span className={`text-xs ml-2 ${planForm.discount_description.length > 50 ? "text-red-500" : "text-gray-500"}`}>
+                      ({planForm.discount_description.length}/50)
+                    </span>
+                  </label>
+                  <input 
+                    type="text" 
+                    value={planForm.discount_description} 
+                    onChange={(e) => {
+                      const value = e.target.value.slice(0, 50);
+                      setPlanForm({ ...planForm, discount_description: value });
+                    }}
+                    placeholder="e.g., 20% off for first year" 
+                    style={getInputStyle(isDarkMode)}
+                    maxLength={50}
+                  />
+                  {planForm.discount_description.length > 50 && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <span>⚠️</span> Discount description must be 50 characters or less
+                    </p>
+                  )}
+                </div>
 
                 {/* Popular Toggle */}
                 <div className="flex items-center gap-3">
@@ -1797,18 +1882,13 @@ const validateDiscountDescription = (description) => {
           </div>
         )}
 
-        {/* Subscription History */}
+        {/* Subscription History - Keep as is */}
         <div className="mt-8">
-
-          {/* ── Heading ── */}
           <h2 className={`text-2xl font-bold mb-4 ${isDarkMode ? "text-white" : "text-black"}`}>
             Subscription History
           </h2>
 
-          {/* ── Filter Tabs + Search Bar on the same row ── */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap mb-4">
-
-            {/* Filter Tabs - IMPROVED DARK MODE */}
             <div className="flex gap-2 flex-wrap flex-1">
               <button
                 onClick={() => setHistoryPlanFilter("all")}
@@ -1830,7 +1910,6 @@ const validateDiscountDescription = (description) => {
               </button>
             </div>
 
-            {/* Search Bar */}
             <div className="relative w-full sm:w-72 flex-shrink-0">
               <Search
                 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500"
@@ -1858,7 +1937,6 @@ const validateDiscountDescription = (description) => {
             </div>
           </div>
 
-          {/* History Table */}
           <div className={`rounded-lg overflow-hidden border ${isDarkMode ? 'bg-[#1a1a1a] border-white/20' : 'bg-white border-gray-300'} shadow-lg`}>
             {isLoading.history ? (
               <div className="flex justify-center py-12"><Loader className="animate-spin" size={40} /></div>
@@ -1875,7 +1953,6 @@ const validateDiscountDescription = (description) => {
                         <SortableHeader label="Name" sortKey="full_name" currentSort={sortConfig} onSort={handleSort} isDarkMode={isDarkMode} />
                         <th className="py-3 px-4 text-[13px] font-semibold">Email</th>
                         <th className="py-3 px-4 text-[13px] font-semibold">Role</th>
-                        {/* <SortableHeader label="Date" sortKey="date" currentSort={sortConfig} onSort={handleSort} isDarkMode={isDarkMode} /> */}
                         <SortableHeader label="Plan" sortKey="plan" currentSort={sortConfig} onSort={handleSort} isDarkMode={isDarkMode} />
                         <th className="py-3 px-4 text-[13px] font-semibold">Billing Cycle</th>
                         <th className="py-3 px-4 text-[13px] font-semibold">Start Date</th>
@@ -1922,7 +1999,6 @@ const validateDiscountDescription = (description) => {
                             </td>
                             <td className="py-3 px-4 text-[13px]">{user.email}</td>
                             <td className="py-3 px-4 text-[13px]">{user.role}</td>
-                            {/* <td className="py-3 px-4 text-[13px]">{user.date}</td> */}
                             <td className="py-3 px-4 font-bold text-[13px]">
                               <div className="flex items-center gap-2">
                                 {user.plan}
@@ -1965,7 +2041,6 @@ const validateDiscountDescription = (description) => {
                   </table>
                 </div>
 
-                {/* Subscription History Pagination */}
                 <div className={`flex flex-col sm:flex-row justify-between items-center gap-4 px-4 py-4 text-sm font-medium ${isDarkMode ? "text-white" : "text-black"}`}>
                   <div className={`flex items-center gap-2 order-2 sm:order-1 ${isDarkMode ? "text-white/80" : "text-gray-600"}`}>
                     <span>Rows per page</span>

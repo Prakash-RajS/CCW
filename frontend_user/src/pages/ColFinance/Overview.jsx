@@ -191,46 +191,52 @@ const Overview = () => {
 
   // Helper function to get digit count for bank account
   const getBankAccountDigitCount = (value) => {
-    const digitsOnly = value.replace(/\s/g, '');
-    return `${digitsOnly.length}/20`;
-  };
+  const digitsOnly = value.replace(/\s/g, '');
+  return `${digitsOnly.length}/20`;
+};
 
   // ─────────────────────────────────────────────────────────
   // FRONTEND VALIDATION FUNCTIONS (regex only)
   // ─────────────────────────────────────────────────────────
 
   const validateAccountHolder = (value) => {
-    if (!value) return '';
-    const errors = [];
-    
-    if (!/^[A-Za-z\s]+$/.test(value)) {
-      errors.push("Only alphabets and spaces are allowed");
-    }
-    
-    if (value.length > 20) {
-      errors.push("Account holder name cannot exceed 20 characters");
-    }
-    
-    return errors.join(". ");
-  };
+  if (!value) return '';
+  const errors = [];
+  
+  if (!/^[A-Za-z\s]+$/.test(value)) {
+    errors.push("Only alphabets and spaces are allowed");
+  }
+  
+  if (value.length > 50) {  // Changed from 20 to 50
+    errors.push("Account holder name cannot exceed 50 characters");
+  }
+  
+  return errors.join(". ");
+};
 
-  const validateBankAccount = (value) => {
-    if (!value) return '';
-    const errors = [];
-    const digitsOnly = value.replace(/\s/g, '');
-    if (digitsOnly.length > 0 && !/^\d+$/.test(digitsOnly)) {
-      errors.push("Bank account number should contain only digits");
+ const validateBankAccount = (value) => {
+  if (!value) return '';
+  const errors = [];
+  
+  // Check for whitespace
+  if (/\s/.test(value)) {
+    errors.push("Spaces are not allowed");
+  }
+  
+  const digitsOnly = value.replace(/\s/g, '');
+  if (digitsOnly.length > 0 && !/^\d+$/.test(digitsOnly)) {
+    errors.push("Bank account number should contain only digits");
+  }
+  if (digitsOnly.length > 0) {
+    if (digitsOnly.length < 9) {
+      errors.push("Bank account number must be at least 9 digits");
     }
-    if (digitsOnly.length > 0) {
-      if (digitsOnly.length < 9) {
-        errors.push("Bank account number must be at least 9 digits");
-      }
-      if (digitsOnly.length > 20) {
-        errors.push("Bank account number cannot exceed 20 digits");
-      }
+    if (digitsOnly.length > 20) {
+      errors.push("Bank account number cannot exceed 20 digits");
     }
-    return errors.join(". ");
-  };
+  }
+  return errors.join(". ");
+};
 
   const validatePhone = (value) => {
   if (!value) return '';
@@ -295,13 +301,13 @@ const Overview = () => {
   };
 
   const validateIfscFormat = (value) => {
-    if (!value) return '';
-    const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
-    if (!ifscRegex.test(value.toUpperCase())) {
-      return "IFSC must be 11 chars, format: XXXX0XXXXXX";
-    }
-    return '';
-  };
+  if (!value) return '';
+  const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
+  if (!ifscRegex.test(value.toUpperCase())) {
+    return "IFSC must be 11 characters, (e.g., SBIN0012345)";
+  }
+  return '';
+};
 
   const validateUpiFormat = (value) => {
     if (!value) return '';
@@ -366,6 +372,30 @@ const Overview = () => {
     });
   };
 
+  // Lock body scroll when modals are open
+useEffect(() => {
+  const isAnyModalOpen = showMethodModal || showWithdrawPopup || showMethodsPopup || showEmailSetupPopup || showEmailPopup || showOTPPopup || emailVerificationSuccess;
+  
+  if (isAnyModalOpen) {
+    // Save current scroll position
+    const scrollY = window.scrollY;
+    
+    // Apply fixed positioning to body to prevent scroll
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+    
+    // Return cleanup function
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }
+}, [showMethodModal, showWithdrawPopup, showMethodsPopup, showEmailSetupPopup, showEmailPopup, showOTPPopup, emailVerificationSuccess]);
   // Fetch wallet balance, contracts, and wallet status
   useEffect(() => {
     if (!userData?.id) return;
@@ -1648,31 +1678,37 @@ const Overview = () => {
                           value={beneficiaryForm.account_holder} 
                           onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} 
                           placeholder="Full name as on bank account" 
+                          maxLength="50"
                           style={inputStyle} 
                         />
                         <div style={helperTextStyle}>
-                          <span className={`text-[10px] ${beneficiaryForm.account_holder.length > 20 ? 'text-red-500' : 'text-gray-400'}`}>
-                            {getCharCount(beneficiaryForm.account_holder, 20)}
+                          <span className={`text-[10px] ${beneficiaryForm.account_holder.length > 50 ? 'text-red-500' : 'text-gray-400'}`}>
+                            {getCharCount(beneficiaryForm.account_holder, 50)}
                           </span>
                         </div>
                         {validationErrors.account_holder && <p className="text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}
                       </div>
                       <div>
-                        <label className="block text-gray-700 text-xs font-medium mb-1">Bank Account Number <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          value={beneficiaryForm.bank_account} 
-                          onChange={(e) => handleBeneficiaryChange('bank_account', e.target.value)} 
-                          placeholder="Enter bank account number" 
-                          style={inputStyle} 
-                        />
-                        <div style={helperTextStyle}>
-                          <span className={`text-[10px] ${beneficiaryForm.bank_account.replace(/\s/g, '').length > 20 || (beneficiaryForm.bank_account.replace(/\s/g, '').length > 0 && beneficiaryForm.bank_account.replace(/\s/g, '').length < 9) ? 'text-red-500' : 'text-gray-400'}`}>
-                            {getBankAccountDigitCount(beneficiaryForm.bank_account)}
-                          </span>
-                        </div>
-                        {validationErrors.bank_account && <p className="text-xs text-red-500 mt-1">{validationErrors.bank_account}</p>}
-                      </div>
+  <label className="block text-gray-700 text-xs font-medium mb-1">Bank Account Number <span className="text-red-500">*</span></label>
+  <input 
+    type="text" 
+    value={beneficiaryForm.bank_account} 
+    onChange={(e) => {
+      // Remove all whitespace
+      const valueWithoutSpaces = e.target.value.replace(/\s/g, '');
+      handleBeneficiaryChange('bank_account', valueWithoutSpaces);
+    }} 
+    placeholder="Enter bank account number (no spaces)" 
+    maxLength="20"
+    style={inputStyle} 
+  />
+  <div style={helperTextStyle}>
+    <span className={`text-[10px] ${beneficiaryForm.bank_account.replace(/\s/g, '').length > 20 || (beneficiaryForm.bank_account.replace(/\s/g, '').length > 0 && beneficiaryForm.bank_account.replace(/\s/g, '').length < 9) ? 'text-red-500' : 'text-gray-400'}`}>
+      {getBankAccountDigitCount(beneficiaryForm.bank_account)}
+    </span>
+  </div>
+  {validationErrors.bank_account && <p className="text-xs text-red-500 mt-1">{validationErrors.bank_account}</p>}
+</div>
                       <div>
                         <label className="block text-gray-700 text-xs font-medium mb-1">IFSC Code <span className="text-red-500">*</span></label>
                         <input 
@@ -1699,11 +1735,12 @@ const Overview = () => {
                           value={beneficiaryForm.account_holder} 
                           onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} 
                           placeholder="Full name" 
+                          maxLength="50"
                           style={inputStyle} 
                         />
                         <div style={helperTextStyle}>
-                          <span className={`text-[10px] ${beneficiaryForm.account_holder.length > 20 ? 'text-red-500' : 'text-gray-400'}`}>
-                            {getCharCount(beneficiaryForm.account_holder, 20)}
+                          <span className={`text-[10px] ${beneficiaryForm.account_holder.length > 50 ? 'text-red-500' : 'text-gray-400'}`}>
+                            {getCharCount(beneficiaryForm.account_holder, 50)}
                           </span>
                         </div>
                         {validationErrors.account_holder && <p className="text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}

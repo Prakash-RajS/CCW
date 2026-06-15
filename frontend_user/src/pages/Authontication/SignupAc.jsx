@@ -291,8 +291,8 @@ const SignupAc = () => {
 
   // Sequential field enablement checks
   const isEmailCompleted = email.trim().length > 0 && !emailError && validateEmail(email.trim());
-const isPhoneCompleted = phone.trim().length === 10 && !phoneError;
-const isPasswordCompleted = password.trim().length > 0 && !passwordError && validatePassword(password);
+  const isPhoneCompleted = phone.trim().length === 10 && !phoneError;
+  const isPasswordCompleted = password.trim().length > 0 && !passwordError && validatePassword(password);
 
   // iOS focus management with click simulation
   const focusWithIOSWorkaround = (inputRef) => {
@@ -315,39 +315,15 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
     }
   };
 
-  // iOS focus management - Auto focus next field when previous field is completed
-  useEffect(() => {
-    if (isEmailCompleted && phoneInputRef.current && !phone && !phoneError) {
-      const timer = setTimeout(() => {
-        if (phoneInputRef.current && !phoneInputRef.current.disabled) {
-          focusWithIOSWorkaround(phoneInputRef);
-        }
-      }, isIOS ? 300 : 100);
-      return () => clearTimeout(timer);
+  // FIXED: Auto focus next field only when user presses Enter/Tab, not automatically
+  const handleFieldKeyPress = (e, nextFieldRef, isFieldValid) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isFieldValid && nextFieldRef.current && !nextFieldRef.current.disabled) {
+        focusWithIOSWorkaround(nextFieldRef);
+      }
     }
-  }, [isEmailCompleted, phone, phoneError, isIOS]);
-
-  useEffect(() => {
-    if (isPhoneCompleted && passwordInputRef.current && !password && !passwordError) {
-      const timer = setTimeout(() => {
-        if (passwordInputRef.current && !passwordInputRef.current.disabled) {
-          focusWithIOSWorkaround(passwordInputRef);
-        }
-      }, isIOS ? 300 : 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isPhoneCompleted, password, passwordError, isIOS]);
-
-  useEffect(() => {
-    if (isPasswordCompleted && confirmPasswordInputRef.current && !confirmPassword && !confirmPasswordError) {
-      const timer = setTimeout(() => {
-        if (confirmPasswordInputRef.current && !confirmPasswordInputRef.current.disabled) {
-          focusWithIOSWorkaround(confirmPasswordInputRef);
-        }
-      }, isIOS ? 300 : 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isPasswordCompleted, confirmPassword, confirmPasswordError, isIOS]);
+  };
 
   // Check if button should be disabled
   const isButtonDisabled = 
@@ -410,12 +386,7 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
 
   // Handle email key press for iOS
   const handleEmailKeyPress = (e) => {
-    if (e.key === 'Enter' && isEmailCompleted && !loading && !checkingEmail) {
-      e.preventDefault();
-      if (phoneInputRef.current && !phoneInputRef.current.disabled) {
-        focusWithIOSWorkaround(phoneInputRef);
-      }
-    }
+    handleFieldKeyPress(e, phoneInputRef, isEmailCompleted);
   };
 
   // Handle phone change
@@ -438,15 +409,10 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
 
   // Handle phone key press for iOS
   const handlePhoneKeyPress = (e) => {
-    if (e.key === 'Enter' && isPhoneCompleted && !loading && !checkingPhone) {
-      e.preventDefault();
-      if (passwordInputRef.current && !passwordInputRef.current.disabled) {
-        focusWithIOSWorkaround(passwordInputRef);
-      }
-    }
+    handleFieldKeyPress(e, passwordInputRef, isPhoneCompleted);
   };
 
-  // Handle password change
+  // Handle password change - FIXED: Removed auto-focus logic
   const handlePasswordChange = (e) => {
     if (!isPhoneCompleted) {
       showSingleToast('info', "Complete Phone First", "Please complete the phone number field first before creating password");
@@ -474,12 +440,17 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
     }
   };
 
-  // Handle password key press for iOS
+  // Handle password key press for iOS - FIXED: Only move on Enter/Tab
   const handlePasswordKeyPress = (e) => {
-    if (e.key === 'Enter' && isPasswordCompleted && !loading) {
+    // Only move to confirm password field when Enter is pressed AND password is valid
+    if (e.key === 'Enter') {
       e.preventDefault();
-      if (confirmPasswordInputRef.current && !confirmPasswordInputRef.current.disabled) {
-        focusWithIOSWorkaround(confirmPasswordInputRef);
+      if (isPasswordCompleted && !passwordError) {
+        if (confirmPasswordInputRef.current && !confirmPasswordInputRef.current.disabled) {
+          focusWithIOSWorkaround(confirmPasswordInputRef);
+        }
+      } else if (!isPasswordCompleted) {
+        showSingleToast('info', "Complete Password First", "Please create and validate your password first");
       }
     }
   };
@@ -895,9 +866,9 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
                   {phoneError}
                 </p>
               )}
-           <p className="text-[11px] sm:text-[12px] font-bold text-black/80 text-center mt-1 whitespace-normal sm:whitespace-nowrap">
-  We strongly recommend adding a phone number. This will help verify your account and keep it safe.
-</p>
+              <p className="text-[11px] sm:text-[12px] font-bold text-black/80 text-center mt-1 whitespace-normal sm:whitespace-nowrap">
+                We strongly recommend adding a phone number. This will help verify your account and keep it safe.
+              </p>
             </div>
 
             {/* Password - Enabled only after phone is completed */}
@@ -936,26 +907,25 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
                 onClick={handlePasswordContainerClick}
               >
                 <input
-  ref={passwordInputRef}
-  type={showPassword ? "text" : "password"}
-  required
-  value={password}
-  onChange={handlePasswordChange}
-  onKeyPress={handlePasswordKeyPress}
-  disabled={loading || !isPhoneCompleted}
-  placeholder="Enter your password"
-  autoComplete="new-password"
-  autoCapitalize="none"
-  autoCorrect="off"
-  spellCheck={false}
-  style={{
-    fontSize: '16px',
-
-    letterSpacing: showPassword ? 'normal' : '2px',
-    WebkitTextFillColor: '#030303'
-  }}
-  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] t text-[#030303] placeholder:text-[#03030380] ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
-/>
+                  ref={passwordInputRef}
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={password}
+                  onChange={handlePasswordChange}
+                  onKeyPress={handlePasswordKeyPress}
+                  disabled={loading || !isPhoneCompleted}
+                  placeholder="Enter your password"
+                  autoComplete="new-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  style={{
+                    fontSize: '16px',
+                    letterSpacing: showPassword ? 'normal' : '2px',
+                    WebkitTextFillColor: '#030303'
+                  }}
+                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] text-[#030303] placeholder:text-[#03030380] ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
+                />
               </div>
 
               {passwordError && (
@@ -1055,51 +1025,51 @@ const isPasswordCompleted = password.trim().length > 0 && !passwordError && vali
             </button>
 
             {/* Terms */}
-           <p className="text-[11px] sm:text-[12px] text-black/70 text-center mt-1.5 leading-tight font-bold">
-  By creating an account, you agree to the{" "}
-  <button 
-    type="button"
-    onClick={() => setShowTermsModal(true)}
-    className="underline text-black/80 hover:text-[#3D1768] transition-colors cursor-pointer font-bold"
-    style={{ touchAction: 'manipulation' }}
-  >
-    Terms of use
-  </button>{" "}
-  and{" "}
-  <button 
-    type="button"
-    onClick={() => setShowPrivacyModal(true)}
-    className="underline text-black/80 hover:text-[#3D1768] transition-colors cursor-pointer font-bold"
-    style={{ touchAction: 'manipulation' }}
-  >
-    Privacy Policy
-  </button>
-  .
-</p>
+            <p className="text-[11px] sm:text-[12px] text-black/70 text-center mt-1.5 leading-tight font-bold">
+              By creating an account, you agree to the{" "}
+              <button 
+                type="button"
+                onClick={() => setShowTermsModal(true)}
+                className="underline text-black/80 hover:text-[#3D1768] transition-colors cursor-pointer font-bold"
+                style={{ touchAction: 'manipulation' }}
+              >
+                Terms of use
+              </button>{" "}
+              and{" "}
+              <button 
+                type="button"
+                onClick={() => setShowPrivacyModal(true)}
+                className="underline text-black/80 hover:text-[#3D1768] transition-colors cursor-pointer font-bold"
+                style={{ touchAction: 'manipulation' }}
+              >
+                Privacy Policy
+              </button>
+              .
+            </p>
 
             {/* Login Link */}
-           <p className="text-center text-[13px] sm:text-[14px] poppins-font text-[#030303] pb-1 font-bold">
-  Already have an account?{" "}
-  <a
-    href="/login"
-    onClick={(e) => {
-      e.preventDefault();
-      if (currentToastIdRef.current) {
-        toast.dismiss(currentToastIdRef.current);
-        currentToastIdRef.current = null;
-      }
-      if (toastTimeoutRef.current) {
-        clearTimeout(toastTimeoutRef.current);
-        toastTimeoutRef.current = null;
-      }
-      navigate("/login");
-    }}
-    className="text-[#3D1768] font-bold hover:underline cursor-pointer"
-    style={{ touchAction: 'manipulation' }}
-  >
-    Log In
-  </a>
-</p>
+            <p className="text-center text-[13px] sm:text-[14px] poppins-font text-[#030303] pb-1 font-bold">
+              Already have an account?{" "}
+              <a
+                href="/login"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (currentToastIdRef.current) {
+                    toast.dismiss(currentToastIdRef.current);
+                    currentToastIdRef.current = null;
+                  }
+                  if (toastTimeoutRef.current) {
+                    clearTimeout(toastTimeoutRef.current);
+                    toastTimeoutRef.current = null;
+                  }
+                  navigate("/login");
+                }}
+                className="text-[#3D1768] font-bold hover:underline cursor-pointer"
+                style={{ touchAction: 'manipulation' }}
+              >
+                Log In
+              </a>
+            </p>
           </form>
         </div>
       </div>

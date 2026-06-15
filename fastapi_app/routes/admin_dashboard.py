@@ -1308,55 +1308,91 @@ def delete_user(user_id: int, admin: AdminUser = Depends(get_current_admin)):
 # ==============================================================================
 @router.get("/subscriptions/stats")
 def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
-    """Get subscription statistics for dashboard cards"""
-    # Ensure database connection
+    """Get subscription statistics for dashboard cards - DYNAMIC"""
     ensure_db_connection()
-   
+
     try:
-        total_users = UserData.objects.count()
-       
-        # Count users with active Pro plan
-        pro_count = UserSubscription.objects.filter(
-            Q(current_plan__icontains="Pro") | Q(plan_name__icontains="Pro"),
-            status__in=['active', 'trialing']
-        ).count()
-       
-        # Count users with active Agent plan
-        agent_count = UserSubscription.objects.filter(
-            Q(current_plan__icontains="Agent") | Q(plan_name__icontains="Agent"),
-            status__in=['active', 'trialing']
-        ).count()
-       
-        # Count users on Free/Basic plan (including those with no subscription)
-        free_count = UserSubscription.objects.filter(
-            Q(current_plan__icontains="Free") |
-            Q(current_plan__icontains="Basic") |
-            Q(plan_name__icontains="Free") |
-            Q(plan_name__icontains="Basic")
-        ).count()
-       
-        # Users with no subscription record
-        users_with_subs = UserSubscription.objects.values_list('user_id', flat=True)
-        users_without_subs = UserData.objects.exclude(id__in=users_with_subs).count()
-       
-        total_free = free_count + users_without_subs
-       
+        from django.db.models import Q
+        from collections import defaultdict
+        now = django_timezone.now()
+
+        # Get ALL active subscriptions
+        active_subscriptions = UserSubscription.objects.filter(
+            status__in=['active', 'trialing'],
+            plan_end_date__gt=now
+        ).select_related('user')
+
+        # Get unique user IDs with active subscriptions
+        subscriber_ids = list(active_subscriptions.values_list('user_id', flat=True).distinct())
+        total_subscribers = len(subscriber_ids)
+
+        # Get all unique plan names from active subscriptions
+        plan_stats = defaultdict(lambda: {"creator": 0, "collaborator": 0, "total": 0})
+
+        for sub in active_subscriptions:
+            # Get plan name (prefer current_plan, fallback to plan_name)
+            plan_name = sub.current_plan or sub.plan_name or "Unknown"
+
+            # Get user role
+            role = sub.user.role.lower() if sub.user and sub.user.role else "unknown"
+
+            if role == "creator":
+                plan_stats[plan_name]["creator"] += 1
+            elif role == "collaborator":
+                plan_stats[plan_name]["collaborator"] += 1
+
+            plan_stats[plan_name]["total"] += 1
+
+        # Get ALL active plans from SubscriptionPlan model (including those with 0 subscribers)
+        all_plans = SubscriptionPlan.objects.filter(is_active=True)
+
+        # Ensure all active plans are included even if they have 0 subscribers
+        for plan in all_plans:
+            plan_name = plan.name
+            if plan_name not in plan_stats:
+                plan_stats[plan_name] = {"creator": 0, "collaborator": 0, "total": 0}
+
+        # Users with NO active subscription
+        all_user_ids = set(UserData.objects.values_list('id', flat=True))
+        users_without_subs = len(all_user_ids - set(subscriber_ids))
+
+        # Prepare response with role information
+        plans_data = []
+        for plan in all_plans:
+            plan_name = plan.name
+            counts = plan_stats.get(plan_name, {"creator": 0, "collaborator": 0, "total": 0})
+            plans_data.append({
+                "name": plan_name,
+                "creator_count": counts["creator"],
+                "collaborator_count": counts["collaborator"],
+                "total_count": counts["total"],
+                "role": plan.role  # 'creator', 'collaborator', or 'both'
+            })
+
+        print(f"📊 Dynamic Stats Summary:")
+        print(f"  - Total Subscribers: {total_subscribers}")
+        print(f"  - Plans found: {len(plans_data)}")
+        for plan in plans_data:
+            print(f"    - {plan['name']} (role: {plan['role']}): Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
+        print(f"  - Users without subscription: {users_without_subs}")
+
         return {
-            "total_subscribers": total_users,
-            "active_free": total_free,
-            "active_pro": pro_count,
-            "active_agent": agent_count
-        }
-    except Exception as e:
-        print(f"Error in get_subscription_stats: {e}")
-        return {
-            "total_subscribers": 0,
-            "active_free": 0,
-            "active_pro": 0,
-            "active_agent": 0,
-            "error": str(e)
+            "total_subscribers": total_subscribers,
+            "users_without_subscription": users_without_subs,
+            "plans": plans_data  # Dynamic plans data with role info
         }
 
+    except Exception as e:
+        print(f"❌ Error in get_subscription_stats: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "total_subscribers": 0,
+            "users_without_subscription": 0,
+            "plans": []
+        }
+ 
+    
 @router.get("/subscriptions/plans")
 def get_subscription_plans(admin: AdminUser = Depends(get_current_admin)):
     """Get all subscription plans with user counts"""

@@ -132,9 +132,9 @@ export default function WithdrawFunds() {
   }, [showOTPPopup, resendTime]);
 
   const getCharCount = (value, maxLength) => {
-    const length = value.length;
-    return `${length}/${maxLength}`;
-  };
+  const length = value.length;
+  return `${length}/${maxLength}`;
+};
 
   const getPhoneDigitCount = (value) => {
     const digitsOnly = value.replace(/\D/g, '');
@@ -142,33 +142,33 @@ export default function WithdrawFunds() {
   };
 
   const getBankAccountDigitCount = (value) => {
-    const digitsOnly = value.replace(/\s/g, '');
-    return `${digitsOnly.length}/20`;
-  };
+  const digitsOnly = value.replace(/\s/g, '');
+  return `${digitsOnly.length}/20`;  // Changed from 20 to 20 (already correct)
+};
 
   // ─────────────────────────────────────────────────────────
   // FRONTEND VALIDATION FUNCTIONS (regex only)
   // ─────────────────────────────────────────────────────────
 
   const validateAccountHolder = (value) => {
-    if (!value) return '';
-    const errors = [];
-    if (!/^[A-Za-z\s]+$/.test(value)) errors.push("Only alphabets and spaces are allowed");
-    if (value.length > 20) errors.push("Account holder name cannot exceed 20 characters");
-    return errors.join(". ");
-  };
+  if (!value) return '';
+  const errors = [];
+  if (!/^[A-Za-z\s]+$/.test(value)) errors.push("Only alphabets and spaces are allowed");
+  if (value.length > 50) errors.push("Account holder name cannot exceed 50 characters"); 
+  return errors.join(". ");
+};
 
   const validateBankAccount = (value) => {
-    if (!value) return '';
-    const errors = [];
-    const digitsOnly = value.replace(/\s/g, '');
-    if (digitsOnly.length > 0 && !/^\d+$/.test(digitsOnly)) errors.push("Bank account number should contain only digits");
-    if (digitsOnly.length > 0) {
-      if (digitsOnly.length < 9) errors.push("Bank account number must be at least 9 digits");
-      if (digitsOnly.length > 20) errors.push("Bank account number cannot exceed 20 digits");
-    }
-    return errors.join(". ");
-  };
+  if (!value) return '';
+  const errors = [];
+  const digitsOnly = value.replace(/\s/g, '');
+  if (digitsOnly.length > 0 && !/^\d+$/.test(digitsOnly)) errors.push("Bank account number should contain only digits");
+  if (digitsOnly.length > 0) {
+    if (digitsOnly.length < 9) errors.push("Bank account number must be at least 9 digits");
+    if (digitsOnly.length > 20) errors.push("Bank account number cannot exceed 20 digits"); // Ensures max 20
+  }
+  return errors.join(". ");
+};
 
   const validatePhone = (value) => {
   if (!value) return '';
@@ -222,11 +222,11 @@ export default function WithdrawFunds() {
   };
 
   const validateIfscFormat = (value) => {
-    if (!value) return '';
-    const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
-    if (!ifscRegex.test(value.toUpperCase())) return "IFSC must be 11 chars, format: XXXX0XXXXXX";
-    return '';
-  };
+  if (!value) return '';
+  const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
+  if (!ifscRegex.test(value.toUpperCase())) return "IFSC must be 11 characters, e.g., (SBIN0012345)";
+  return '';
+};
 
   const validateUpiFormat = (value) => {
     if (!value) return '';
@@ -1038,48 +1038,87 @@ export default function WithdrawFunds() {
                 {methodType === "bank" ? (
                   <>
                     <div>
-                      <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Account Holder Name <span className="text-red-500">*</span></label>
-                      <input type="text" value={beneficiaryForm.account_holder} onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} placeholder="Full name as on bank account" style={inputStyle} />
-                      <div style={helperTextStyle}>
-                        <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.account_holder.length > 20 ? 'text-red-500' : 'text-gray-400'}`}>
-                          {getCharCount(beneficiaryForm.account_holder, 20)}
-                        </span>
-                      </div>
-                      {validationErrors.account_holder && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}
-                    </div>
+  <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Account Holder Name <span className="text-red-500">*</span></label>
+  <input 
+    type="text" 
+    value={beneficiaryForm.account_holder} 
+    onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} 
+    placeholder="Full name as on bank account" 
+    maxLength="50"  // Add this line
+    style={inputStyle} 
+  />
+  <div style={helperTextStyle}>
+    <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.account_holder.length > 50 ? 'text-red-500' : 'text-gray-400'}`}>
+      {getCharCount(beneficiaryForm.account_holder, 50)} 
+    </span>
+  </div>
+  {validationErrors.account_holder && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}
+</div>
                     <div>
-                      <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Bank Account Number <span className="text-red-500">*</span></label>
-                      <input type="text" value={beneficiaryForm.bank_account} onChange={(e) => handleBeneficiaryChange('bank_account', e.target.value)} placeholder="Enter bank account number" style={inputStyle} />
-                      <div style={helperTextStyle}>
-                        <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.bank_account.replace(/\s/g, '').length > 20 || (beneficiaryForm.bank_account.replace(/\s/g, '').length > 0 && beneficiaryForm.bank_account.replace(/\s/g, '').length < 9) ? 'text-red-500' : 'text-gray-400'}`}>
-                          {getBankAccountDigitCount(beneficiaryForm.bank_account)}
-                        </span>
-                      </div>
-                      {validationErrors.bank_account && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.bank_account}</p>}
-                    </div>
+  <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Bank Account Number <span className="text-red-500">*</span></label>
+  <input 
+    type="text" 
+    value={beneficiaryForm.bank_account} 
+    onChange={(e) => {
+      // Remove all whitespace from the input value
+      const valueWithoutSpaces = e.target.value.replace(/\s/g, '');
+      handleBeneficiaryChange('bank_account', valueWithoutSpaces);
+    }} 
+    placeholder="Enter bank account number" 
+    maxLength="20"
+    style={inputStyle} 
+  />
+  <div style={helperTextStyle}>
+    <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.bank_account.replace(/\s/g, '').length > 20 || (beneficiaryForm.bank_account.replace(/\s/g, '').length > 0 && beneficiaryForm.bank_account.replace(/\s/g, '').length < 9) ? 'text-red-500' : 'text-gray-400'}`}>
+      {getBankAccountDigitCount(beneficiaryForm.bank_account)}
+    </span>
+  </div>
+  {validationErrors.bank_account && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.bank_account}</p>}
+</div>
                     <div>
-                      <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">IFSC Code <span className="text-red-500">*</span></label>
-                      <input type="text" value={beneficiaryForm.ifsc_code} onChange={(e) => handleBeneficiaryChange('ifsc_code', e.target.value.toUpperCase())} placeholder="e.g., SBIN0001234" style={inputStyle} />
-                      <div style={helperTextStyle}>
-                        <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.ifsc_code.length !== 11 && beneficiaryForm.ifsc_code.length > 0 ? 'text-red-500' : 'text-gray-400'}`}>
-                          {getCharCount(beneficiaryForm.ifsc_code, 11)}
-                        </span>
-                      </div>
-                      {validationErrors.ifsc_code && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.ifsc_code}</p>}
-                    </div>
+  <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">IFSC Code <span className="text-red-500">*</span></label>
+  <input 
+    type="text" 
+    value={beneficiaryForm.ifsc_code} 
+    onChange={(e) => handleBeneficiaryChange('ifsc_code', e.target.value.toUpperCase())} 
+    placeholder="e.g., SBIN0012345"  // Updated placeholder with example
+    maxLength="11"  // Add this line
+    style={inputStyle} 
+  />
+  <div style={helperTextStyle}>
+    <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.ifsc_code.length !== 11 && beneficiaryForm.ifsc_code.length > 0 ? 'text-red-500' : 'text-gray-400'}`}>
+      {getCharCount(beneficiaryForm.ifsc_code, 11)}
+    </span>
+  </div>
+  {validationErrors.ifsc_code && (
+    <div className="mt-1">
+      <p className="text-[10px] md:text-xs text-red-500">{validationErrors.ifsc_code}</p>
+      <p className="text-[9px] md:text-[10px] text-gray-500 mt-0.5">
+        Format: First 4 letters, 5th is always 0, then 6 alphanumeric characters
+      </p>
+    </div>
+  )}
+</div>
                   </>
                 ) : (
                   <>
-                    <div>
-                      <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Account Holder Name <span className="text-red-500">*</span></label>
-                      <input type="text" value={beneficiaryForm.account_holder} onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} placeholder="Full name" style={inputStyle} />
-                      <div style={helperTextStyle}>
-                        <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.account_holder.length > 20 ? 'text-red-500' : 'text-gray-400'}`}>
-                          {getCharCount(beneficiaryForm.account_holder, 20)}
-                        </span>
-                      </div>
-                      {validationErrors.account_holder && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}
-                    </div>
+                   <div>
+  <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Account Holder Name <span className="text-red-500">*</span></label>
+  <input 
+    type="text" 
+    value={beneficiaryForm.account_holder} 
+    onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} 
+    placeholder="Full name" 
+    maxLength="50"  // Add this line
+    style={inputStyle} 
+  />
+  <div style={helperTextStyle}>
+    <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.account_holder.length > 50 ? 'text-red-500' : 'text-gray-400'}`}>
+      {getCharCount(beneficiaryForm.account_holder, 50)}  
+    </span>
+  </div>
+  {validationErrors.account_holder && <p className="text-[10px] md:text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}
+</div>
                     <div>
                       <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">UPI ID <span className="text-red-500">*</span></label>
                       <input type="text" value={beneficiaryForm.upi_id} onChange={(e) => handleBeneficiaryChange('upi_id', e.target.value.toLowerCase())} placeholder="e.g., username@okhdfcbank" style={inputStyle} />
