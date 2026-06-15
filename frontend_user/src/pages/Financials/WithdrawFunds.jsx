@@ -171,13 +171,22 @@ export default function WithdrawFunds() {
   };
 
   const validatePhone = (value) => {
-    if (!value) return '';
-    const digitsOnly = value.replace(/\D/g, '');
-    if (digitsOnly.length === 0) return '';
-    if (digitsOnly.length !== 10) return "Phone number must be 10 digits";
-    if (!/^[6-9][0-9]{9}$/.test(digitsOnly)) return "Invalid Indian mobile number";
-    return '';
-  };
+  if (!value) return '';
+
+  if (!/^\d+$/.test(value)) {
+    return "Phone number must contain only digits";
+  }
+
+  if (value.length !== 10) {
+    return "Phone number must be 10 digits";
+  }
+
+  if (!/^[6-9]\d{9}$/.test(value)) {
+    return "Invalid Indian mobile number";
+  }
+
+  return '';
+};
 
   const validateEmailFormat = (value) => {
     const email = value.trim();
@@ -1098,7 +1107,16 @@ export default function WithdrawFunds() {
                 </div>
                 <div>
                   <label className="block text-gray-700 text-[10px] md:text-xs font-medium mb-1">Phone (Optional)</label>
-                  <input type="tel" value={beneficiaryForm.phone} onChange={(e) => handleBeneficiaryChange('phone', e.target.value)} placeholder="9999999999" style={inputStyle} />
+                  <input
+  type="tel"
+  value={beneficiaryForm.phone}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+    handleBeneficiaryChange('phone', value);
+  }}
+  placeholder="9999999999"
+  style={inputStyle}
+/>
                   <div style={helperTextStyle}>
                     <span className={`text-[9px] md:text-[10px] ${beneficiaryForm.phone.replace(/\D/g, '').length !== 10 && beneficiaryForm.phone.replace(/\D/g, '').length > 0 ? 'text-red-500' : 'text-gray-400'}`}>
                       {getPhoneDigitCount(beneficiaryForm.phone)}

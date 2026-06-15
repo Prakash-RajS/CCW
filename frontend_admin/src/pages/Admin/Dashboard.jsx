@@ -894,48 +894,65 @@ const Dashboard = () => {
   }, [fetchNotifications]);
 
   useEffect(() => {
-    const applyTheme = () => {
-      const savedTheme = localStorage.getItem("theme");
-      const isDark = savedTheme === "dark";
-
-      // Only update state if it's different and not initial mount
-      if (isDark !== isDarkMode && !isInitialMount.current) {
-        setIsDarkMode(isDark);
-      }
-
-      const htmlElement = document.documentElement;
-      const bodyElement = document.body;
-
-      if (isDark) {
-        htmlElement.classList.add("dark");
-        htmlElement.classList.remove("light");
-        bodyElement.classList.add("dark");
-        bodyElement.classList.remove("light");
-      } else {
-        htmlElement.classList.add("light");
-        htmlElement.classList.remove("dark");
-        bodyElement.classList.add("light");
-        bodyElement.classList.remove("dark");
-      }
-    };
-
+  const applyTheme = () => {
+    const savedTheme = localStorage.getItem("theme");
+    const isDark = savedTheme === "dark";
+    
+    // Update state
+    setIsDarkMode(isDark);
+    
+    const htmlElement = document.documentElement;
+    const bodyElement = document.body;
+    
+    if (isDark) {
+      htmlElement.classList.add("dark");
+      htmlElement.classList.remove("light");
+      bodyElement.classList.add("dark");
+      bodyElement.classList.remove("light");
+    } else {
+      htmlElement.classList.add("light");
+      htmlElement.classList.remove("dark");
+      bodyElement.classList.add("light");
+      bodyElement.classList.remove("dark");
+    }
+  };
+  
+  // Apply theme immediately
+  applyTheme();
+  isInitialMount.current = false;
+  
+  // Listen for theme changes
+  const handleThemeChange = () => {
     applyTheme();
-    isInitialMount.current = false;
-
-    const handleThemeChange = () => applyTheme();
-    window.addEventListener("theme-change", handleThemeChange);
-
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const handleSystemChange = () => {
-      if (!localStorage.getItem("theme")) applyTheme();
-    };
-    mediaQuery.addEventListener("change", handleSystemChange);
-
-    return () => {
-      window.removeEventListener("theme-change", handleThemeChange);
-      mediaQuery.removeEventListener("change", handleSystemChange);
-    };
-  }, []);
+    // Force a re-render by setting a state that will trigger a re-render
+    setIsDarkMode(prev => {
+      const newMode = localStorage.getItem("theme") === "dark";
+      return newMode;
+    });
+  };
+  
+  window.addEventListener("theme-change", handleThemeChange);
+  
+  // Listen for storage events (for cross-tab sync)
+  const handleStorageChange = (e) => {
+    if (e.key === 'theme') {
+      handleThemeChange();
+    }
+  };
+  window.addEventListener('storage', handleStorageChange);
+  
+  const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const handleSystemChange = () => {
+    if (!localStorage.getItem("theme")) applyTheme();
+  };
+  mediaQuery.addEventListener("change", handleSystemChange);
+  
+  return () => {
+    window.removeEventListener("theme-change", handleThemeChange);
+    window.removeEventListener('storage', handleStorageChange);
+    mediaQuery.removeEventListener("change", handleSystemChange);
+  };
+}, []); // Empty dependency array to run only once
 
   // Verify authentication and load data - only once
   useEffect(() => {

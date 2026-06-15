@@ -233,13 +233,22 @@ const Overview = () => {
   };
 
   const validatePhone = (value) => {
-    if (!value) return '';
-    const digitsOnly = value.replace(/\D/g, '');
-    if (digitsOnly.length === 0) return '';
-    if (digitsOnly.length !== 10) return "Phone number must be 10 digits";
-    if (!/^[6-9][0-9]{9}$/.test(digitsOnly)) return "Invalid Indian mobile number";
-    return '';
-  };
+  if (!value) return '';
+
+  if (!/^\d+$/.test(value)) {
+    return "Phone number must contain only digits";
+  }
+
+  if (value.length !== 10) {
+    return "Phone number must be 10 digits";
+  }
+
+  if (!/^[6-9]\d{9}$/.test(value)) {
+    return "Invalid Indian mobile number";
+  }
+
+  return '';
+};
 
   const validateEmailFormat = (value) => {
     const email = value.trim();
@@ -934,15 +943,24 @@ const Overview = () => {
   };
 
   const handleWithdrawAmountChange = (e) => {
-    let value = e.target.value;
-    value = value.replace(/[^0-9.]/g, "");
-    if (value === "0") return;
-    if (/^0\d+/.test(value)) return;
-    const parts = value.split(".");
-    if (parts.length > 2) return;
-    setWithdrawAmount(value);
-    validateWithdrawAmount(value);
-  };
+  let value = e.target.value;
+
+  // Allow only numbers and decimal point
+  value = value.replace(/[^0-9.]/g, "");
+
+  // Prevent multiple decimal points
+  const parts = value.split(".");
+  if (parts.length > 2) return;
+
+  // Allow max 2 digits after decimal
+  if (parts[1] && parts[1].length > 2) return;
+
+  // Prevent leading zero like 0123
+  if (/^0\d+/.test(value)) return;
+
+  setWithdrawAmount(value);
+  validateWithdrawAmount(value);
+};
 
   const getCurrentItems = () => {
     const contracts = activeTab === 'work-in-progress' ? workInProgressContracts : inReviewContracts;
@@ -1729,13 +1747,16 @@ const Overview = () => {
                   </div>
                   <div>
                     <label className="block text-gray-700 text-xs font-medium mb-1">Phone (Optional)</label>
-                    <input 
-                      type="tel" 
-                      value={beneficiaryForm.phone} 
-                      onChange={(e) => handleBeneficiaryChange('phone', e.target.value)} 
-                      placeholder={userData?.phone || "9999999999"} 
-                      style={inputStyle} 
-                    />
+                    <input
+  type="tel"
+  value={beneficiaryForm.phone}
+  onChange={(e) => {
+    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+    handleBeneficiaryChange('phone', value);
+  }}
+  placeholder="9999999999"
+  style={inputStyle}
+/>
                     <div style={helperTextStyle}>
                       <span className={`text-[10px] ${beneficiaryForm.phone.replace(/\D/g, '').length !== 10 && beneficiaryForm.phone.replace(/\D/g, '').length > 0 ? 'text-red-500' : 'text-gray-400'}`}>
                         {getPhoneDigitCount(beneficiaryForm.phone)}

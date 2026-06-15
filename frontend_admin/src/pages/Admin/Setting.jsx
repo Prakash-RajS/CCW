@@ -222,7 +222,7 @@ const Setting = () => {
 
   useEffect(() => {
     loadProfile();
-    loadPreferences();
+    // loadPreferences();
   }, []);
 
   const loadProfile = async () => {
@@ -252,17 +252,17 @@ const Setting = () => {
     }
   };
 
-  const loadPreferences = async () => {
-    try {
-      const response = await api.get(`/admin/preferences`);
-      setPreferences(response.data);
-      // IMPORTANT: Do NOT update theme from preferences at all
-      // The theme should only be controlled by localStorage and user actions
-      // Remove any code that sets theme from response.data.theme
-    } catch (err) {
-      console.error('Error loading preferences:', err);
-    }
-  };
+  // const loadPreferences = async () => {
+  //   try {
+  //     const response = await api.get(`/admin/preferences`);
+  //     setPreferences(response.data);
+  //     // IMPORTANT: Do NOT update theme from preferences at all
+  //     // The theme should only be controlled by localStorage and user actions
+  //     // Remove any code that sets theme from response.data.theme
+  //   } catch (err) {
+  //     console.error('Error loading preferences:', err);
+  //   }
+  // };
 
   /* ================== WEATHER ================== */
   const getWeatherIcon = (description) => {
@@ -666,20 +666,55 @@ const Setting = () => {
   };
 
   const handleThemeChange = async (selectedTheme) => {
-    // Update local state
-    setTheme(selectedTheme);
-
-    // Update preferences
-    const newPreferences = { ...preferences, theme: selectedTheme };
-    setPreferences(newPreferences);
-
-    try {
-      await api.put(`/admin/preferences`, newPreferences);
-      toast.success("Success", "Theme preference saved!");
-    } catch (err) {
-      console.error('Error saving theme preference:', err);
-    }
-  };
+  // Update local state
+  setTheme(selectedTheme);
+  
+  // Update preferences in backend
+  const newPreferences = { ...preferences, theme: selectedTheme };
+  setPreferences(newPreferences);
+  
+  // Apply theme to document element
+  const darkMode = selectedTheme === "Dark";
+  const htmlElement = document.documentElement;
+  const bodyElement = document.body;
+  
+  if (darkMode) {
+    htmlElement.classList.add("dark");
+    htmlElement.classList.remove("light");
+    bodyElement.classList.add("dark");
+    bodyElement.classList.remove("light");
+  } else {
+    htmlElement.classList.add("light");
+    htmlElement.classList.remove("dark");
+    bodyElement.classList.add("light");
+    bodyElement.classList.remove("dark");
+  }
+  
+  localStorage.setItem("theme", darkMode ? "dark" : "light");
+  
+  // Dispatch events to notify all components
+  window.dispatchEvent(new Event("theme-change"));
+  
+  // Also dispatch a storage event for cross-tab sync and other components
+  window.dispatchEvent(new StorageEvent('storage', {
+    key: 'theme',
+    newValue: darkMode ? "dark" : "light",
+    oldValue: darkMode ? "light" : "dark"
+  }));
+  
+  // Force a small delay to ensure DOM updates are processed
+  setTimeout(() => {
+    // Force a re-render of the Dashboard by dispatching another event
+    window.dispatchEvent(new Event("theme-change"));
+  }, 50);
+  
+  try {
+    await api.put(`/admin/preferences`, newPreferences);
+    toast.success("Success", "Theme preference saved!");
+  } catch (err) {
+    console.error('Error saving theme preference:', err);
+  }
+};
 
 
   const handleExportData = async () => {
