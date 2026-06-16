@@ -1437,10 +1437,41 @@ export default function Message() {
   }, [currentUserId, activeUserId, reactions, fetchMessages]);
 
   const handleCopyText = useCallback((message) => {
-    if (message.text) {
-      navigator.clipboard.writeText(message.text).then(() => toast.success("Copied to clipboard"));
+  if (!message.text) return;
+  
+  const copyText = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(message.text);
     }
-  }, []);
+    
+    // Fallback for non-HTTPS
+    return new Promise((resolve, reject) => {
+      const textarea = document.createElement('textarea');
+      textarea.value = message.text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      textarea.style.width = '1px';
+      textarea.style.height = '1px';
+      
+      document.body.appendChild(textarea);
+      textarea.select();
+      
+      try {
+        const success = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        success ? resolve() : reject(new Error('Copy failed'));
+      } catch (err) {
+        document.body.removeChild(textarea);
+        reject(err);
+      }
+    });
+  };
+  
+  copyText()
+    .then(() => toast.success("Copied to clipboard"))
+    .catch(() => toast.error("Failed to copy text"));
+}, []);
 
   const handleEditMessage = useCallback((message) => {
     setEditingMessageId(message.id);

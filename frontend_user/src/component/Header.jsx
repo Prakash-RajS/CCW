@@ -731,7 +731,7 @@ const Header = ({ variant = "default" }) => {
       {/* Left Logo */}
       <div className="flex-1 md:flex-none flex justify-center md:justify-start">
         <h1
-          className="font-bold text-[24px] sm:text-[28px] md:text-[32px] lg:text-[40px] xl:text-[50px] leading-[100%] trochut-font bg-gradient-to-l from-[#51218F] to-[#030303] bg-clip-text text-transparent cursor-pointer whitespace-nowrap"
+          className="font-bold text-[24px] sm:text-[28px] md:text-[32px] lg:text-[40px] xl:text-[50px] leading-[100%] trochut-font bg-gradient-to-l from-[#51218F] to-[#030303] bg-clip-text text-transparent whitespace-nowrap"
         >
           Talenta
         </h1>
@@ -896,7 +896,7 @@ const Header = ({ variant = "default" }) => {
 
         {/* Profile and Name Container for Desktop & Tablet */}
         <div ref={profileRef} className="relative group hidden md:block">
-          <div className="w-auto md:w-[120px] lg:w-[140px] h-[56px] lg:h-[64px] flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity">
+          <div className="w-auto md:w-[120px] lg:w-[140px] h-[56px] lg:h-[64px] flex items-center gap-2  hover:opacity-90 transition-opacity">
             <div className={`font-poppins font-normal text-[13px] md:text-[14px] lg:text-[18px] xl:text-[20px] leading-[100%] hidden sm:block max-w-[70px] md:max-w-[80px] lg:max-w-[90px] truncate ${isLightVariant ? 'text-gray-800' : 'text-white'}`}>
               {isLoading ? "Loading..." : getDisplayName()}
             </div>

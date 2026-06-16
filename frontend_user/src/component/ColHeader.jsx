@@ -747,8 +747,7 @@ const ColHeader = () => {
       {/* Left Logo */}
       <div className="flex-1 md:flex-none flex justify-center md:justify-start">
         <h1 
-          className="font-bold text-[36px] md:text-[50px] leading-[100%] trochut-font bg-gradient-to-l from-[#51218F] to-[#030303] bg-clip-text text-[#030303] cursor-pointer"
-          onClick={() => navigate("/col-home")}
+          className="font-bold text-[36px] md:text-[50px] leading-[100%] trochut-font bg-gradient-to-l from-[#51218F] to-[#030303] bg-clip-text text-[#030303]"
         >
           Talenta
         </h1>
@@ -861,7 +860,7 @@ const ColHeader = () => {
 
         {/* Profile and Name Container for Desktop */}
         <div ref={profileRef} className="relative group hidden md:block">
-          <div className="w-auto md:w-[140px] h-[64px] flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity">
+          <div className="w-auto md:w-[140px] h-[64px] flex items-center gap-2  hover:opacity-90 transition-opacity">
             <div className="text-white font-poppins font-normal text-[20px] leading-[100%] hidden sm:block max-w-[90px] truncate">
               {loading ? "Loading..." : getDisplayName()}
             </div>
