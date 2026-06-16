@@ -38,9 +38,9 @@ function MilestoneTooltip({ visible, anchorRef }) {
       <div style={{
         background: '#1f1235',
         color: '#fff',
-        fontSize: '12px',
+        fontSize: '13px',
         fontWeight: '600',
-        padding: '6px 14px',
+        padding: '8px 16px',
         borderRadius: '8px',
         whiteSpace: 'nowrap',
         boxShadow: '0 4px 16px rgba(91,45,145,0.35)',
@@ -123,7 +123,7 @@ export default function UploadUX() {
   const getDurationValues = () => {
     switch (durationUnit) {
       case "days": return ["1 Day", "2 Days", "3 Days", "4 Days", "5 Days", "6 Days", "7 Days", "8 Days", "9 Days", "10 Days", "11 Days", "12 Days", "13 Days", "14 Days", "15 Days", "16 Days", "17 Days", "18 Days", "19 Days", "20 Days", "21 Days", "22 Days", "23 Days", "24 Days", "25 Days", "26 Days", "27 Days", "28 Days", "29 Days", "30 Days"];
-      case "weeks": return ["1 Week", "2 Weeks", "3 Weeks"];
+      case "weeks": return ["1 Week", "2 Weeks", "3 Weeks", "4 Weeks"];
       case "months": return ["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months", "12 Months"];
       case "years": return ["1 Year", "2 Years", "3 Years", "4 Years", "5 Years"];
       default: return [];
@@ -297,14 +297,13 @@ export default function UploadUX() {
     }));
   };
 
-  // Auto-update bid amount when milestones change
+  // Auto-update bid amount when milestones change - FIXED
   useEffect(() => {
     if (paymentType === 'milestone' && milestones.length > 0) {
       const totalAmount = milestones.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
-      if (totalAmount > 0) {
-        setBidAmount(totalAmount.toString());
-        setBidAmountError('');
-      }
+      // Always update bid amount, even if total is 0
+      setBidAmount(totalAmount.toString());
+      setBidAmountError('');
     }
   }, [milestones, paymentType]);
 
@@ -961,8 +960,7 @@ export default function UploadUX() {
                               <th className="px-4 py-2.5 text-center text-sm font-semibold text-white border-r border-[#7a45b0]">#</th>
                               <th className="px-4 py-2.5 text-center text-sm font-semibold text-white border-r border-[#7a45b0]">Description</th>
                               <th className="px-4 py-2.5 text-center text-sm font-semibold text-white border-r border-[#7a45b0]">Due Date</th>
-                              <th className="px-4 py-2.5 text-center text-sm font-semibold text-white border-r border-[#7a45b0]">Amount</th>
-                              <th className="px-4 py-2.5 text-center text-sm font-semibold text-white">%</th>
+                              <th className="px-4 py-2.5 text-center text-sm font-semibold text-white">Amount</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -972,7 +970,6 @@ export default function UploadUX() {
                                 <td className="px-4 py-2.5 text-sm text-gray-700 text-center border border-[#E2D4F5]">{milestone.description || '–'}</td>
                                 <td className="px-4 py-2.5 text-sm text-gray-700 text-center border border-[#E2D4F5]">{milestone.due_date || '–'}</td>
                                 <td className="px-4 py-2.5 text-sm font-semibold text-[#5B2D91] text-center border border-[#E2D4F5]">₹{milestone.amount.toFixed(2)}</td>
-                                <td className="px-4 py-2.5 text-sm text-gray-600 text-center border border-[#E2D4F5]">{milestone.percentage}%</td>
                               </tr>
                             ))}
                           </tbody>
@@ -980,15 +977,14 @@ export default function UploadUX() {
                             <tr className="bg-[#F0E8FB]">
                               <td colSpan="3" className="px-4 py-2.5 text-sm font-bold text-[#3d1768] text-center border border-[#D4B8F0]">Total</td>
                               <td className="px-4 py-2.5 text-sm font-bold text-[#5B2D91] text-center border border-[#D4B8F0]">₹{totalMilestoneAmount.toFixed(2)}</td>
-                              <td className="px-4 py-2.5 text-sm font-bold text-[#5B2D91] text-center border border-[#D4B8F0]">100%</td>
                             </tr>
                           </tfoot>
                         </table>
-                        {bidAmount && Math.abs(totalMilestoneAmount - parseFloat(bidAmount)) > 0.01 && (
+                        {/* {bidAmount && Math.abs(totalMilestoneAmount - parseFloat(bidAmount)) > 0.01 && (
                           <p className="text-red-500 text-xs mt-2 mb-1 px-4 text-right">
                             ⚠️ Total (₹{totalMilestoneAmount.toFixed(2)}) must equal bid amount (₹{parseFloat(bidAmount).toFixed(2)})
                           </p>
-                        )}
+                        )} */}
                       </div>
                     )}
 
@@ -1171,13 +1167,12 @@ export default function UploadUX() {
               )}
 
               {durationComparison && (
-                <div className={`mt-2 p-2 rounded-lg ${durationComparison.bgColor} border ${durationComparison.borderColor}`}>
-                  <p className={`text-xs font-medium ${durationComparison.color}`}>{durationComparison.message}</p>
+                <div className={`mt-2 p-3 rounded-lg ${durationComparison.bgColor} border ${durationComparison.borderColor}`}>
+                  <p className={`text-sm font-medium ${durationComparison.color}`}>{durationComparison.message}</p>
                 </div>
               )}
             </div>
 
-            {/* BID AMOUNT SECTION - Fixed with proper border */}
             {/* BID AMOUNT SECTION */}
             <div className="flex flex-col gap-2 mb-6">
               <label className="font-semibold text-[15px] text-[#2A1E17]">
@@ -1185,8 +1180,6 @@ export default function UploadUX() {
               </label>
 
               <div className="w-full sm:w-[300px]">
-
-                {/* Input Wrapper */}
                 <div
                   className="flex items-center w-full h-[50px] rounded-[10px] bg-white"
                   style={{
@@ -1194,15 +1187,12 @@ export default function UploadUX() {
                     overflow: "hidden",
                   }}
                 >
-
-                  {/* Rupee Symbol */}
                   <div className="flex items-center justify-center pl-4 pr-2 h-full">
                     <span className="text-black text-[18px] font-semibold leading-none">
                       ₹
                     </span>
                   </div>
 
-                  {/* Input */}
                   <input
                     type="number"
                     min="0"
@@ -1214,7 +1204,7 @@ export default function UploadUX() {
                       e.target.blur();
                     }}
                     onBlur={validateBidAmount}
-                    readOnly={paymentType === 'milestone' && totalMilestoneAmount > 0}
+                    readOnly={paymentType === 'milestone'}
                     placeholder="Enter your total bid amount"
                     className="flex-1 h-full bg-transparent outline-none text-[16px] font-semibold text-[#1a1a1a]"
                     style={{
@@ -1229,22 +1219,19 @@ export default function UploadUX() {
                   />
                 </div>
 
-                {/* Auto-calculated Message */}
-                {paymentType === 'milestone' && totalMilestoneAmount > 0 && (
+                {paymentType === 'milestone' && (
                   <p className="text-xs text-green-600 mt-1">
                     Auto-calculated from milestone amounts
                   </p>
                 )}
               </div>
 
-              {/* Validation Error */}
               {bidAmountError && (
                 <p className="text-red-500 text-xs font-medium">
                   {bidAmountError}
                 </p>
               )}
 
-              {/* Budget Info */}
               {jobDetails && (jobDetails.budget_from || jobDetails.budget_to) && (
                 <div className="mt-1">
                   <p className="text-xs text-gray-500">
@@ -1252,7 +1239,6 @@ export default function UploadUX() {
                     {isFixed ? ' (Fixed price)' : ''}
                   </p>
 
-                  {/* Hourly Warning */}
                   {bidAmount &&
                     !isFixed &&
                     parseFloat(bidAmount) >
@@ -1263,7 +1249,6 @@ export default function UploadUX() {
                       </p>
                     )}
 
-                  {/* Fixed Price Warning */}
                   {bidAmount &&
                     isFixed &&
                     parseFloat(bidAmount) >

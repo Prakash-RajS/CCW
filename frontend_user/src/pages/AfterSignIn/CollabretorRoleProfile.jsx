@@ -317,7 +317,7 @@ export default function CollaboratorRoleProfile() {
   const [profilePic, setProfilePic] = useState(null);
   const [profilePicFile, setProfilePicFile] = useState(null);
   const [skills, setSkills] = useState("");
-  const [skillRating, setSkillRating] = useState(80);
+  const [skillRating, setSkillRating] = useState(3);
   const [language, setLanguage] = useState("");
   const [skillCategory, setSkillCategory] = useState("");
   const [experience, setExperience] = useState("");
@@ -497,11 +497,16 @@ export default function CollaboratorRoleProfile() {
     reader.readAsDataURL(file);
   };
 
-  const handleStarClick = (starIndex) => setSkillRating(((starIndex + 1) / 5) * 100);
+  const handleStarClick = (starIndex) => {
+    const starCount = starIndex + 1;
+    setSkillRating(starCount);
+  };
+
   const handleProgressClick = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const percentage = ((e.clientX - rect.left) / rect.width) * 100;
-    setSkillRating(Math.min(Math.max(percentage, 0), 100));
+    const starCount = Math.min(Math.max(Math.round((percentage / 100) * 5), 1), 5);
+    setSkillRating(starCount);
   };
 
   const handleNameChange = (e) => {
@@ -607,7 +612,7 @@ export default function CollaboratorRoleProfile() {
       if (badge && badge !== "") formData.append("badges", badge);
       if (aboutWord && aboutWord.trim()) formData.append("about", aboutWord);
       formData.append("location", location);
-      formData.append("skills_rating", Math.round(skillRating));
+      formData.append("skills_rating", skillRating);
 
       if (uploadedFile) {
         const cleanFileName = uploadedFile.name.replace(/[()\s]/g, '_');
@@ -628,7 +633,6 @@ export default function CollaboratorRoleProfile() {
 
       toast.success(response.data.message || "Profile created successfully!", "Your collaborator profile has been set up");
 
-      // Show success modal (don't fetch user data here)
       setShowSuccessModal(true);
       
     } catch (error) {
@@ -814,20 +818,30 @@ export default function CollaboratorRoleProfile() {
                     <div className="flex items-center gap-3 mb-2">
                       <div className="flex">
                         {[1, 2, 3, 4, 5].map((star) => {
-                          const currentStars = Math.round((skillRating / 100) * 5);
                           return (
-                            <button key={star} type="button" className="text-[22px] text-[#4C2E81] leading-none p-1 hover:text-purple-700 transition-colors" onClick={() => handleStarClick(star - 1)}>
-                              {currentStars >= star ? "★" : "☆"}
+                            <button 
+                              key={star} 
+                              type="button" 
+                              className="text-[22px] text-[#4C2E81] leading-none p-1 hover:text-purple-700 transition-colors" 
+                              onClick={() => handleStarClick(star - 1)}
+                            >
+                              {skillRating >= star ? "★" : "☆"}
                             </button>
                           );
                         })}
                       </div>
-                      <p className="text-[#4C2E81] text-sm font-medium">{Math.round(skillRating)}%</p>
+                      <p className="text-[#4C2E81] text-sm font-medium">{skillRating} / 5</p>
                     </div>
-                    <div className="w-full h-[6px] bg-[#E3D5FF] rounded-full mb-4 cursor-pointer relative group" onClick={handleProgressClick}>
-                      <div className="h-full bg-[#4C2E81] rounded-full transition-all duration-200" style={{ width: `${skillRating}%` }} />
+                    <div 
+                      className="w-full h-[6px] bg-[#E3D5FF] rounded-full mb-4 cursor-pointer relative group" 
+                      onClick={handleProgressClick}
+                    >
+                      <div 
+                        className="h-full bg-[#4C2E81] rounded-full transition-all duration-200" 
+                        style={{ width: `${(skillRating / 5) * 100}%` }} 
+                      />
                       <div className="absolute top-[-30px] left-1/2 transform -translate-x-1/2 bg-[#4C2E81] text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                        Click to adjust: {Math.round(skillRating)}%
+                        Click to adjust: {skillRating} / 5
                       </div>
                     </div>
                     <p className="text-black font-semibold mb-2">About you in one word</p>

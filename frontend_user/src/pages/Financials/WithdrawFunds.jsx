@@ -742,62 +742,92 @@ export default function WithdrawFunds() {
   };
 
   // ========== WITHDRAWAL FLOW WITH EMAIL VERIFICATION ==========
-  const handleWithdrawClick = () => {
-    // Validate amount and method first
-    if (!withdrawAmount) {
-      setFormError("Enter withdrawal amount");
-      return;
-    }
+  // ========== WITHDRAWAL FLOW WITH EMAIL VERIFICATION ==========
+const handleWithdrawClick = () => {
+  // Validate amount and method first
+  if (!withdrawAmount) {
+    setFormError("Enter withdrawal amount");
+    return;
+  }
 
-    if (/^0\d+/.test(withdrawAmount)) {
-      setFormError("Amount cannot start with zero");
-      return;
-    }
+  // Remove any whitespace and check if it's a valid number
+  const cleanAmount = withdrawAmount.trim();
+  const numericAmount = parseFloat(cleanAmount);
 
-    if (Number(withdrawAmount) <= 0) {
-      setFormError("Amount must be greater than zero");
-      return;
-    }
-    if (Number(withdrawAmount) > walletBalance) {
-      setFormError("Insufficient balance");
-      return;
-    }
-    if (!selectedMethod) {
-      setFormError("Please select a withdrawal method");
-      return;
-    }
-    if (!hasPhone) {
-      toast.error("Phone number required", "Please update your profile with a valid phone number.");
-      return;
-    }
+  // Check if it's a valid number (not NaN)
+  if (isNaN(numericAmount)) {
+    setFormError("Please enter a valid amount");
+    return;
+  }
 
-    // Start email verification flow
-    startEmailVerificationFlow();
-  };
+  // Check if it's a positive number
+  if (numericAmount <= 0) {
+    setFormError("Amount must be greater than zero");
+    return;
+  }
+
+  // Check if the amount has only digits and optionally a decimal point
+  if (!/^\d+(\.\d+)?$/.test(cleanAmount)) {
+    setFormError("Please enter a valid amount (e.g., 100 or 100.50)");
+    return;
+  }
+
+  // Check if it has more than 2 decimal places
+  const decimalParts = cleanAmount.split(".");
+  if (decimalParts.length === 2 && decimalParts[1].length > 2) {
+    setFormError("Amount cannot have more than 2 decimal places");
+    return;
+  }
+
+  if (numericAmount > walletBalance) {
+    setFormError("Insufficient balance");
+    return;
+  }
+
+  if (!selectedMethod) {
+    setFormError("Please select a withdrawal method");
+    return;
+  }
+
+  if (!hasPhone) {
+    toast.error("Phone number required", "Please update your profile with a valid phone number.");
+    return;
+  }
+
+  // Start email verification flow
+  startEmailVerificationFlow();
+};
 
   const executeWithdrawal = async () => {
-    setIsProcessing(true);
-    setFormError("");
-    try {
-      const response = await api.post('/wallet/withdraw', {
-        user_id: userData.id,
-        amount: Number(withdrawAmount),
-        method_id: selectedMethod.id
-      });
-      if (response.data.success && response.data.status === "success") {
-        setShowWithdrawPopup(false);
-        setShowSuccessPopup(true);
-        setWalletBalance(response.data.new_balance);
-      } else {
-        toast.error("Withdrawal failed", response.data.message || "Please try again.");
-      }
-    } catch (err) {
-      const errorDetail = err.response?.data?.detail || "Withdrawal failed";
-      toast.error("Withdrawal failed", errorDetail);
-    } finally {
+  setIsProcessing(true);
+  setFormError("");
+  try {
+    const amountToWithdraw = parseFloat(withdrawAmount);
+    if (isNaN(amountToWithdraw) || amountToWithdraw <= 0) {
+      setFormError("Invalid amount");
       setIsProcessing(false);
+      return;
     }
-  };
+    
+    const response = await api.post('/wallet/withdraw', {
+      user_id: userData.id,
+      amount: amountToWithdraw,
+      method_id: selectedMethod.id
+    });
+    if (response.data.success && response.data.status === "success") {
+      setShowWithdrawPopup(false);
+      setShowSuccessPopup(true);
+      setWalletBalance(response.data.new_balance);
+    } else {
+      toast.error("Withdrawal failed", response.data.message || "Please try again.");
+    }
+  } catch (err) {
+    const errorDetail = err.response?.data?.detail || "Withdrawal failed";
+    toast.error("Withdrawal failed", errorDetail);
+  } finally {
+    setIsProcessing(false);
+  }
+};
 
   const resetBeneficiaryForm = () => {
     setBeneficiaryForm({ bank_account: '', ifsc_code: '', account_holder: '', upi_id: '', email: '', phone: '' });
@@ -1185,63 +1215,103 @@ export default function WithdrawFunds() {
       )}
 
       {/* Withdraw Popup - Reduced tablet size */}
-      {showWithdrawPopup && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-3 md:p-4">
-          <div className="relative w-full max-w-[350px] md:max-w-[400px] max-h-[90vh] bg-white rounded-[16px] md:rounded-[20px] flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 md:gap-3 px-4 md:px-5 pt-3 pb-2 md:pt-4 md:pb-3 border-b border-gray-100 flex-shrink-0">
-              <button onClick={() => setShowWithdrawPopup(false)} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#51218F] flex items-center justify-center hover:bg-gradient-to-r hover:from-[#51218F] hover:to-black transition-all flex-shrink-0">
-                <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none"><path d="M20 12H4M4 12L10 6M4 12L10 18" stroke="white" strokeWidth="2" /></svg>
-              </button>
-              <h2 className="text-base md:text-lg lg:text-2xl font-bold" style={{ fontFamily: "Trochut" }}>Withdraw Funds</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 md:px-5 py-3 md:py-4 min-h-0 space-y-3 md:space-y-4">
-              <div>
-                <label className="block text-gray-700 text-[11px] md:text-sm font-medium mb-1.5 md:mb-2">Available: ₹{walletBalance.toFixed(2)}</label>
-                <input
-                  type="text"
-                  value={withdrawAmount}
-                  onChange={(e) => {
-                    let value = e.target.value;
-                    value = value.replace(/[^0-9.]/g, "");
-                    if (value === "0") return;
-                    if (/^0\d+/.test(value)) return;
-                    const parts = value.split(".");
-                    if (parts.length > 2) return;
-                    setWithdrawAmount(value);
-                    setFormError("");
-                  }}
-                  placeholder="Enter amount"
-                  inputMode="decimal"
-                  style={{ ...inputStyle, height: "44px", fontSize: "14px" }}
-                />
-                {formError && <p className="text-red-500 text-[10px] md:text-xs mt-1">{formError}</p>}
-              </div>
-              {selectedMethod && (
-                <div className="bg-gray-50 rounded-xl p-2.5 md:p-3">
-                  <p className="text-[9px] md:text-xs text-gray-500 mb-1">Withdrawing to:</p>
-                  <p className="font-medium text-[11px] md:text-sm">{selectedMethod.type === 'bank' ? '🏦 Bank Account' : '📱 UPI ID'}</p>
-                  <p className="text-[9px] md:text-xs text-gray-600 mt-0.5">{selectedMethod.account_holder} • {selectedMethod.account_detail}</p>
-                </div>
-              )}
-              {!walletStatus.canWithdraw && !walletStatus.loading && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2.5 md:p-3 rounded-xl">
-                  <p className="text-yellow-800 text-[11px] md:text-sm font-medium">Withdrawals Not Available</p>
-                  <p className="text-yellow-700 text-[9px] md:text-xs mt-1">{!walletStatus.hasBeneficiary ? 'Please add a withdrawal method first' : 'Please contact support to enable withdrawals'}</p>
-                </div>
-              )}
-            </div>
-            <div className="px-4 md:px-5 pb-4 md:pb-5 pt-2 md:pt-3 border-t border-gray-100 flex-shrink-0 space-y-2 md:space-y-3">
-              <div className="flex gap-2 md:gap-3">
-                <button onClick={() => setShowWithdrawPopup(false)} className="flex-1 h-9 md:h-11 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-[11px] md:text-sm">Cancel</button>
-                <button onClick={handleWithdrawClick} disabled={isProcessing || !walletStatus.canWithdraw || !withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > walletBalance} className={`flex-1 h-9 md:h-11 rounded-xl text-white font-medium transition-all text-[11px] md:text-sm ${(!walletStatus.canWithdraw || !withdrawAmount || Number(withdrawAmount) <= 0 || Number(withdrawAmount) > walletBalance) ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#51218F] to-black hover:opacity-90'}`}>
-                  {isProcessing ? <div className="flex items-center justify-center gap-1.5 md:gap-2"><div className="w-3 h-3 md:w-4 md:h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Processing...</div> : 'Withdraw'}
-                </button>
-              </div>
-              <p className="text-[9px] md:text-xs text-gray-500 text-center">Email verification is required before every withdrawal.</p>
-            </div>
-          </div>
+      {/* Withdraw Popup - Reduced tablet size */}
+{showWithdrawPopup && (
+  <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-3 md:p-4">
+    <div className="relative w-full max-w-[350px] md:max-w-[400px] max-h-[90vh] bg-white rounded-[16px] md:rounded-[20px] flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 md:gap-3 px-4 md:px-5 pt-3 pb-2 md:pt-4 md:pb-3 border-b border-gray-100 flex-shrink-0">
+        <button onClick={() => setShowWithdrawPopup(false)} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#51218F] flex items-center justify-center hover:bg-gradient-to-r hover:from-[#51218F] hover:to-black transition-all flex-shrink-0">
+          <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none"><path d="M20 12H4M4 12L10 6M4 12L10 18" stroke="white" strokeWidth="2" /></svg>
+        </button>
+        <h2 className="text-base md:text-lg lg:text-2xl font-bold" style={{ fontFamily: "Trochut" }}>Withdraw Funds</h2>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 md:px-5 py-3 md:py-4 min-h-0 space-y-3 md:space-y-4">
+        <div>
+          <label className="block text-gray-700 text-[11px] md:text-sm font-medium mb-1.5 md:mb-2">Available: ₹{walletBalance.toFixed(2)}</label>
+          <input
+            type="text"
+            value={withdrawAmount}
+            onChange={(e) => {
+              let value = e.target.value;
+              // Only allow digits and a single decimal point
+              value = value.replace(/[^0-9.]/g, "");
+              // Prevent multiple decimal points
+              const parts = value.split(".");
+              if (parts.length > 2) return;
+              // Prevent leading zeros (e.g., "01" -> "1")
+              if (value.length > 1 && value.startsWith("0") && !value.startsWith("0.")) {
+                value = value.replace(/^0+/, "");
+                if (value === "") value = "0";
+              }
+              // Prevent empty or just a dot
+              if (value === ".") {
+                setWithdrawAmount("");
+                setFormError("Please enter a valid amount");
+                return;
+              }
+              setWithdrawAmount(value);
+              setFormError("");
+            }}
+            onBlur={() => {
+              // Validate on blur
+              if (withdrawAmount && !isNaN(parseFloat(withdrawAmount)) && parseFloat(withdrawAmount) > 0) {
+                // Valid amount
+                setFormError("");
+              } else if (withdrawAmount) {
+                setFormError("Please enter a valid amount");
+              }
+            }}
+            placeholder="Enter amount"
+            inputMode="decimal"
+            style={{ ...inputStyle, height: "44px", fontSize: "14px" }}
+          />
+          {formError && <p className="text-red-500 text-[10px] md:text-xs mt-1">{formError}</p>}
         </div>
-      )}
+        {selectedMethod && (
+          <div className="bg-gray-50 rounded-xl p-2.5 md:p-3">
+            <p className="text-[9px] md:text-xs text-gray-500 mb-1">Withdrawing to:</p>
+            <p className="font-medium text-[11px] md:text-sm">{selectedMethod.type === 'bank' ? '🏦 Bank Account' : '📱 UPI ID'}</p>
+            <p className="text-[9px] md:text-xs text-gray-600 mt-0.5">{selectedMethod.account_holder} • {selectedMethod.account_detail}</p>
+          </div>
+        )}
+        {!walletStatus.canWithdraw && !walletStatus.loading && (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-2.5 md:p-3 rounded-xl">
+            <p className="text-yellow-800 text-[11px] md:text-sm font-medium">Withdrawals Not Available</p>
+            <p className="text-yellow-700 text-[9px] md:text-xs mt-1">{!walletStatus.hasBeneficiary ? 'Please add a withdrawal method first' : 'Please contact support to enable withdrawals'}</p>
+          </div>
+        )}
+      </div>
+      <div className="px-4 md:px-5 pb-4 md:pb-5 pt-2 md:pt-3 border-t border-gray-100 flex-shrink-0 space-y-2 md:space-y-3">
+        <div className="flex gap-2 md:gap-3">
+          <button onClick={() => setShowWithdrawPopup(false)} className="flex-1 h-9 md:h-11 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-[11px] md:text-sm">Cancel</button>
+          <button 
+            onClick={handleWithdrawClick} 
+            disabled={
+              isProcessing || 
+              !walletStatus.canWithdraw || 
+              !withdrawAmount || 
+              isNaN(parseFloat(withdrawAmount)) || 
+              parseFloat(withdrawAmount) <= 0 || 
+              parseFloat(withdrawAmount) > walletBalance
+            } 
+            className={`flex-1 h-9 md:h-11 rounded-xl text-white font-medium transition-all text-[11px] md:text-sm ${
+              (!walletStatus.canWithdraw || 
+               !withdrawAmount || 
+               isNaN(parseFloat(withdrawAmount)) || 
+               parseFloat(withdrawAmount) <= 0 || 
+               parseFloat(withdrawAmount) > walletBalance) 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-gradient-to-r from-[#51218F] to-black hover:opacity-90'
+            }`}
+          >
+            {isProcessing ? <div className="flex items-center justify-center gap-1.5 md:gap-2"><div className="w-3 h-3 md:w-4 md:h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>Processing...</div> : 'Withdraw'}
+          </button>
+        </div>
+        <p className="text-[9px] md:text-xs text-gray-500 text-center">Email verification is required before every withdrawal.</p>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Success Popup - Reduced tablet size */}
       {showSuccessPopup && (
