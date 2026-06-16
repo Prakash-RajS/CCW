@@ -831,14 +831,25 @@ export default function UserList() {
     }
   }, [debouncedSearch, searchParams, setSearchParams]);
 const scrollToCollaboratorsSection = () => {
-  // Try to find the title element by ID (desktop first, then mobile)
-  let titleElement = document.getElementById('collaborators-title-desktop');
-  if (!titleElement) {
+  // Try to find the title element based on screen size
+  const isDesktop = window.innerWidth >= 768; // md breakpoint
+  
+  let titleElement;
+  if (isDesktop) {
+    titleElement = document.getElementById('collaborators-title-desktop');
+    // If desktop title not found, try mobile as fallback
+    if (!titleElement) {
+      titleElement = document.getElementById('collaborators-title-mobile');
+    }
+  } else {
     titleElement = document.getElementById('collaborators-title-mobile');
+    if (!titleElement) {
+      titleElement = document.getElementById('collaborators-title-desktop');
+    }
   }
  
   if (titleElement) {
-    const offset = 30; // Adjust this value as needed
+    const offset = 30;
     const elementPosition = titleElement.getBoundingClientRect().top;
     const offsetPosition = elementPosition + window.pageYOffset - offset;
    
@@ -847,20 +858,48 @@ const scrollToCollaboratorsSection = () => {
       behavior: "smooth"
     });
   } else {
-    // Fallback - scroll to top of the page
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Fallback - find the results section based on screen size
+    const isDesktop = window.innerWidth >= 768;
+    let resultsSection;
+    
+    if (isDesktop) {
+      resultsSection = document.querySelector('.md\\:block .max-w-8xl');
+    } else {
+      resultsSection = document.querySelector('.md\\:hidden .flex.flex-col.items-center');
+    }
+    
+    if (resultsSection) {
+      const offset = 30;
+      const elementPosition = resultsSection.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 };
  
 const goToPage = (p) => {
-  setCurrentPage(Math.max(1, Math.min(totalPages, p)));
-  setTimeout(() => {
-    scrollToCollaboratorsSection();
-  }, 150); // Increased delay to ensure DOM is updated
+  const newPage = Math.max(1, Math.min(totalPages, p));
+  setCurrentPage(newPage);
+  
+  // Use requestAnimationFrame for better timing
+  requestAnimationFrame(() => {
+    // Small delay to ensure DOM updates
+    setTimeout(() => {
+      scrollToCollaboratorsSection();
+    }, 100);
+  });
 };
  
 const scrollToTop = () => {
-  scrollToCollaboratorsSection();
+  // Use requestAnimationFrame for smoother scrolling
+  requestAnimationFrame(() => {
+    scrollToCollaboratorsSection();
+  });
 };
   // Sync searchInput with URL params
   useEffect(() => {
@@ -1222,66 +1261,76 @@ const SimpleDropdown = ({ value, setValue, options, name, className }) => {
 
   // Pagination component
   const Pagination = () => {
-    if (loading || collaborators.length <= itemsPerPage) return null;
-    return (
-      <div className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-        <div className="flex items-center justify-center gap-2 md:gap-4 flex-wrap px-4">
-          <button
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="font-['Poppins'] text-[14px] md:text-[16px] text-gray-500 hover:text-[#3D1768] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Previous
-          </button>
-          
-          <div className="flex items-center gap-1 md:gap-2">
-            {getPageNumbers().map((p) =>
-              p === currentPage ? (
-                <span
-                  key={p}
-                  className="font-['Poppins'] font-extrabold text-[16px] md:text-[22px] text-[rgba(61,23,104,1)] min-w-[36px] md:min-w-[40px] text-center py-1 bg-[rgba(61,23,104,0.1)] rounded-full"
-                >
-                  {p}
-                </span>
-              ) : (
-                <button
-                  key={p}
-                  onClick={() => goToPage(p)}
-                  className="font-['Poppins'] font-normal text-[14px] md:text-[18px] text-gray-500 hover:text-[#3D1768] min-w-[36px] md:min-w-[40px] text-center py-1 rounded-full transition-colors hover:bg-[rgba(61,23,104,0.05)]"
-                >
-                  {p}
-                </button>
-              )
-            )}
-          </div>
-
-          <button
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="font-['Poppins'] text-[14px] md:text-[16px] text-gray-500 hover:text-[#3D1768] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-          >
-            Next
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-        
+  if (loading || collaborators.length <= itemsPerPage) return null;
+  
+  // Get page numbers based on current page
+  const pageNumbers = getPageNumbers();
+  
+  return (
+    <div className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
+      <div className="flex items-center justify-center gap-2 md:gap-4 flex-wrap px-4">
         <button
-          onClick={scrollToTop}
-          className="flex items-center justify-center gap-2 text-sm text-[#3D1768] hover:text-[#5a2a9e] transition-colors font-['Poppins']"
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="font-['Poppins'] text-[14px] md:text-[16px] text-gray-500 hover:text-[#3D1768] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+          aria-label="Previous page"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Scroll to top
+          Previous
+        </button>
+        
+        <div className="flex items-center gap-1 md:gap-2">
+          {pageNumbers.map((p) =>
+            p === currentPage ? (
+              <span
+                key={p}
+                className="font-['Poppins'] font-extrabold text-[16px] md:text-[22px] text-[rgba(61,23,104,1)] min-w-[36px] md:min-w-[40px] text-center py-1 bg-[rgba(61,23,104,0.1)] rounded-full"
+                aria-current="page"
+              >
+                {p}
+              </span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => goToPage(p)}
+                className="font-['Poppins'] font-normal text-[14px] md:text-[18px] text-gray-500 hover:text-[#3D1768] min-w-[36px] md:min-w-[40px] text-center py-1 rounded-full transition-colors hover:bg-[rgba(61,23,104,0.05)]"
+                aria-label={`Go to page ${p}`}
+              >
+                {p}
+              </button>
+            )
+          )}
+        </div>
+
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="font-['Poppins'] text-[14px] md:text-[16px] text-gray-500 hover:text-[#3D1768] disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+          aria-label="Next page"
+        >
+          Next
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
         </button>
       </div>
-    );
-  };
+      
+      {/* Scroll to top button - mobile friendly */}
+      <button
+        onClick={scrollToTop}
+        className="flex items-center justify-center gap-2 text-sm text-[#3D1768] hover:text-[#5a2a9e] transition-colors font-['Poppins'] py-2 px-4 md:px-0"
+        aria-label="Scroll to top of results"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+        Scroll to top
+      </button>
+    </div>
+  );
+};
 
   // Render
   return (
@@ -1455,6 +1504,7 @@ const SimpleDropdown = ({ value, setValue, options, name, className }) => {
           )}
         </div>
         <div className="md:hidden"><Pagination /></div>
+        
 
         {/* Desktop grid */}
         <div className="hidden md:block px-6 lg:px-12 xl:px-[78px] mt-8 pb-16">
@@ -1473,7 +1523,9 @@ const SimpleDropdown = ({ value, setValue, options, name, className }) => {
               </div>
             )}
 
-            <Pagination />
+            <div className="hidden md:block">
+  <Pagination />
+</div>
           </div>
         </div>
         <style>

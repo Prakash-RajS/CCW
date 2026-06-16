@@ -1210,6 +1210,52 @@ async def withdraw(data: WithdrawRequest):
         f"Withdrawal Pending [{transfer_id}] to {selected_method['type']}",
         user=user,
     )
+    
+    # ==========================================================
+    # WITHDRAWAL NOTIFICATIONS
+    # ==========================================================
+    try:
+
+        is_creator = await sync_to_async(
+            CreatorProfile.objects.filter(user=user).exists
+        )()
+
+        is_collaborator = await sync_to_async(
+            CollaboratorProfile.objects.filter(user=user).exists
+        )()
+
+    # Creator Notification
+        if is_creator:
+
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="wallet_withdrawal",
+                title="Withdrawal Initiated",
+                message=(
+                    f"₹{amount} withdrawal request has been submitted successfully."
+                ),
+                url="/choose-payment"
+            )
+
+        # Collaborator Notification
+        if is_collaborator:
+
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="wallet_withdrawal",
+                title="Withdrawal Initiated",
+                message=(
+                    f"₹{amount} withdrawal request has been submitted successfully."
+                ),
+                url="/transaction"
+            )
+    except Exception as notification_error:
+        print(
+            f"Withdrawal Notification Error: "
+            f"{notification_error}"
+        )           
+
+ 
 
     return {
         "success": True,
@@ -1221,7 +1267,6 @@ async def withdraw(data: WithdrawRequest):
         "new_balance": float(wallet.balance),
         "balance": float(wallet.balance),
     }
-
 
 # =============================================================================
 # 7. TRANSACTIONS

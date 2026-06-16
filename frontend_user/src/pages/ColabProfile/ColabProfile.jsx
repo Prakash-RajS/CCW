@@ -422,6 +422,16 @@ export default function ColabProfile() {
     return "";
   };
 
+  const validateAlphabetsSpacesHyphen = (value) => {
+  if (!value.trim()) return "";
+
+  if (!/^[A-Za-z\s-]+$/.test(value)) {
+    return "Only alphabets, spaces, and hyphens (-) are allowed";
+  }
+
+  return "";
+};
+
   const validateNumbersOnly = (value) => {
     const stringValue =
       value !== null && value !== undefined ? String(value).trim() : "";
@@ -2965,7 +2975,7 @@ export default function ColabProfile() {
                               value={editFormData.availability}
                               onChange={(e) => {
                                 setEditFormData({ ...editFormData, availability: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, availability: validateTextRequiredAlphabets(e.target.value, "Availability") });
+                                setEditFormErrors({ ...editFormErrors, availability: validateAlphabetsSpacesHyphen(e.target.value, "Availability") });
                               }}
                               maxLength={50}
                               style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
@@ -3018,7 +3028,7 @@ export default function ColabProfile() {
                               value={editFormData.collaboration_type}
                               onChange={(e) => {
                                 setEditFormData({ ...editFormData, collaboration_type: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, collaboration_type: validateAlphabetsNumbersSpaces(e.target.value) });
+                                setEditFormErrors({ ...editFormErrors, collaboration_type: validateAlphabetsSpacesHyphen(e.target.value) });
                               }}
                               maxLength={50}
                               style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}

@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import "./App.css";
+import { SessionWarningModal } from './component/SessionWarningModal.jsx';
 import { ToastProvider } from "./component/Toast.jsx";
 import ScrollToTop from "./component/ScrollToTop.jsx";
 
@@ -109,6 +110,7 @@ export default function App() {
         <Router>
           <ToastProvider />
           <ScrollToTop />
+          <SessionWarningModal />
 
           <Routes>
             {/* Public */}
