@@ -635,7 +635,7 @@ const downloadMilestoneWork = async (contract, milestoneIndex) => {
                 {contract.job_budget_type === "hourly"
                   ? "Hourly"
                   : "Fixed"}{" "}
-                · {getExpertiseLevel(contract)} · ₹{getBudgetDisplay(contract)} ·{" "}
+                · {getExpertiseLevel(contract)} · {getBudgetDisplay(contract)} ·{" "}
                 {formatPostedTime(contract.job_created_at)}
               </p>
               <p className="text-xs md:text-[15px] text-gray-700 leading-[20px] md:leading-[26px] mb-3 md:mb-4 line-clamp-2 md:line-clamp-none">

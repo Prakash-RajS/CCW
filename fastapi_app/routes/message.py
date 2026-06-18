@@ -18,6 +18,16 @@ import asyncio
 from asgiref.sync import sync_to_async
 import shutil
 from pathlib import Path
+from fastapi_app.routes.storage import (
+    USE_S3,
+    save_upload_file,
+    build_full_url,
+    delete_file,
+    generate_presigned_url,
+    ExpiryPreset,
+    StoragePath,
+    get_storage_path,
+)
 
 router = APIRouter(prefix="/message", tags=["Messaging"])
 
@@ -577,13 +587,16 @@ def set_typing(payload: TypingPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/send")
+@router.post("/send")
 async def send_message(
+    request: Request,
     sender_id: int = Form(...),
     receiver_id: int = Form(...),
     content: str = Form(None),
     reply_to: int = Form(None),
     file: UploadFile = File(None)
 ):
+    """UPDATED: Send message with S3 support for file attachments"""
     try:
         print(f"📤 Send message request: sender={sender_id}, receiver={receiver_id}")
         
@@ -609,15 +622,25 @@ async def send_message(
         msg_type = "text"
 
         if file:
-            safe_filename = file.filename.replace("..", "").replace("/", "").replace("\\", "")
+            # Use S3-aware file saving
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_filename = file.filename.replace("..", "").replace("/", "").replace("\\", "")
             filename = f"{timestamp}_{safe_filename}"
-            save_path = MESSAGE_FILES_DIR / filename
             
-            with open(save_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            # Save file using the storage module
+            # For message files, we save to message_files folder
+            if USE_S3:
+                # S3 path will be message_files/filename
+                file_path = f"message_files/{filename}"
+                await save_upload_file(file, file_path)
+            else:
+                # Local storage
+                save_path = MESSAGE_FILES_DIR / filename
+                with open(save_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+                file_path = f"message_files/{filename}"
             
-            file_path = f"message_files/{filename}"
+            # Detect file type
             ext = filename.split(".")[-1].lower() if '.' in filename else ''
             image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico']
             
@@ -641,11 +664,14 @@ async def send_message(
             message_type=msg_type
         )
 
-        base_url = "http://localhost:8000"
-        file_url = None
-        if file_path:
-            file_url = f"{base_url}/media/{file_path}".replace("\\", "/")
+        # Build URL using the helper function
+        file_url = build_full_url(
+            request=request,
+            path=file_path,
+            file_type="message"
+        )
 
+        # Send WebSocket notification
         await manager.send_personal_message({
             "type": "new_message",
             "sender_id": sender_id,
@@ -654,18 +680,20 @@ async def send_message(
             "content": final_content,
             "file_url": file_url,
             "message_type": msg_type,
-            "timestamp": msg.created_at.isoformat()
+            "timestamp": msg.created_at.isoformat(),
+            "storage_mode": "s3" if USE_S3 else "local"
         }, receiver_id)
 
         return {
             "status": "success",
-            "conversation_id": convo.id,    
+            "conversation_id": convo.id,
             "message_id": msg.id,
             "reply_to": reply_to,
             "file_url": file_url,
             "file_name": file.filename if file else None,
             "message_type": msg_type,
-            "created_at": msg.created_at.isoformat()
+            "created_at": msg.created_at.isoformat(),
+            "storage_mode": "s3" if USE_S3 else "local"
         }
 
     except Exception as e:
@@ -673,6 +701,7 @@ async def send_message(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
+
 
 @router.delete("/{message_id}")
 def delete_message(message_id: int, user_id: int = Query(...)):

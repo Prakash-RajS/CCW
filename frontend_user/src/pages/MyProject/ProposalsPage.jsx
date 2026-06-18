@@ -4,7 +4,7 @@ import BannerImg from "../../assets/myproject/banner.png";
 import UserImg from "../../assets/myproject/user.png";
 import api from "../../utils/axiosConfig";
 import ReactCountryFlag from "react-country-flag";
-import toast from "../../component/Toast"; 
+import toast from "../../component/Toast";
 import Footer from "../../component/Footer";
 import Header from "../../component/Header";
 import { useUser } from "../../contexts/UserContext";
@@ -59,29 +59,29 @@ export default function ProposalsPage() {
   const [revokingProposal, setRevokingProposal] = useState(null);
   const [revokingInvitation, setRevokingInvitation] = useState(null);
   const [showRevokeInviteConfirm, setShowRevokeInviteConfirm] = useState(false);
-  
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
   const [invCurrentPage, setInvCurrentPage] = useState(1);
   const [invItemsPerPage] = useState(5);
-  
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentProposals = proposals.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(proposals.length / itemsPerPage);
-  
+
   const invIndexOfLastItem = invCurrentPage * invItemsPerPage;
   const invIndexOfFirstItem = invIndexOfLastItem - invItemsPerPage;
   const currentInvitations = invitations.slice(invIndexOfFirstItem, invIndexOfLastItem);
   const invTotalPages = Math.ceil(invitations.length / invItemsPerPage);
-  
+
   const paginate = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setCurrentPage(pageNumber);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
-  
+
   const paginateInvitations = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= invTotalPages) {
       setInvCurrentPage(pageNumber);
@@ -192,16 +192,16 @@ export default function ProposalsPage() {
     try {
       let filename = attachmentUrl.split('/').pop();
       filename = filename.split('?')[0];
-      
+
       loadingToast = toast.loading("Downloading attachment...");
-      
+
       const response = await api.get(`/proposals/download-attachment/${proposalId}/${filename}`, {
         responseType: 'blob',
         timeout: 30000
       });
-      
+
       toast.dismiss(loadingToast);
-      
+
       let downloadedFilename = filename;
       const contentDisposition = response.headers['content-disposition'];
       if (contentDisposition) {
@@ -210,7 +210,7 @@ export default function ProposalsPage() {
           downloadedFilename = match[1].replace(/['"]/g, '');
         }
       }
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -219,7 +219,7 @@ export default function ProposalsPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       toast.success("File downloaded successfully");
     } catch (err) {
       if (loadingToast) toast.dismiss(loadingToast);
@@ -231,7 +231,7 @@ export default function ProposalsPage() {
 
   const getFileIcon = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase();
-    switch(ext) {
+    switch (ext) {
       case 'pdf':
         return (
           <svg className="w-4 h-4 text-red-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,7 +262,7 @@ export default function ProposalsPage() {
         );
     }
   };
-  
+
   // ─── API actions ─────────────────────────────────────────────────────────────
   const acceptProposal = async (proposalId) => {
     const loadingToast = toast.loading("Accepting proposal...");
@@ -330,10 +330,10 @@ export default function ProposalsPage() {
     }
   };
 
-  const openReviewPopup    = (proposal)   => { setSelectedProposal(proposal);     setShowReviewPopup(true);    };
-  const openInvitationPopup= (invitation) => { setSelectedInvitation(invitation); setShowInvitationPopup(true);};
-  const openRevokeConfirm  = (proposalId) => { setRevokingProposal(proposalId);   setShowRevokeConfirm(true);  };
-  const openRevokeInviteConfirm = (invId) => { setRevokingInvitation(invId);      setShowRevokeInviteConfirm(true); };
+  const openReviewPopup = (proposal) => { setSelectedProposal(proposal); setShowReviewPopup(true); };
+  const openInvitationPopup = (invitation) => { setSelectedInvitation(invitation); setShowInvitationPopup(true); };
+  const openRevokeConfirm = (proposalId) => { setRevokingProposal(proposalId); setShowRevokeConfirm(true); };
+  const openRevokeInviteConfirm = (invId) => { setRevokingInvitation(invId); setShowRevokeInviteConfirm(true); };
 
   const fetchProposals = async () => {
     try {
@@ -399,11 +399,10 @@ export default function ProposalsPage() {
       <button
         onClick={onClick}
         disabled={disabled}
-        className={`px-2 md:px-3 py-1 md:py-2 rounded-lg flex items-center gap-1 transition text-xs md:text-sm ${
-          disabled
-            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-            : `bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300 ${extra}`
-        }`}
+        className={`px-2 md:px-3 py-1 md:py-2 rounded-lg flex items-center gap-1 transition text-xs md:text-sm ${disabled
+          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+          : `bg-white border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300 ${extra}`
+          }`}
       >
         {label}
       </button>
@@ -412,7 +411,7 @@ export default function ProposalsPage() {
     return (
       <div className="flex items-center justify-center gap-1 md:gap-2 mt-6 md:mt-8 pt-4 border-t border-gray-200">
         {btn(
-          <><svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg><span className="hidden sm:inline">Previous</span></>,
+          <><svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg><span className="hidden sm:inline">Previous</span></>,
           cp === 1, () => onPageChange(cp - 1)
         )}
         {start > 1 && (
@@ -425,11 +424,10 @@ export default function ProposalsPage() {
           <button
             key={n}
             onClick={() => onPageChange(n)}
-            className={`w-8 h-8 md:w-10 md:h-10 rounded-lg transition text-xs md:text-sm ${
-              cp === n
-                ? "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white font-semibold shadow-md"
-                : "border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300"
-            }`}
+            className={`w-8 h-8 md:w-10 md:h-10 rounded-lg transition text-xs md:text-sm ${cp === n
+              ? "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white font-semibold shadow-md"
+              : "border border-gray-300 text-gray-700 hover:bg-purple-50 hover:border-purple-300"
+              }`}
           >
             {n}
           </button>
@@ -441,7 +439,7 @@ export default function ProposalsPage() {
           </>
         )}
         {btn(
-          <><span className="hidden sm:inline">Next</span><svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg></>,
+          <><span className="hidden sm:inline">Next</span><svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg></>,
           cp === tp, () => onPageChange(cp + 1)
         )}
       </div>
@@ -506,27 +504,26 @@ export default function ProposalsPage() {
             <div className="flex items-center gap-3 px-6 py-5 border-b cursor-pointer" onClick={() => window.history.back()}>
               <div className="w-8 h-8 flex items-center justify-center rounded-full bg-[#6b4fa3] text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+                  <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
                 </svg>
               </div>
               <span className="font-semibold text-[#111]">Back</span>
             </div>
             <div className="px-4 py-6 space-y-2">
               {[
-                { key: "proposals",   icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: `Proposals (${proposals.length})` },
+                { key: "proposals", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: `Proposals (${proposals.length})` },
                 { key: "invitations", icon: "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z", label: `Invitations (${invitations.length})` },
               ].map(({ key, icon, label }) => (
                 <div
                   key={key}
                   onClick={() => setActiveTab(key)}
-                  className={`flex items-center gap-3 px-4 py-4 rounded-lg cursor-pointer transition ${
-                    activeTab === key
-                      ? "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white shadow-md"
-                      : "bg-white text-gray-700 hover:bg-purple-50 border border-gray-200"
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-4 rounded-lg cursor-pointer transition ${activeTab === key
+                    ? "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white shadow-md"
+                    : "bg-white text-gray-700 hover:bg-purple-50 border border-gray-200"
+                    }`}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={icon}/>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={icon} />
                   </svg>
                   <span className="font-semibold">{label}</span>
                 </div>
@@ -538,13 +535,12 @@ export default function ProposalsPage() {
           <div className="flex-1 bg-white p-4 md:p-10">
             {/* Mobile tab switcher */}
             <div className="flex gap-2 mb-4 md:hidden">
-              {["proposals","invitations"].map((tab) => (
+              {["proposals", "invitations"].map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 py-2 rounded-lg font-semibold capitalize transition text-sm ${
-                    activeTab === tab ? "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white" : "bg-gray-100 text-gray-600"
-                  }`}
+                  className={`flex-1 py-2 rounded-lg font-semibold capitalize transition text-sm ${activeTab === tab ? "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white" : "bg-gray-100 text-gray-600"
+                    }`}
                 >
                   {tab === "proposals" ? `Proposals (${proposals.length})` : `Invitations (${invitations.length})`}
                 </button>
@@ -594,8 +590,8 @@ export default function ProposalsPage() {
 
                         // ── Collect skills: proposal skills first, fall back to collaborator profile skills
                         const proposalSkills = parseSkills(item.skills);
-                        const profileSkills  = parseSkills(item.collaborator_skills || item.profile_skills || item.freelancer_skills || []);
-                        const displaySkills  = proposalSkills.length > 0 ? proposalSkills : profileSkills;
+                        const profileSkills = parseSkills(item.collaborator_skills || item.profile_skills || item.freelancer_skills || []);
+                        const displaySkills = proposalSkills.length > 0 ? proposalSkills : profileSkills;
 
                         return (
                           <div key={item.id} className="bg-white rounded-[15px] border border-gray-100 p-3 md:p-5 shadow-[0_2px_15px_rgba(0,0,0,0.03)] hover:shadow-md transition-all">
@@ -637,9 +633,9 @@ export default function ProposalsPage() {
                                     <p className="text-[9px] md:text-[11px] text-blue-600 bg-blue-50 inline-block px-1 md:px-2 py-0.5 rounded mobile-text-xs">ℹ️ Bid lower than budget</p>
                                   )}
                                   {parseFloat(item.bid_amount) >= parseFloat(item.job_details.budget_from) &&
-                                   parseFloat(item.bid_amount) <= parseFloat(item.job_details.budget_to) && (
-                                    <p className="text-[9px] md:text-[11px] text-green-600 bg-green-50 inline-block px-1 md:px-2 py-0.5 rounded mobile-text-xs">✓ Within budget range</p>
-                                  )}
+                                    parseFloat(item.bid_amount) <= parseFloat(item.job_details.budget_to) && (
+                                      <p className="text-[9px] md:text-[11px] text-green-600 bg-green-50 inline-block px-1 md:px-2 py-0.5 rounded mobile-text-xs">✓ Within budget range</p>
+                                    )}
                                 </div>
                               )}
                             </div>
@@ -669,7 +665,7 @@ export default function ProposalsPage() {
                                 <div className="flex items-center justify-between mb-2 md:mb-3">
                                   <div className="flex items-center gap-1 md:gap-2">
                                     <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                                     </svg>
                                     <p className="font-semibold text-purple-900 text-[11px] md:text-sm mobile-text-xs">Milestone Payment</p>
                                   </div>
@@ -682,18 +678,18 @@ export default function ProposalsPage() {
                                     <table className="w-full border-collapse text-[10px] md:text-sm">
                                       <thead>
                                         <tr className="bg-white">
-                                          {["#","Description","Due Date","Amount","%"].map((h,i) => (
-                                            <th key={i} className={`px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-semibold text-purple-700 border border-purple-200 ${i>=3?"text-right":"text-left"}`}>{h}</th>
+                                          {["#", "Description", "Due Date", "Amount", "%"].map((h, i) => (
+                                            <th key={i} className={`px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-semibold text-purple-700 border border-purple-200 ${i >= 3 ? "text-right" : "text-left"}`}>{h}</th>
                                           ))}
                                         </tr>
                                       </thead>
                                       <tbody>
                                         {milestonePercentages.map((m, idx) => (
                                           <tr key={idx} className="hover:bg-purple-100">
-                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{idx+1}</td>
-                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100 truncate max-w-[100px] md:max-w-none">{m.description||"-"}</td>
-                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{m.due_date||"-"}</td>
-                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-medium text-purple-700 text-right border border-purple-100">₹{(m.amount||0).toFixed(0)}</td>
+                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{idx + 1}</td>
+                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100 truncate max-w-[100px] md:max-w-none">{m.description || "-"}</td>
+                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{m.due_date || "-"}</td>
+                                            <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-medium text-purple-700 text-right border border-purple-100">₹{(m.amount || 0).toFixed(0)}</td>
                                             <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-600 text-right border border-purple-100">{m.percentage}%</td>
                                           </tr>
                                         ))}
@@ -709,10 +705,10 @@ export default function ProposalsPage() {
                                   </div>
                                 ) : (
                                   <div className="flex flex-wrap gap-1">
-                                    {milestones.slice(0,2).map((m,idx) => (
-                                      <span key={idx} className="text-[9px] md:text-xs bg-white px-1 md:px-2 py-0.5 rounded-full border border-purple-200 mobile-text-xs">{m.description}: ₹{(m.amount||0).toFixed(0)}</span>
+                                    {milestones.slice(0, 2).map((m, idx) => (
+                                      <span key={idx} className="text-[9px] md:text-xs bg-white px-1 md:px-2 py-0.5 rounded-full border border-purple-200 mobile-text-xs">{m.description}: ₹{(m.amount || 0).toFixed(0)}</span>
                                     ))}
-                                    {milestones.length > 2 && <span className="text-[9px] md:text-xs text-purple-500 mobile-text-xs">+{milestones.length-2} more</span>}
+                                    {milestones.length > 2 && <span className="text-[9px] md:text-xs text-purple-500 mobile-text-xs">+{milestones.length - 2} more</span>}
                                   </div>
                                 )}
                               </div>
@@ -722,14 +718,14 @@ export default function ProposalsPage() {
                             {item.job_details && (
                               <div className="mb-2 md:mb-3 p-2 md:p-2.5 bg-blue-50 rounded-lg">
                                 <p className="text-[9px] md:text-[11px] font-semibold text-blue-700 mb-0.5 md:mb-1 mobile-text-xs">Job Details</p>
-                                <p className="text-[11px] md:text-sm font-medium text-gray-800 mobile-text-xs">{item.job_details.title||"Job Title"}</p>
-                                <p className="text-[9px] md:text-[11px] text-gray-600 mt-0.5 md:mt-1 line-clamp-2 mobile-text-xs">{item.job_details.description||"No description"}</p>
+                                <p className="text-[11px] md:text-sm font-medium text-gray-800 mobile-text-xs">{item.job_details.title || "Job Title"}</p>
+                                <p className="text-[9px] md:text-[11px] text-gray-600 mt-0.5 md:mt-1 line-clamp-2 mobile-text-xs">{item.job_details.description || "No description"}</p>
                                 {item.job_details.skills?.length > 0 && (
                                   <div className="flex flex-wrap gap-0.5 md:gap-1 mt-1 md:mt-2">
-                                    {item.job_details.skills.slice(0,3).map((s,i)=>(
+                                    {item.job_details.skills.slice(0, 3).map((s, i) => (
                                       <span key={i} className="text-[8px] md:text-[9px] bg-blue-200 text-blue-800 px-1 md:px-2 py-0.5 rounded-full mobile-text-xs">{s}</span>
                                     ))}
-                                    {item.job_details.skills.length > 3 && <span className="text-[8px] md:text-[9px] text-blue-600 mobile-text-xs">+{item.job_details.skills.length-3}</span>}
+                                    {item.job_details.skills.length > 3 && <span className="text-[8px] md:text-[9px] text-blue-600 mobile-text-xs">+{item.job_details.skills.length - 3}</span>}
                                   </div>
                                 )}
                               </div>
@@ -752,23 +748,41 @@ export default function ProposalsPage() {
                               <div className="flex items-center gap-0.5 md:gap-1">
                                 {item.reviews > 0 ? (
                                   <>
-                                    <span className="text-[#6b4fa3] text-[10px] md:text-[13px]">{"★".repeat(Math.round(item.rating||0))}</span>
-                                    <span className="text-gray-200 text-[10px] md:text-[13px]">{"★".repeat(5-Math.round(item.rating||0))}</span>
-                                    <span className="ml-0.5 md:ml-1 text-gray-500 font-medium text-[9px] md:text-xs">{item.rating||"0"}/5</span>
+                                    <span className="text-[#6b4fa3] text-[10px] md:text-[13px]">{"★".repeat(Math.round(item.rating || 0))}</span>
+                                    <span className="text-gray-200 text-[10px] md:text-[13px]">{"★".repeat(5 - Math.round(item.rating || 0))}</span>
+                                    <span className="ml-0.5 md:ml-1 text-gray-500 font-medium text-[9px] md:text-xs">{item.rating || "0"}/5</span>
                                   </>
                                 ) : (
                                   <span className="text-gray-500 font-medium text-[9px] md:text-xs">No reviews</span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1 md:gap-2 border-l pl-1 md:pl-4">
-                                {item.country_code && <ReactCountryFlag countryCode={item.country_code} svg style={{width:"12px",height:"10px"}}/>}
-                                <span className="text-[9px] md:text-xs mobile-text-xs">{item.city && item.country ? `${item.city}, ${item.country}` : item.country||"Location not specified"}</span>
+                              <div className="flex items-center gap-0.5 pl-1">
+                                {item.country_code && (
+                                  <ReactCountryFlag
+                                    countryCode={item.country_code}
+                                    svg
+                                    style={{
+                                      width: "16px",
+                                      height: "11px",
+                                      minWidth: "16px",
+                                    }}
+                                  />
+                                )}
+
+                                <span className="text-sm font-medium text-gray-700">
+                                  {item.city && item.country
+                                    ? `${item.city}, ${item.country}`
+                                    : item.country ||
+                                    item.location ||
+                                    item.state ||
+                                    "Location not specified"}
+                                </span>
                               </div>
                             </div>
                           </div>
                         );
                       })}
-                      <PaginationUI currentPage={currentPage} totalPages={totalPages} onPageChange={paginate}/>
+                      <PaginationUI currentPage={currentPage} totalPages={totalPages} onPageChange={paginate} />
                     </>
                   )}
                 </div>
@@ -783,7 +797,7 @@ export default function ProposalsPage() {
                     <h3 className="text-lg md:text-[22px] font-bold text-[#111] mobile-text-lg">Sent Invitations</h3>
                     {invitations.length > 0 && (
                       <p className="text-xs md:text-sm text-gray-500 mobile-text-xs">
-                        Showing {invIndexOfFirstItem+1}–{Math.min(invIndexOfLastItem,invitations.length)} of {invitations.length}
+                        Showing {invIndexOfFirstItem + 1}–{Math.min(invIndexOfLastItem, invitations.length)} of {invitations.length}
                       </p>
                     )}
                   </div>
@@ -815,19 +829,19 @@ export default function ProposalsPage() {
                                   src={buildProfileImageUrl(invitation.receiver_profile_pic)}
                                   className="w-8 h-8 md:w-10 md:h-10 rounded-full object-cover bg-gray-50 border border-gray-100"
                                   alt={invitation.receiver_name}
-                                  onError={(e)=>{e.target.src=UserImg;}}
+                                  onError={(e) => { e.target.src = UserImg; }}
                                 />
                                 <div>
-                                  <h4 className="font-bold text-sm md:text-[16px] text-[#111] mobile-text-sm">{invitation.receiver_name||"Collaborator"}</h4>
-                                  <p className="text-gray-400 text-[10px] md:text-[12px] mobile-text-xs">{invitation.receiver_skill_category||"Collaborator"}</p>
+                                  <h4 className="font-bold text-sm md:text-[16px] text-[#111] mobile-text-sm">{invitation.receiver_name || "Collaborator"}</h4>
+                                  <p className="text-gray-400 text-[10px] md:text-[12px] mobile-text-xs">{invitation.receiver_skill_category || "Collaborator"}</p>
                                 </div>
                               </div>
                               {invitation.status?.toLowerCase() === "pending" ? (
-                                <button onClick={()=>openInvitationPopup(invitation)} className="px-2 md:px-5 py-0.5 md:py-1 rounded-full text-[10px] md:text-[12px] font-semibold bg-[#6b4fa3] text-white hover:bg-[#5a3e8a] transition btn-mobile">Review</button>
+                                <button onClick={() => openInvitationPopup(invitation)} className="px-2 md:px-5 py-0.5 md:py-1 rounded-full text-[10px] md:text-[12px] font-semibold bg-[#6b4fa3] text-white hover:bg-[#5a3e8a] transition btn-mobile">Review</button>
                               ) : invitation.status?.toLowerCase() === "accepted" ? (
                                 <span className="px-2 md:px-5 py-0.5 md:py-1 rounded-full text-[10px] md:text-[12px] font-semibold border border-green-500 text-green-500 btn-mobile">Accepted</span>
                               ) : (
-                                <span className="px-2 md:px-5 py-0.5 md:py-1 rounded-full text-[10px] md:text-[12px] font-semibold capitalize border border-gray-400 text-gray-500 btn-mobile">{invitation.status||"Pending"}</span>
+                                <span className="px-2 md:px-5 py-0.5 md:py-1 rounded-full text-[10px] md:text-[12px] font-semibold capitalize border border-gray-400 text-gray-500 btn-mobile">{invitation.status || "Pending"}</span>
                               )}
                             </div>
 
@@ -838,43 +852,41 @@ export default function ProposalsPage() {
 
                             {collabSkills.length > 0 && (
                               <div className="flex flex-wrap gap-1 mb-2 md:mb-3">
-                                <SkillsBadges skills={collabSkills} variant="gray" max={3}/>
+                                <SkillsBadges skills={collabSkills} variant="gray" max={3} />
                               </div>
                             )}
 
                             {invitation.job_details && (
                               <div className="mb-2 md:mb-3 p-2 md:p-2.5 bg-purple-50 rounded-lg">
                                 <p className="text-[9px] md:text-[11px] font-semibold text-purple-700 mb-0.5 md:mb-1 mobile-text-xs">Job Details</p>
-                                <p className="text-[11px] md:text-sm font-medium text-gray-800 mobile-text-xs">{invitation.job_details.title||invitation.project_name}</p>
-                                <p className="text-[9px] md:text-[11px] text-gray-600 mt-0.5 md:mt-1 line-clamp-2 mobile-text-xs">{invitation.job_details.description||"No description"}</p>
+                                <p className="text-[11px] md:text-sm font-medium text-gray-800 mobile-text-xs">{invitation.job_details.title || invitation.project_name}</p>
+                                <p className="text-[9px] md:text-[11px] text-gray-600 mt-0.5 md:mt-1 line-clamp-2 mobile-text-xs">{invitation.job_details.description || "No description"}</p>
                               </div>
                             )}
 
                             <div className="grid grid-cols-2 gap-2 md:gap-4 mb-3 md:mb-4">
                               <div>
                                 <p className="text-gray-400 text-[8px] md:text-[10px] uppercase tracking-wide mobile-text-xs">Date</p>
-                                <p className="text-gray-700 text-[11px] md:text-[13px] font-medium mobile-text-xs">{invitation.date||"Not specified"}</p>
+                                <p className="text-gray-700 text-[11px] md:text-[13px] font-medium mobile-text-xs">{invitation.date || "Not specified"}</p>
                               </div>
                               <div>
                                 <p className="text-gray-400 text-[8px] md:text-[10px] uppercase tracking-wide mobile-text-xs">Job ID</p>
-                                <p className="text-gray-700 text-[11px] md:text-[13px] font-medium mobile-text-xs">#{invitation.job_id||"N/A"}</p>
+                                <p className="text-gray-700 text-[11px] md:text-[13px] font-medium mobile-text-xs">#{invitation.job_id || "N/A"}</p>
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-2 md:gap-4 text-[9px] md:text-[11px] text-gray-400 pt-2 md:pt-3 border-t border-gray-50">
-                              <span className={`inline-flex items-center gap-0.5 md:gap-1 px-1 md:px-2 py-0.5 rounded-full text-[8px] md:text-[9px] font-semibold ${
-                                invitation.status?.toLowerCase()==="accepted"?"bg-green-100 text-green-700":
-                                invitation.status?.toLowerCase()==="pending"?"bg-yellow-100 text-yellow-700":"bg-gray-100 text-gray-600"
-                              }`}>
-                                <span className={`w-1 h-1 rounded-full ${
-                                  invitation.status?.toLowerCase()==="accepted"?"bg-green-500":
-                                  invitation.status?.toLowerCase()==="pending"?"bg-yellow-500":"bg-gray-500"
-                                }`}/>
-                                {invitation.status||"Pending"}
+                            <div className="flex items-center gap-1 md:gap-2 text-[9px] md:text-[11px] text-gray-400 pt-2 md:pt-3 border-t border-gray-50">
+                              <span className={`inline-flex items-center gap-0.5 md:gap-1 px-1 md:px-2 py-0.5 rounded-full text-[8px] md:text-[9px] font-semibold ${invitation.status?.toLowerCase() === "accepted" ? "bg-green-100 text-green-700" :
+                                invitation.status?.toLowerCase() === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"
+                                }`}>
+                                <span className={`w-1 h-1 rounded-full ${invitation.status?.toLowerCase() === "accepted" ? "bg-green-500" :
+                                  invitation.status?.toLowerCase() === "pending" ? "bg-yellow-500" : "bg-gray-500"
+                                  }`} />
+                                {invitation.status || "Pending"}
                               </span>
                               <div className="flex items-center gap-1 md:gap-2 border-l pl-1 md:pl-4">
                                 <svg className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                                 <span className="text-[9px] md:text-xs mobile-text-xs">Sent {invitation.created_at ? new Date(invitation.created_at).toLocaleDateString() : "recently"}</span>
                               </div>
@@ -882,7 +894,7 @@ export default function ProposalsPage() {
                           </div>
                         );
                       })}
-                      <PaginationUI currentPage={invCurrentPage} totalPages={invTotalPages} onPageChange={paginateInvitations}/>
+                      <PaginationUI currentPage={invCurrentPage} totalPages={invTotalPages} onPageChange={paginateInvitations} />
                     </>
                   )}
                 </div>
@@ -891,7 +903,7 @@ export default function ProposalsPage() {
           </div>
         </div>
       </div>
-      <Footer/>
+      <Footer />
 
       {/* ══════════════════════════════════════════════════════════════════════
           PROPOSAL REVIEW POPUP  — scrollbar hidden via .scrollbar-hide class
@@ -906,8 +918,8 @@ export default function ProposalsPage() {
                   <h3 className="text-base md:text-lg font-bold text-white">Review Proposal</h3>
                   <p className="text-purple-200 text-[10px] md:text-xs">Review freelancer's complete proposal details</p>
                 </div>
-                <button onClick={()=>{setShowReviewPopup(false);setSelectedProposal(null);}} className="text-white hover:bg-white/20 rounded-full p-1 transition">
-                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <button onClick={() => { setShowReviewPopup(false); setSelectedProposal(null); }} className="text-white hover:bg-white/20 rounded-full p-1 transition">
+                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             </div>
@@ -915,18 +927,18 @@ export default function ProposalsPage() {
             <div className="p-3 md:p-5">
               {/* Profile */}
               <div className="flex items-center gap-2 md:gap-4 mb-3 md:mb-4">
-                <img src={buildProfileImageUrl(selectedProposal.profile_image)} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border-2 border-purple-200" alt="Freelancer" onError={(e)=>{e.target.src=UserImg;}}/>
+                <img src={buildProfileImageUrl(selectedProposal.profile_image)} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border-2 border-purple-200" alt="Freelancer" onError={(e) => { e.target.src = UserImg; }} />
                 <div className="flex-1">
                   <h4 className="font-bold text-base md:text-lg text-gray-900 mobile-text-base">{selectedProposal.freelancer_name}</h4>
-                  <p className="text-[11px] md:text-sm text-gray-600 mobile-text-xs">{selectedProposal.profession||"Expert"}</p>
+                  <p className="text-[11px] md:text-sm text-gray-600 mobile-text-xs">{selectedProposal.profession || "Expert"}</p>
                   <div className="flex items-center gap-2 md:gap-3 mt-0.5 md:mt-1">
                     <div className="flex items-center gap-0.5 md:gap-1">
-                      <span className="text-yellow-500 text-[10px] md:text-sm">{"★".repeat(Math.round(selectedProposal.rating||0))}{"☆".repeat(5-Math.round(selectedProposal.rating||0))}</span>
-                      <span className="text-[9px] md:text-xs text-gray-500">({selectedProposal.reviews||0})</span>
+                      <span className="text-yellow-500 text-[10px] md:text-sm">{"★".repeat(Math.round(selectedProposal.rating || 0))}{"☆".repeat(5 - Math.round(selectedProposal.rating || 0))}</span>
+                      <span className="text-[9px] md:text-xs text-gray-500">({selectedProposal.reviews || 0})</span>
                     </div>
                     <div className="flex items-center gap-0.5 md:gap-1">
-                      {selectedProposal.country_code && <ReactCountryFlag countryCode={selectedProposal.country_code} svg style={{width:"12px",height:"10px"}}/>}
-                      <span className="text-[9px] md:text-xs text-gray-500">{selectedProposal.city&&selectedProposal.country?`${selectedProposal.city}, ${selectedProposal.country}`:selectedProposal.country||"Location"}</span>
+                      {selectedProposal.country_code && <ReactCountryFlag countryCode={selectedProposal.country_code} svg style={{ width: "12px", height: "10px" }} />}
+                      <span className="text-[9px] md:text-xs text-gray-500">{selectedProposal.city && selectedProposal.country ? `${selectedProposal.city}, ${selectedProposal.country}` : selectedProposal.country || "Location"}</span>
                     </div>
                   </div>
                 </div>
@@ -944,7 +956,7 @@ export default function ProposalsPage() {
                 </div>
                 <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg text-center">
                   <p className="text-[9px] md:text-xs text-blue-600 font-semibold">Payment Type</p>
-                  <p className="text-[11px] md:text-sm font-bold text-blue-700 mobile-text-xs">{selectedProposal.payment_type==="milestone"?"Milestone":"Project"}</p>
+                  <p className="text-[11px] md:text-sm font-bold text-blue-700 mobile-text-xs">{selectedProposal.payment_type === "milestone" ? "Milestone" : "Project"}</p>
                 </div>
                 <div className="bg-gray-50 p-1.5 md:p-2 rounded-lg text-center">
                   <p className="text-[9px] md:text-xs text-gray-600 font-semibold">Submitted</p>
@@ -958,11 +970,11 @@ export default function ProposalsPage() {
                 <div className="grid grid-cols-2 gap-2 md:gap-3">
                   <div>
                     <p className="text-[8px] md:text-[10px] text-gray-500">Client's Expected</p>
-                    <p className="text-[10px] md:text-sm font-semibold text-gray-800 mobile-text-xs">{selectedProposal.job_details?.duration||"Not specified"}</p>
+                    <p className="text-[10px] md:text-sm font-semibold text-gray-800 mobile-text-xs">{selectedProposal.job_details?.duration || "Not specified"}</p>
                   </div>
                   <div>
                     <p className="text-[8px] md:text-[10px] text-gray-500">Proposed Duration</p>
-                    <p className="text-[10px] md:text-sm font-semibold text-gray-800 mobile-text-xs">{selectedProposal.duration||"Not specified"}</p>
+                    <p className="text-[10px] md:text-sm font-semibold text-gray-800 mobile-text-xs">{selectedProposal.duration || "Not specified"}</p>
                   </div>
                 </div>
               </div>
@@ -973,34 +985,34 @@ export default function ProposalsPage() {
                 if (selectedProposal.milestones_data) {
                   ms = parseMilestones(selectedProposal.milestones_data);
                 } else if (selectedProposal.milestone_description) {
-                  try { const p=JSON.parse(selectedProposal.milestone_description); ms=Array.isArray(p)?p:[{description:selectedProposal.milestone_description,due_date:selectedProposal.milestone_due_date,amount:selectedProposal.milestone_amount}]; }
-                  catch { ms=[{description:selectedProposal.milestone_description,due_date:selectedProposal.milestone_due_date,amount:selectedProposal.milestone_amount}]; }
+                  try { const p = JSON.parse(selectedProposal.milestone_description); ms = Array.isArray(p) ? p : [{ description: selectedProposal.milestone_description, due_date: selectedProposal.milestone_due_date, amount: selectedProposal.milestone_amount }]; }
+                  catch { ms = [{ description: selectedProposal.milestone_description, due_date: selectedProposal.milestone_due_date, amount: selectedProposal.milestone_amount }]; }
                 }
                 if (!ms.length) return null;
                 return (
                   <div className="mb-3 md:mb-4 p-2 md:p-3 bg-purple-50 rounded-lg border border-purple-200">
                     <div className="flex items-center gap-1 md:gap-2 mb-2 md:mb-3">
-                      <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                      <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                       <p className="font-semibold text-purple-900 text-[11px] md:text-sm">Milestone Structure ({ms.length})</p>
                     </div>
                     <div className="overflow-x-auto scrollbar-hide">
                       <table className="w-full border-collapse text-[10px] md:text-sm">
                         <thead>
                           <tr className="bg-white">
-                            {["#","Description","Due Date","Amount","%"].map((h,i)=>(
-                              <th key={i} className={`px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-semibold text-purple-700 border border-purple-200 ${i>=3?"text-right":"text-left"}`}>{h}</th>
+                            {["#", "Description", "Due Date", "Amount", "%"].map((h, i) => (
+                              <th key={i} className={`px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-semibold text-purple-700 border border-purple-200 ${i >= 3 ? "text-right" : "text-left"}`}>{h}</th>
                             ))}
                           </tr>
                         </thead>
                         <tbody>
-                          {ms.map((m,idx)=>{
-                            const pct=selectedProposal.bid_amount?((m.amount/selectedProposal.bid_amount)*100).toFixed(1):0;
-                            return(
+                          {ms.map((m, idx) => {
+                            const pct = selectedProposal.bid_amount ? ((m.amount / selectedProposal.bid_amount) * 100).toFixed(1) : 0;
+                            return (
                               <tr key={idx} className="hover:bg-purple-100">
-                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{idx+1}</td>
-                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100 truncate max-w-[120px]">{m.description||"-"}</td>
-                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{m.due_date||"-"}</td>
-                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-medium text-purple-700 text-right border border-purple-100">₹{(m.amount||0).toFixed(0)}</td>
+                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{idx + 1}</td>
+                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100 truncate max-w-[120px]">{m.description || "-"}</td>
+                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-700 border border-purple-100">{m.due_date || "-"}</td>
+                                <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs font-medium text-purple-700 text-right border border-purple-100">₹{(m.amount || 0).toFixed(0)}</td>
                                 <td className="px-1 md:px-3 py-1 md:py-2 text-[9px] md:text-xs text-gray-600 text-right border border-purple-100">{pct}%</td>
                               </tr>
                             );
@@ -1023,14 +1035,14 @@ export default function ProposalsPage() {
               {selectedProposal.job_details && (
                 <div className="mb-3 md:mb-4 p-2 md:p-3 bg-purple-50 rounded-lg border border-purple-200">
                   <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2">
-                    <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     <p className="font-semibold text-purple-900 text-[11px] md:text-sm">Job Details</p>
                   </div>
-                  <p className="text-[11px] md:text-sm font-bold text-gray-900 mobile-text-xs">{selectedProposal.job_details.title||"Job Title"}</p>
-                  <p className="text-[9px] md:text-xs text-gray-700 mt-0.5 md:mt-1 line-clamp-2">{selectedProposal.job_details.description||"No description"}</p>
+                  <p className="text-[11px] md:text-sm font-bold text-gray-900 mobile-text-xs">{selectedProposal.job_details.title || "Job Title"}</p>
+                  <p className="text-[9px] md:text-xs text-gray-700 mt-0.5 md:mt-1 line-clamp-2">{selectedProposal.job_details.description || "No description"}</p>
                   {selectedProposal.job_details.skills?.length > 0 && (
                     <div className="flex flex-wrap gap-0.5 md:gap-1 mt-1 md:mt-2">
-                      {selectedProposal.job_details.skills.slice(0,3).map((s,i)=>(
+                      {selectedProposal.job_details.skills.slice(0, 3).map((s, i) => (
                         <span key={i} className="bg-white text-purple-700 text-[8px] md:text-[10px] px-1 md:px-2 py-0.5 rounded-full border border-purple-200">{s}</span>
                       ))}
                     </div>
@@ -1057,14 +1069,14 @@ export default function ProposalsPage() {
                 {selectedProposal.payment_type === "milestone" ? (
                   <div className="border border-purple-200 rounded-lg p-1.5 md:p-2 bg-purple-50">
                     <div className="flex items-center gap-0.5 md:gap-1 mb-0.5 md:mb-1">
-                      <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                      <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                       <p className="font-semibold text-purple-900 text-[9px] md:text-xs">Milestones</p>
                     </div>
                     <p className="text-[8px] md:text-xs text-gray-600">
                       {(() => {
                         let count = 0;
                         if (selectedProposal.milestones_data) { count = parseMilestones(selectedProposal.milestones_data).length; }
-                        else if (selectedProposal.milestone_description) { try { const p=JSON.parse(selectedProposal.milestone_description); count=Array.isArray(p)?p.length:1; } catch { count=1; } }
+                        else if (selectedProposal.milestone_description) { try { const p = JSON.parse(selectedProposal.milestone_description); count = Array.isArray(p) ? p.length : 1; } catch { count = 1; } }
                         return `${count} · ₹${selectedProposal.bid_amount}`;
                       })()}
                     </p>
@@ -1077,7 +1089,7 @@ export default function ProposalsPage() {
                 {selectedProposal.cover_letter ? (
                   <div className="border border-gray-200 rounded-lg p-1.5 md:p-2 bg-gray-50">
                     <div className="flex items-center gap-0.5 md:gap-1 mb-0.5 md:mb-1">
-                      <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                      <svg className="w-2.5 h-2.5 md:w-3 md:h-3 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                       <p className="font-semibold text-gray-700 text-[9px] md:text-xs">Cover Letter</p>
                     </div>
                     <p className="text-[8px] md:text-xs text-gray-700 leading-relaxed line-clamp-2">{selectedProposal.cover_letter}</p>
@@ -1106,10 +1118,10 @@ export default function ProposalsPage() {
                       if (parts.length >= 3 && parts[0] === String(selectedProposal.id)) {
                         displayName = parts.slice(2).join('_');
                       }
-                      
+
                       return (
-                        <div 
-                          key={idx} 
+                        <div
+                          key={idx}
                           className="flex items-center justify-between p-2 md:p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
                         >
                           <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
@@ -1139,8 +1151,8 @@ export default function ProposalsPage() {
 
               {/* Action buttons */}
               <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 border-t border-gray-200">
-                <button onClick={()=>acceptProposal(selectedProposal.id)} className="flex-1 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Accept</button>
-                <button onClick={()=>rejectProposal(selectedProposal.id)} className="flex-1 py-1.5 md:py-2 rounded-lg border-2 border-red-500 text-red-500 font-semibold text-[11px] md:text-sm hover:bg-red-50 transition btn-mobile">Reject</button>
+                <button onClick={() => acceptProposal(selectedProposal.id)} className="flex-1 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Accept</button>
+                <button onClick={() => rejectProposal(selectedProposal.id)} className="flex-1 py-1.5 md:py-2 rounded-lg border-2 border-red-500 text-red-500 font-semibold text-[11px] md:text-sm hover:bg-red-50 transition btn-mobile">Reject</button>
               </div>
             </div>
           </div>
@@ -1160,8 +1172,8 @@ export default function ProposalsPage() {
                   <h3 className="text-base md:text-lg font-bold text-white">Invitation Details</h3>
                   <p className="text-purple-200 text-[10px] md:text-xs">Review invitation sent to collaborator</p>
                 </div>
-                <button onClick={()=>{setShowInvitationPopup(false);setSelectedInvitation(null);}} className="text-white hover:bg-white/20 rounded-full p-1 transition">
-                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <button onClick={() => { setShowInvitationPopup(false); setSelectedInvitation(null); }} className="text-white hover:bg-white/20 rounded-full p-1 transition">
+                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             </div>
@@ -1169,19 +1181,17 @@ export default function ProposalsPage() {
             <div className="p-3 md:p-5">
               {/* Profile */}
               <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-4">
-                <img src={buildProfileImageUrl(selectedInvitation.receiver_profile_pic)} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border-2 border-purple-200" alt={selectedInvitation.receiver_name} onError={(e)=>{e.target.src=UserImg;}}/>
+                <img src={buildProfileImageUrl(selectedInvitation.receiver_profile_pic)} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border-2 border-purple-200" alt={selectedInvitation.receiver_name} onError={(e) => { e.target.src = UserImg; }} />
                 <div className="flex-1">
-                  <h4 className="font-bold text-base md:text-lg text-gray-900 mobile-text-base">{selectedInvitation.receiver_name||"Collaborator"}</h4>
-                  <p className="text-[11px] md:text-sm text-gray-600 mobile-text-xs">{selectedInvitation.receiver_skill_category||"Collaborator"}</p>
-                  <span className={`inline-flex items-center gap-0.5 md:gap-1 px-1 md:px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-semibold mt-0.5 md:mt-1 ${
-                    selectedInvitation.status?.toLowerCase()==="accepted"?"bg-green-100 text-green-700":
-                    selectedInvitation.status?.toLowerCase()==="pending"?"bg-yellow-100 text-yellow-700":"bg-gray-100 text-gray-600"
-                  }`}>
-                    <span className={`w-1 h-1 rounded-full ${
-                      selectedInvitation.status?.toLowerCase()==="accepted"?"bg-green-500":
-                      selectedInvitation.status?.toLowerCase()==="pending"?"bg-yellow-500":"bg-gray-500"
-                    }`}/>
-                    {selectedInvitation.status||"Pending"}
+                  <h4 className="font-bold text-base md:text-lg text-gray-900 mobile-text-base">{selectedInvitation.receiver_name || "Collaborator"}</h4>
+                  <p className="text-[11px] md:text-sm text-gray-600 mobile-text-xs">{selectedInvitation.receiver_skill_category || "Collaborator"}</p>
+                  <span className={`inline-flex items-center gap-0.5 md:gap-1 px-1 md:px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-semibold mt-0.5 md:mt-1 ${selectedInvitation.status?.toLowerCase() === "accepted" ? "bg-green-100 text-green-700" :
+                    selectedInvitation.status?.toLowerCase() === "pending" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"
+                    }`}>
+                    <span className={`w-1 h-1 rounded-full ${selectedInvitation.status?.toLowerCase() === "accepted" ? "bg-green-500" :
+                      selectedInvitation.status?.toLowerCase() === "pending" ? "bg-yellow-500" : "bg-gray-500"
+                      }`} />
+                    {selectedInvitation.status || "Pending"}
                   </span>
                 </div>
               </div>
@@ -1197,7 +1207,7 @@ export default function ProposalsPage() {
                 return collabSkills.length > 0 ? (
                   <div className="mb-2 md:mb-3">
                     <p className="text-[9px] md:text-xs font-semibold text-gray-700 mb-1 md:mb-2">Collaborator Skills</p>
-                    <SkillsBadges skills={collabSkills} variant="gray" max={999}/>
+                    <SkillsBadges skills={collabSkills} variant="gray" max={999} />
                   </div>
                 ) : null;
               })()}
@@ -1210,11 +1220,11 @@ export default function ProposalsPage() {
                 </div>
                 <div className="bg-blue-50 p-1.5 md:p-2 rounded-lg text-center">
                   <p className="text-[9px] md:text-xs text-blue-600 font-semibold">Invitation Date</p>
-                  <p className="text-[10px] md:text-sm font-bold text-blue-700 mobile-text-xs">{selectedInvitation.date||"Not specified"}</p>
+                  <p className="text-[10px] md:text-sm font-bold text-blue-700 mobile-text-xs">{selectedInvitation.date || "Not specified"}</p>
                 </div>
                 <div className="bg-gray-50 p-1.5 md:p-2 rounded-lg text-center">
                   <p className="text-[9px] md:text-xs text-gray-600 font-semibold">Job ID</p>
-                  <p className="text-[10px] md:text-sm font-bold text-gray-700 mobile-text-xs">#{selectedInvitation.job_id||"N/A"}</p>
+                  <p className="text-[10px] md:text-sm font-bold text-gray-700 mobile-text-xs">#{selectedInvitation.job_id || "N/A"}</p>
                 </div>
               </div>
 
@@ -1222,14 +1232,14 @@ export default function ProposalsPage() {
               {selectedInvitation.job_details && (
                 <div className="mb-3 md:mb-4 p-2 md:p-3 bg-purple-50 rounded-lg border border-purple-200">
                   <div className="flex items-center gap-1 md:gap-2 mb-1 md:mb-2">
-                    <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <svg className="w-3 h-3 md:w-4 md:h-4 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     <p className="font-semibold text-purple-900 text-[11px] md:text-sm">Job Details</p>
                   </div>
-                  <p className="text-[11px] md:text-sm font-bold text-gray-900 mobile-text-xs">{selectedInvitation.job_details.title||selectedInvitation.project_name}</p>
-                  <p className="text-[9px] md:text-xs text-gray-700 mt-0.5 md:mt-1 line-clamp-2">{selectedInvitation.job_details.description||"No description"}</p>
+                  <p className="text-[11px] md:text-sm font-bold text-gray-900 mobile-text-xs">{selectedInvitation.job_details.title || selectedInvitation.project_name}</p>
+                  <p className="text-[9px] md:text-xs text-gray-700 mt-0.5 md:mt-1 line-clamp-2">{selectedInvitation.job_details.description || "No description"}</p>
                   {selectedInvitation.job_details.skills?.length > 0 && (
                     <div className="flex flex-wrap gap-0.5 md:gap-1 mt-1 md:mt-2">
-                      {selectedInvitation.job_details.skills.slice(0,3).map((s,i)=>(
+                      {selectedInvitation.job_details.skills.slice(0, 3).map((s, i) => (
                         <span key={i} className="bg-white text-purple-700 text-[8px] md:text-[10px] px-1 md:px-2 py-0.5 rounded-full border border-purple-200">{s}</span>
                       ))}
                     </div>
@@ -1241,23 +1251,23 @@ export default function ProposalsPage() {
               <div className="grid grid-cols-2 gap-2 md:gap-3 mb-3 md:mb-4">
                 <div className="border border-gray-200 rounded-lg p-1.5 md:p-2">
                   <p className="text-[8px] md:text-xs text-gray-500 flex items-center gap-0.5 md:gap-1">
-                    <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     Sent Date
                   </p>
-                  <p className="text-[10px] md:text-sm font-medium text-gray-700 mt-0.5">{selectedInvitation.created_at?new Date(selectedInvitation.created_at).toLocaleDateString():"N/A"}</p>
+                  <p className="text-[10px] md:text-sm font-medium text-gray-700 mt-0.5">{selectedInvitation.created_at ? new Date(selectedInvitation.created_at).toLocaleDateString() : "N/A"}</p>
                 </div>
                 <div className="border border-gray-200 rounded-lg p-1.5 md:p-2">
                   <p className="text-[8px] md:text-xs text-gray-500 flex items-center gap-0.5 md:gap-1">
-                    <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    <svg className="w-2.5 h-2.5 md:w-3 md:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     Invited By
                   </p>
-                  <p className="text-[10px] md:text-sm font-medium text-gray-700 mt-0.5">{selectedInvitation.client_name||"Client"}</p>
+                  <p className="text-[10px] md:text-sm font-medium text-gray-700 mt-0.5">{selectedInvitation.client_name || "Client"}</p>
                 </div>
               </div>
 
               {selectedInvitation.status?.toLowerCase() === "pending" && (
                 <div className="flex gap-2 md:gap-3 pt-2 md:pt-3 border-t border-gray-200">
-                  <button onClick={()=>openRevokeInviteConfirm(selectedInvitation.id)} className="flex-1 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Revoke Invitation</button>
+                  <button onClick={() => openRevokeInviteConfirm(selectedInvitation.id)} className="flex-1 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Revoke Invitation</button>
                 </div>
               )}
               {selectedInvitation.status?.toLowerCase() === "accepted" && (
@@ -1276,7 +1286,7 @@ export default function ProposalsPage() {
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] p-4 md:p-5 text-center">
               <div className="w-12 h-12 md:w-14 md:h-14 mx-auto mb-1 md:mb-2 rounded-full bg-white/20 flex items-center justify-center">
-                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
               </div>
               <h3 className="text-lg md:text-xl font-bold text-white">Revoke Acceptance</h3>
               <p className="text-purple-200 text-[11px] md:text-sm mt-0.5 md:mt-1">This action cannot be undone</p>
@@ -1285,8 +1295,8 @@ export default function ProposalsPage() {
               <p className="text-gray-700 text-center mb-1 md:mb-2 font-medium text-sm md:text-base">Are you sure you want to revoke this acceptance?</p>
               <p className="text-[11px] md:text-sm text-gray-500 text-center mb-4 md:mb-5">The contract will be deleted and the proposal will be marked as submitted again.</p>
               <div className="flex gap-2 md:gap-3">
-                <button onClick={()=>{setShowRevokeConfirm(false);setRevokingProposal(null);}} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold text-[11px] md:text-sm hover:bg-gray-50 transition btn-mobile">Cancel</button>
-                <button onClick={()=>revokeAcceptance(revokingProposal)} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Yes, Revoke</button>
+                <button onClick={() => { setShowRevokeConfirm(false); setRevokingProposal(null); }} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold text-[11px] md:text-sm hover:bg-gray-50 transition btn-mobile">Cancel</button>
+                <button onClick={() => revokeAcceptance(revokingProposal)} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Yes, Revoke</button>
               </div>
             </div>
           </div>
@@ -1299,7 +1309,7 @@ export default function ProposalsPage() {
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] p-4 md:p-5 text-center">
               <div className="w-12 h-12 md:w-14 md:h-14 mx-auto mb-1 md:mb-2 rounded-full bg-white/20 flex items-center justify-center">
-                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
               </div>
               <h3 className="text-lg md:text-xl font-bold text-white">Revoke Invitation</h3>
               <p className="text-purple-200 text-[11px] md:text-sm mt-0.5 md:mt-1">This action cannot be undone</p>
@@ -1308,8 +1318,8 @@ export default function ProposalsPage() {
               <p className="text-gray-700 text-center mb-1 md:mb-2 font-medium text-sm md:text-base">Are you sure you want to revoke this invitation?</p>
               <p className="text-[11px] md:text-sm text-gray-500 text-center mb-4 md:mb-5">The collaborator will no longer be able to accept this invitation.</p>
               <div className="flex gap-2 md:gap-3">
-                <button onClick={()=>{setShowRevokeInviteConfirm(false);setRevokingInvitation(null);}} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold text-[11px] md:text-sm hover:bg-gray-50 transition btn-mobile">Cancel</button>
-                <button onClick={()=>revokeInvitation(revokingInvitation)} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Yes, Revoke</button>
+                <button onClick={() => { setShowRevokeInviteConfirm(false); setRevokingInvitation(null); }} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg border border-gray-300 text-gray-700 font-semibold text-[11px] md:text-sm hover:bg-gray-50 transition btn-mobile">Cancel</button>
+                <button onClick={() => revokeInvitation(revokingInvitation)} className="flex-1 px-3 md:px-4 py-1.5 md:py-2 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 text-white font-semibold text-[11px] md:text-sm hover:shadow-lg transition btn-mobile">Yes, Revoke</button>
               </div>
             </div>
           </div>

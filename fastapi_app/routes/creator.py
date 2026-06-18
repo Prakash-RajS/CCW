@@ -4,6 +4,7 @@
 #fastapi_app/routes/creator.py
 from typing import Any, Dict, Optional, List
 from django.db.models import Q
+import os
 from fastapi import APIRouter, File, Form, HTTPException, Path, Query, Request, UploadFile
 from pydantic import BaseModel
 
@@ -23,6 +24,8 @@ from django.db.models import Avg, Count
 from datetime import datetime, timedelta
 from timezonefinder import TimezoneFinder
 from fastapi_app.services.notification_service import create_notification
+from fastapi_app.routes.storage import get_profile_pic_url, save_profile_pic
+
 
 
 router = APIRouter(prefix="/creator", tags=["Creator"])
@@ -34,16 +37,6 @@ def generate_random_digits(length=4):
     """Generate random digits for filename"""
     return ''.join(random.choices(string.digits, k=length))
 
-def build_full_url(request: Request, path: str | None) -> str | None:
-    """Build full URL from relative path"""
-    if not path:
-        return None
-    if path.startswith('http'):
-        return path
-    base_url = str(request.base_url).rstrip('/')
-    # Remove leading slash if present to avoid double slashes
-    clean_path = path.lstrip('/')
-    return f"{base_url}/media/{clean_path}"
 
 def get_or_create_basic_plan(role: str):
     """
@@ -80,6 +73,44 @@ def get_or_create_basic_plan(role: str):
     if created:
         print(f"✅ Created new Basic plan for {role}")
     return plan
+
+def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> str | None:
+    """Build full URL from relative path with S3 support for all file types"""
+    if not path:
+        return None
+    if path.startswith('http'):
+        return path
+    
+    # Check if using S3
+    use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+    if use_s3 and use_s3_env:
+        s3_key = path.lstrip('/')
+        
+        # Determine which S3 URL generator to use based on path
+        if s3_key.startswith('profile_pics/'):
+            # Profile picture
+            from fastapi_app.routes.storage import get_profile_pic_url
+            file_url = get_profile_pic_url(s3_key)
+        elif s3_key.startswith('portfolio_uploads/'):
+            # Portfolio upload
+            from fastapi_app.routes.storage import get_portfolio_upload_url
+            file_url = get_portfolio_upload_url(s3_key)
+        else:
+            # Generic fallback - try profile pic first
+            from fastapi_app.routes.storage import get_profile_pic_url
+            file_url = get_profile_pic_url(s3_key)
+            # If that fails, try portfolio
+            if not file_url:
+                from fastapi_app.routes.storage import get_portfolio_upload_url
+                file_url = get_portfolio_upload_url(s3_key)
+        
+        if file_url:
+            return file_url
+    
+    # Fallback to local media path
+    base_url = str(request.base_url).rstrip('/')
+    clean_path = path.lstrip('/')
+    return f"{base_url}/media/{clean_path}"
 # ------------------------------------------------
 # FILTER CREATORS
 # ------------------------------------------------
@@ -171,7 +202,7 @@ async def save_creator_profile(
     collaboration_type: str = Form(...),
     project_type: str = Form(...),
     location: Optional[str] = Form(None),
-    portfolio_link: Optional[str] = Form(None),   # ← ADD THIS
+    portfolio_link: Optional[str] = Form(None),
     portfolio_uploads: Optional[UploadFile] = File(None),
     profile_picture: Optional[UploadFile] = File(None),
 ):
@@ -183,21 +214,40 @@ async def save_creator_profile(
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
 
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+
     # ---------------- Profile Picture ----------------
     if profile_picture:
-        ext = PathLib(profile_picture.filename).suffix
-        filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
-        content = await profile_picture.read()
-        await sync_to_async(user.profile_picture.save)(
-            filename,
-            ContentFile(content),
-            save=True
-        )
+        if use_s3:
+            try:
+                s3_key = await save_profile_pic(profile_picture, str(user_id))
+                user.profile_picture = s3_key
+                print(f"✅ Profile picture saved to S3: {s3_key}")
+            except Exception as e:
+                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # Fallback to local storage
+                ext = PathLib(profile_picture.filename).suffix
+                filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+                content = await profile_picture.read()
+                await sync_to_async(user.profile_picture.save)(
+                    filename,
+                    ContentFile(content),
+                    save=True
+                )
+        else:
+            # Use local storage
+            ext = PathLib(profile_picture.filename).suffix
+            filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+            content = await profile_picture.read()
+            await sync_to_async(user.profile_picture.save)(
+                filename,
+                ContentFile(content),
+                save=True
+            )
+            print(f"✅ Profile picture saved locally: {filename}")
 
     # ---------------- Save / Update Creator Profile ----------------
     defaults = {
-        # "creator_name": creator_name,
-        
         "creator_type": creator_type,
         "experience_level": experience_level,
         "primary_niche": primary_niche,
@@ -218,33 +268,55 @@ async def save_creator_profile(
         )
     )()
 
-    # ---------------- SAVE PORTFOLIO INTO PortfolioItem ----------------
+    # ---------------- SAVE PORTFOLIO INTO PortfolioItem (UPDATED FOR S3) ----------------
     if portfolio_uploads:
-        ext = PathLib(portfolio_uploads.filename).suffix
-        filename = f"{user_id}_{generate_random_digits()}{ext}"
-        content = await portfolio_uploads.read()
-
-        # Create the item first, then use .file.save() so Django's
-        # upload_to path is respected and storage tracking can work.
-        portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
-            user=user,
-            role="creator",
-            title=portfolio_category or "Portfolio",
-            media_link=portfolio_link.strip() if portfolio_link else None,
-        )
-        await sync_to_async(portfolio_item.file.save)(
-            filename,
-            ContentFile(content),
-            save=True,
-        )
+        try:
+            # Read the file content
+            content = await portfolio_uploads.read()
+            
+            # Create the portfolio item
+            portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
+                user=user,
+                role="creator",
+                title=portfolio_category or "Portfolio",
+                media_link=portfolio_link.strip() if portfolio_link else None,
+            )
+            
+            if use_s3:
+                # Use S3 storage for portfolio
+                from fastapi_app.routes.storage import save_portfolio_upload_creator
+                ext = PathLib(portfolio_uploads.filename).suffix
+                # Generate a unique filename
+                filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+                # Save to S3 using storage.py function
+                s3_key = await save_portfolio_upload_creator(portfolio_uploads, str(user_id), str(portfolio_item.id))
+                # Update the portfolio item with S3 key
+                portfolio_item.file.name = s3_key
+                await sync_to_async(portfolio_item.save)()
+                print(f"✅ Portfolio saved to S3: {s3_key}")
+            else:
+                # Use local storage
+                ext = PathLib(portfolio_uploads.filename).suffix
+                filename = f"{user_id}_{generate_random_digits()}{ext}"
+                await sync_to_async(portfolio_item.file.save)(
+                    filename,
+                    ContentFile(content),
+                    save=True,
+                )
+                print(f"✅ Portfolio saved locally: {filename}")
+                
+        except Exception as e:
+            print(f"❌ Error saving portfolio: {e}")
+            # If portfolio fails, still continue with profile creation
+            
     elif portfolio_link and portfolio_link.strip():
-        # No file uploaded but a link was provided — store the link alone.
         await sync_to_async(PortfolioItem.objects.create)(
             user=user,
             role="creator",
             title=portfolio_category or "Portfolio",
             media_link=portfolio_link.strip(),
         )
+    
     # ---------------- Update user role ----------------
     user.role = "creator"
     user.full_name = creator_name 
@@ -264,10 +336,10 @@ async def save_creator_profile(
             email=user.email or "",
             current_plan=basic_plan.name,
             plan_name=basic_plan.name,
-            duration=basic_plan.duration.capitalize(),  # "Monthly"
+            duration=basic_plan.duration.capitalize(),
             plan_price=basic_plan.price,
             plan_start_date=now,
-            plan_end_date=now + timedelta(days=365*100),   # Never expires (100 years)
+            plan_end_date=now + timedelta(days=365*100),
             renewal_date=now + timedelta(days=365*100),
             status="active",
             is_trial=False,
@@ -289,6 +361,7 @@ async def save_creator_profile(
             stripe_subscription_id=subscription.stripe_subscription_id,
         )
         print(f"✅ Subscription history created for creator {user.email}")
+    
     return {
         "message": "Creator profile saved successfully"
     }
@@ -364,11 +437,36 @@ def get_creator_profile(user_id: int, request: Request):
         avg_rating = round(review_stats["avg_rating"] or 0, 1)
         total_reviews = review_stats["total_reviews"] or 0
 
+        # ✅ UPDATED: Handle profile picture with S3 or local support
+        profile_picture_url = None
+        if user.profile_picture:
+            stored_path = str(user.profile_picture)
+            
+            # Check if it's already a URL
+            if stored_path.startswith(('http://', 'https://')):
+                profile_picture_url = stored_path
+            else:
+                # Get the key (remove leading slash)
+                s3_key = stored_path.lstrip('/')
+                
+                # Check if we should use S3
+                use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+                
+                if use_s3:
+                    # Try S3 presigned URL
+                    profile_picture_url = get_profile_pic_url(s3_key)
+                
+                # Fallback to local media path if S3 fails or not using S3
+                if not profile_picture_url:
+                    base_url = str(request.base_url).rstrip('/')
+                    pic_path = stored_path.lstrip('/')
+                    profile_picture_url = f"{base_url}/media/{pic_path}"
+
         return {
             "user_id": user_id,
             "email": user.email,
             "full_name": user.full_name or "",
-            "profile_picture": f"{request.base_url}media/{user.profile_picture.name}" if user.profile_picture else None,
+            "profile_picture": profile_picture_url,
             "state": profile.state if profile else "",
             "country_code": country_code,
             "local_time": local_time,
@@ -394,7 +492,7 @@ async def edit_creator_profile(
     user_id: int,
     full_name: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
-    email: Optional[str] = Form(None),  # ADD THIS LINE
+    email: Optional[str] = Form(None),
     about: Optional[str] = Form(None),
     state: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
@@ -439,25 +537,60 @@ async def edit_creator_profile(
 
     # ---------------- PROFILE PICTURE ----------------
     if profile_picture:
-        # Delete old image ONLY if it's a local file (not an external URL)
+        # Check if we should use S3 or local storage
+        use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+        
+        # Delete old image
         if user.profile_picture:
-            old_picture_name = user.profile_picture.name
-            # Check if it's a local file path (not starting with http:// or https://)
-            if old_picture_name and not (old_picture_name.startswith('http://') or old_picture_name.startswith('https://')):
+            old_picture_name = str(user.profile_picture)
+            if old_picture_name and not old_picture_name.startswith(('http://', 'https://')):
                 try:
-                    await sync_to_async(user.profile_picture.delete)(save=False)
+                    if use_s3:
+                        from fastapi_app.routes.storage import delete_file
+                        s3_key = old_picture_name.lstrip('/')
+                        delete_file(s3_key)
+                        print(f"✅ Deleted old profile picture from S3: {s3_key}")
+                    else:
+                        # Delete local file
+                        from pathlib import Path
+                        local_path = Path(f"fastapi_app/local_storage/{old_picture_name}")
+                        if local_path.exists():
+                            local_path.unlink()
+                            print(f"✅ Deleted old profile picture from local: {old_picture_name}")
                 except Exception as e:
-                    # Log error but continue - don't fail the whole operation
                     print(f"Warning: Could not delete old profile picture: {e}")
 
-        ext = PathLib(profile_picture.filename).suffix
-        filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
-        content = await profile_picture.read()
-        await sync_to_async(user.profile_picture.save)(
-            filename,
-            ContentFile(content),
-            save=False
-        )
+        # Save new profile picture
+        if use_s3:
+            # Use S3 storage
+            try:
+                from fastapi_app.routes.storage import save_profile_pic
+                s3_key = await save_profile_pic(profile_picture, str(user_id))
+                user.profile_picture = s3_key
+                print(f"✅ Profile picture saved to S3: {s3_key}")
+            except Exception as e:
+                print(f"❌ Error saving profile picture to S3: {e}")
+                # Fallback to local storage if S3 fails
+                ext = PathLib(profile_picture.filename).suffix
+                filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+                content = await profile_picture.read()
+                await sync_to_async(user.profile_picture.save)(
+                    filename,
+                    ContentFile(content),
+                    save=False
+                )
+                print(f"✅ Profile picture saved locally (fallback): {filename}")
+        else:
+            # Use local storage
+            ext = PathLib(profile_picture.filename).suffix
+            filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
+            content = await profile_picture.read()
+            await sync_to_async(user.profile_picture.save)(
+                filename,
+                ContentFile(content),
+                save=False
+            )
+            print(f"✅ Profile picture saved locally: {filename}")
 
     # ---------------- SAVE USER ----------------
     await sync_to_async(user.save)()
@@ -488,7 +621,7 @@ async def edit_creator_profile(
         profile.state = state
     
     if country is not None:
-        profile.location = country  # Using location field for country
+        profile.location = country
     
     await sync_to_async(profile.save)()
     
@@ -511,25 +644,31 @@ async def edit_creator_profile(
 # List All Creators
 # ------------------------------------------------
 @router.get("/list")
-def list_creators():
+def list_creators(request: Request):
     # Ensure database connection
     ensure_db_connection()
     
     profiles = CreatorProfile.objects.all()
 
-    return [
-        {
+    result = []
+    for p in profiles:
+        # Build profile picture URL with S3 support
+        profile_picture_url = None
+        if p.user and p.user.profile_picture:
+            profile_picture_url = build_full_url(request, p.user.profile_picture.name)
+        
+        result.append({
             "user_id": p.user.id,
             "email": p.user.email,
-            # "creator_name": p.creator_name,
             "name": p.user.full_name,
             "creator_type": p.creator_type,
             "primary_niche": p.primary_niche,
             "location": p.location,
             "followers": p.followers,
-        }
-        for p in profiles
-    ]
+            "profile_picture": profile_picture_url,  # ✅ Added S3 support
+        })
+    
+    return result
 
 
 # ------------------------------------------------
@@ -550,6 +689,9 @@ def delete_creator_profile(user_id: int):
 
 
 
+# ------------------------------------------------
+# BEST MATCH COLLABORATORS (For Creator Dashboard)
+# ------------------------------------------------
 # ------------------------------------------------
 # BEST MATCH COLLABORATORS (For Creator Dashboard)
 # ------------------------------------------------
@@ -646,12 +788,9 @@ def get_best_match_collaborators(user_id: int, request: Request):
                 float(collab.skills_rating)
                 if collab.skills_rating is not None
                 else 0
-)
+            )
 
             if score > 0:
-                # BASE URL
-                base_url = str(request.base_url).rstrip('/')
-
                 # ========== FIXED: Proper pricing formatting ==========
                 hourly_rate = None
                 formatted_rate = "Rate not specified"
@@ -702,29 +841,24 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     else:
                         collaborator_name = collab.user.email.split('@')[0] if collab.user.email else "Collaborator"
 
-                # Handle profile picture URL
+                # ✅ UPDATED: Handle profile picture URL with S3 support
                 profile_picture_url = None
                 if collab.user and collab.user.profile_picture:
-                    profile_pic = str(collab.user.profile_picture)
-                    if profile_pic.startswith(('http://', 'https://')):
-                        profile_picture_url = profile_pic
-                    else:
-                        profile_picture_url = f"{base_url}/media/{profile_pic.lstrip('/')}"
+                    profile_picture_url = build_full_url(request, collab.user.profile_picture.name)
 
                 scored_results.append({
                     "user_id": collab.user.id if collab.user else None,
-                    "id": collab.user.id if collab.user else None,  # Add id for frontend
+                    "id": collab.user.id if collab.user else None,
                     "name": collaborator_name,
                     "full_name": collaborator_name,
                     "skill_category": collab.skill_category,
                     "skills": collab.skills,
-                    "job_title": collab.skill_category or "Professional",  # Add job_title
+                    "job_title": collab.skill_category or "Professional",
                     "match_score": score,
-                    # CRITICAL: Add pricing fields with correct formatting
                     "pricing_amount": collab.pricing_amount,
-                    "pricing_type": pricing_type_display,  # Added pricing_type
+                    "pricing_type": pricing_type_display,
                     "pricing_unit": collab.pricing_unit,
-                    "formatted_rate": formatted_rate,  # Added formatted_rate
+                    "formatted_rate": formatted_rate,
                     "hourly_rate": hourly_rate,
                     "location": collab.location,
                     "experience": collab.experience,
@@ -732,18 +866,15 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     "about": collab.about or "No description available.",
                     "portfolio_link": collab.portfolio_link,
                     "country_code": get_country_code(collab.location),
-                    # ⭐ Review Rating
                     "rating": review_rating,
                     "ratingValue": review_rating,
-
-                    # 🎯 Skill Rating
                     "skill_rating": skill_rating,
                     "skills_rating": skill_rating,
                     "reviews_count": getattr(collab, 'reviews_count', 0),
-                    "reviewsCount": getattr(collab, 'reviews_count', 0),  # Add for frontend
+                    "reviewsCount": getattr(collab, 'reviews_count', 0),
                     "total_earnings": getattr(collab, 'total_earnings', 0),
                     "is_online": getattr(collab, 'is_online', True),
-                    "profile_picture": profile_picture_url,
+                    "profile_picture": profile_picture_url,  # ✅ Updated with S3 support
                     "badge": getattr(collab, 'badge', None),
                 })
 

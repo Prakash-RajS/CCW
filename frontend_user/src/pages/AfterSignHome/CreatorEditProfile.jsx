@@ -647,14 +647,33 @@ const handleEmailBlur = () => {
   };
 
   const getPortfolioImage = (item) => {
+    // Check if file is a full URL (S3 presigned URL)
+    if (item.file_url) {
+      // If it starts with http, it's already a full URL
+      if (item.file_url.startsWith('http://') || item.file_url.startsWith('https://')) {
+        return item.file_url;
+      }
+      // Otherwise, it's a relative path
+      return `${import.meta.env.VITE_API_BASE_URL}${item.file_url}`;
+    }
+    
+    // Check file property (for backward compatibility)
     if (item.file) {
+      if (item.file.startsWith('http://') || item.file.startsWith('https://')) {
+        return item.file;
+      }
       return `${import.meta.env.VITE_API_BASE_URL}${item.file}`;
     }
+    
+    // Use media_link if available
     if (item.media_link) {
       return item.media_link;
     }
+    
+    // Default fallback
     return DefaultProfilePic;
   };
+
 
   const handlePortfolioUrlChange = (value, isEdit = false) => {
     const error = validateUrl(value);
@@ -2024,321 +2043,334 @@ if (formData.email && formData.email.trim() !== "") {
         <div className="origin-top transition-all duration-300">
           <div className="max-w-[1280px] mx-auto mt-[-260px] max-sm:mt-[-60px] pb-24 relative z-10 max-sm:mt-[-140px] max-sm:px-3 max-sm:pb-10">
             {/* ===== PROFILE + VERIFICATION ===== */}
-            <div className="grid grid-cols-[804px_392px] max-sm:grid-cols-1 max-sm:gap-5 xl:grid-cols-[804px_392px] lg:grid-cols-[680px_320px] max-sm:grid-cols-1 max-sm:gap-6 gap-[31px] lg:gap-[24px] xl:gap-[31px] mt-6">
-              {/* ===== DESKTOP / LAPTOP PROFILE ===== */}
-              <div className="hidden sm:block">
-                <div className="bg-white shadow-lg flex gap-6 w-[804px] lg:w-[680px] xl:w-[804px] h-[380px] rounded-[10px] p-6 mb-4 max-sm:flex-col max-sm:w-full max-sm:h-auto max-sm:ml-0 max-sm:p-4 max-sm:rounded-[14px]">
-                  <div className="flex flex-col items-start max-sm:flex-row max-sm:gap-4">
-                    {isProfileLoading ? (
-                      <div className="w-[218px] h-[219px] rounded-[9px] bg-gray-200 animate-pulse"></div>
-                    ) : (
-                      <img
-                        src={profileData?.profile_picture || DefaultProfilePic}
-                        alt="profile"
-                        className="w-[218px] h-[219px] rounded-[9px] object-cover max-sm:w-[88px] max-sm:h-[88px] max-sm:rounded-full"
-                      />
-                    )}
+<div className="grid md:px-0 lg:px-0 grid-cols-1 lg:grid-cols-[680px_320px]  xl:grid-cols-[804px_392px] gap-6 lg:gap-[24px] xl:gap-[31px] mt-6 mb-6">       
+         {/* ===== DESKTOP / LAPTOP PROFILE ===== */}
+<div className="hidden sm:block bg-white shadow-lg mt-6 rounded-[10px] p-6 md:w-[calc(100%-48px)] md:mx-6 lg:w-[680px] lg:mx-0 xl:w-[804px]">
+ <div className="flex flex-col items-start md:flex-row md:items-start gap-3 md:gap-4 lg:gap-6 xl:gap-6 w-full">
+      {/* Profile Image Section */}
+      <div className="flex flex-col items-start w-full md:w-auto">
+        {isProfileLoading ? (
+          <div className="w-[160px] h-[160px] md:w-[180px] md:h-[180px] lg:w-[250px] lg:h-[180px] xl:w-[218px] xl:h-[219px] rounded-[9px] bg-gray-200 animate-pulse">
+            
+          </div>
+        ) : (
+          <img
+            src={profileData?.profile_picture || DefaultProfilePic}
+            alt="profile"
+            className="w-[160px] h-[160px] md:w-[180px] md:h-[180px] lg:w-[250px] lg:h-[180px] xl:w-[218px] xl:h-[219px] rounded-[9px] object-cover"
+          />
+        )}
 
-                    <div className="flex items-center gap-2 mt-3">
-                      <img
-                        src={flagUrl}
-                        alt="flag"
-                        className="w-[18px] h-[12px] object-cover rounded-sm"
-                        onError={(e) => {
-                          e.target.src = FlagImg;
-                        }}
-                      />
-                      <span className="text-[14px] font-medium">
-                        {displayLocation()}
-                      </span>
-                    </div>
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <img
+            src={flagUrl}
+            alt="flag"
+            className="w-[18px] h-[12px] object-cover rounded-sm"
+            onError={(e) => {
+              e.target.src = FlagImg;
+            }}
+          />
+          <span className="text-[12px] md:text-[13px] lg:text-[14px] xl:text-[14px] font-medium">
+            {displayLocation()}
+          </span>
+        </div>
 
-                    <div className="flex items-center gap-2 mt-2">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <circle
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="#000"
-                          strokeWidth="1.5"
-                        />
-                        <path
-                          d="M12 6v6l4 2"
-                          stroke="#000"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <span className="text-[14px] font-medium">
-                        {profileData?.local_time
-                          ? `It's currently ${profileData.local_time} here`
-                          : "Time not available"}
-                      </span>
-                    </div>
+        <div className="flex items-center gap-2 mt-2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="#000"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M12 6v6l4 2"
+              stroke="#000"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="text-[11px] md:text-[12px] lg:text-[13px] xl:text-[14px] font-medium">
+            {profileData?.local_time
+              ? `It's currently ${profileData.local_time} here`
+              : "Time not available"}
+          </span>
+        </div>
 
-                    <div className="flex items-center gap-2 mt-2">
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                      >
-                        <rect
-                          x="3"
-                          y="4"
-                          width="18"
-                          height="18"
-                          rx="2"
-                          stroke="#000"
-                          strokeWidth="1.5"
-                        />
-                        <path
-                          d="M8 2v4M16 2v4M3 10h18"
-                          stroke="#000"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <span className="text-[14px] font-medium">
-                        {isProfileLoading
-                          ? "Loading..."
-                          : `Joined ${profileData?.joined_date || "December 5, 2020"}`}
-                      </span>
-                    </div>
-                  </div>
+        <div className="flex items-center gap-2 mt-2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <rect
+              x="3"
+              y="4"
+              width="18"
+              height="18"
+              rx="2"
+              stroke="#000"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M8 2v4M16 2v4M3 10h18"
+              stroke="#000"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="text-[11px] md:text-[12px] lg:text-[13px] xl:text-[14px] font-medium">
+            {isProfileLoading
+              ? "Loading..."
+              : `Joined ${profileData?.joined_date || "December 5, 2020"}`}
+          </span>
+        </div>
+      </div>
 
-                  <div className="flex-1 min-w-0 w-full max-sm:w-full">
-                    <div className="flex justify-between max-sm:flex-col max-sm:gap-2">
-                      <div>
-                        {isProfileLoading ? (
-                          <div className="h-[32px] w-[200px] bg-gray-200 animate-pulse rounded mb-2"></div>
-                        ) : (
-                          <h2 className="text-[22px] font-semibold">
-                            {profileData?.full_name || "User"}
-                          </h2>
-                        )}
+      {/* Content Section */}
+      <div className="flex-1 min-w-0 w-full">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-2 md:gap-3 lg:gap-4 xl:gap-4">
+          <div className="flex-1 min-w-0 w-full">
+            {isProfileLoading ? (
+              <div className="h-[28px] md:h-[30px] lg:h-[32px] xl:h-[32px] w-[160px] md:w-[180px] lg:w-[200px] xl:w-[200px] bg-gray-200 animate-pulse rounded mb-2"></div>
+            ) : (
+              <h2 className="text-[18px] md:text-[20px] lg:text-[22px] xl:text-[22px] font-semibold truncate">
+                {profileData?.full_name || "User"}
+              </h2>
+            )}
 
-                        {isProfileLoading ? (
-                          <div className="h-[20px] w-[300px] bg-gray-200 animate-pulse rounded mb-2"></div>
-                        ) : (
-                          <p
-                            style={{
-                              fontFamily: "Montserrat",
-                              fontWeight: 500,
-                              fontSize: "14px",
-                              color: "#2A1E1780",
-                            }}
-                          >
-                            {profileData?.creator_type &&
-                              profileData?.primary_niche
-                              ? `${profileData.creator_type}, ${profileData.primary_niche}`
-                              : profileData?.creator_type ||
-                              profileData?.primary_niche ||
-                              "User Experience Designer, Graphic Designer"}
-                          </p>
-                        )}
+            {isProfileLoading ? (
+              <div className="h-[16px] md:h-[18px] lg:h-[20px] xl:h-[20px] w-[200px] md:w-[220px] lg:w-[250px] xl:w-[300px] bg-gray-200 animate-pulse rounded mb-2"></div>
+            ) : (
+              <p
+                style={{
+                  fontFamily: "Montserrat",
+                  fontWeight: 500,
+                  fontSize: "12px",
+                  color: "#2A1E1780",
+                }}
+                className="md:text-[13px] lg:text-[14px] xl:text-[14px] truncate"
+              >
+                {profileData?.creator_type &&
+                  profileData?.primary_niche
+                  ? `${profileData.creator_type}, ${profileData.primary_niche}`
+                  : profileData?.creator_type ||
+                  profileData?.primary_niche ||
+                  "User Experience Designer, Graphic Designer"}
+              </p>
+            )}
 
-                        <div className="flex gap-3 mt-2 flex-wrap max-sm:gap-2">
-                          <svg width="140" height="40" viewBox="0 0 140 40">
-                            <path
-                              d="M10 3L12.7 9.5H19.5L14 13.8L16.2 20L10 16L3.8 20L6 13.8L0.5 9.5H7.3L10 3Z"
-                              fill={
-                                reviewStats.avg_rating >= 1
-                                  ? "#5B2D8B"
-                                  : "#E6E0EC"
-                              }
-                            />
-                            <path
-                              d="M30 3L32.7 9.5H39.5L34 13.8L36.2 20L30 16L23.8 20L26 13.8L20.5 9.5H27.3L30 3Z"
-                              fill={
-                                reviewStats.avg_rating >= 2
-                                  ? "#5B2D8B"
-                                  : "#E6E0EC"
-                              }
-                            />
-                            <path
-                              d="M50 3L52.7 9.5H59.5L54 13.8L56.2 20L50 16L43.8 20L46 13.8L40.5 9.5H47.3L50 3Z"
-                              fill={
-                                reviewStats.avg_rating >= 3
-                                  ? "#5B2D8B"
-                                  : "#E6E0EC"
-                              }
-                            />
-                            <path
-                              d="M70 3L72.7 9.5H79.5L74 13.8L76.2 20L70 16L63.8 20L66 13.8L60.5 9.5H67.3L70 3Z"
-                              fill={
-                                reviewStats.avg_rating >= 4
-                                  ? "#5B2D8B"
-                                  : "#E6E0EC"
-                              }
-                            />
-                            <path
-                              d="M90 3L92.7 9.5H99.5L94 13.8L96.2 20L90 16L83.8 20L86 13.8L80.5 9.5H87.3L90 3Z"
-                              fill={
-                                reviewStats.avg_rating >= 5
-                                  ? "#5B2D8B"
-                                  : "#E6E0EC"
-                              }
-                            />
-                            <text x="10" y="35" fontSize="12" fill="#3A2A1A">
-                              {reviewStats.avg_rating.toFixed(1)}/5{" "}
-                              <tspan opacity="0.6">
-                                ({reviewStats.total_reviews}{" "}
-                                {reviewStats.total_reviews === 1
-                                  ? "Review"
-                                  : "Reviews"}
-                                )
-                              </tspan>
-                            </text>
-                          </svg>
-                        </div>
-                      </div>
+            <div className="flex gap-2 md:gap-3 mt-2 flex-wrap">
+              <svg width="120" height="35" viewBox="0 0 120 35" className="md:w-[130px] md:h-[38px] lg:w-[140px] lg:h-[40px] xl:w-[140px] xl:h-[40px]">
+                <path
+                  d="M10 3L12.7 9.5H19.5L14 13.8L16.2 20L10 16L3.8 20L6 13.8L0.5 9.5H7.3L10 3Z"
+                  fill={
+                    reviewStats.avg_rating >= 1
+                      ? "#5B2D8B"
+                      : "#E6E0EC"
+                  }
+                />
+                <path
+                  d="M30 3L32.7 9.5H39.5L34 13.8L36.2 20L30 16L23.8 20L26 13.8L20.5 9.5H27.3L30 3Z"
+                  fill={
+                    reviewStats.avg_rating >= 2
+                      ? "#5B2D8B"
+                      : "#E6E0EC"
+                  }
+                />
+                <path
+                  d="M50 3L52.7 9.5H59.5L54 13.8L56.2 20L50 16L43.8 20L46 13.8L40.5 9.5H47.3L50 3Z"
+                  fill={
+                    reviewStats.avg_rating >= 3
+                      ? "#5B2D8B"
+                      : "#E6E0EC"
+                  }
+                />
+                <path
+                  d="M70 3L72.7 9.5H79.5L74 13.8L76.2 20L70 16L63.8 20L66 13.8L60.5 9.5H67.3L70 3Z"
+                  fill={
+                    reviewStats.avg_rating >= 4
+                      ? "#5B2D8B"
+                      : "#E6E0EC"
+                  }
+                />
+                <path
+                  d="M90 3L92.7 9.5H99.5L94 13.8L96.2 20L90 16L83.8 20L86 13.8L80.5 9.5H87.3L90 3Z"
+                  fill={
+                    reviewStats.avg_rating >= 5
+                      ? "#5B2D8B"
+                      : "#E6E0EC"
+                  }
+                />
+                <text x="10" y="30" fontSize="10" fill="#3A2A1A" className="md:text-[11px] lg:text-[12px] xl:text-[12px]">
+                  {reviewStats.avg_rating.toFixed(1)}/5{" "}
+                  <tspan opacity="0.6">
+                    ({reviewStats.total_reviews}{" "}
+                    {reviewStats.total_reviews === 1
+                      ? "Review"
+                      : "Reviews"}
+                    )
+                  </tspan>
+                </text>
+              </svg>
+            </div>
+          </div>
 
-                      <button
-                        onClick={() => setEditOpen(true)}
-                        className="h-[29px] px-[6px] py-[20px] !border border-[#51218F] rounded-[100px] text-[#6A3EA1] text-[14px] font-semibold font-['Montserrat'] flex items-center justify-center gap-[10px] hover:bg-[#6A3EA1]/10 transition"
-                      >
-                        Edit Profile
-                      </button>
-                    </div>
+          {/* Edit Profile Button - Tablet Optimized */}
+          <button
+            onClick={() => setEditOpen(true)}
+            className="h-[29px] px-[20px] md:px-[25px] lg:px-[30px] xl:px-[40px] !border border-[#51218F] rounded-full text-[#6A3EA1] whitespace-nowrap flex-shrink-0 text-[12px] md:text-[13px] lg:text-[14px] xl:text-[14px] self-start md:self-start lg:self-start xl:self-start mt-0 md:mt-0 lg:mt-1 xl:mt-0"
+          >
+            Edit Profile
+          </button>
+        </div>
 
-                    {isProfileLoading ? (
-                      <div className="mt-5 space-y-2">
-                        <div className="h-[20px] w-full bg-gray-200 animate-pulse rounded"></div>
-                        <div className="h-[20px] w-3/4 bg-gray-200 animate-pulse rounded"></div>
-                        <div className="h-[20px] w-2/3 bg-gray-200 animate-pulse rounded"></div>
-                      </div>
-                    ) : (
-                      <p className="mt-5 text-black text-[14px] leading-[22px] font-medium font-['Montserrat'] break-words overflow-hidden [overflow-wrap:anywhere]">
-                        {profileData?.about || "No description available"}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
+        {isProfileLoading ? (
+          <div className="mt-3 md:mt-4 lg:mt-5 xl:mt-5 space-y-2">
+            <div className="h-[16px] md:h-[18px] lg:h-[20px] xl:h-[20px] w-full bg-gray-200 animate-pulse rounded"></div>
+            <div className="h-[16px] md:h-[18px] lg:h-[20px] xl:h-[20px] w-3/4 bg-gray-200 animate-pulse rounded"></div>
+            <div className="h-[16px] md:h-[18px] lg:h-[20px] xl:h-[20px] w-2/3 bg-gray-200 animate-pulse rounded"></div>
+          </div>
+        ) : (
+          <p className="mt-3 md:mt-4 lg:mt-5 xl:mt-5 text-[12px] md:text-[13px] lg:text-[14px] xl:text-[14px] leading-[18px] md:leading-[20px] lg:leading-[22px] xl:leading-[22px] text-black font-medium font-['Montserrat'] break-words overflow-hidden [overflow-wrap:anywhere]">
+            {profileData?.about || "No description available"}
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
 
               {/* ===== MOBILE PROFILE ===== */}
-              <div className="block sm:hidden bg-white rounded-[16px] shadow-lg p-4 mb-4">
-                <div className="flex gap-3">
-                  {isProfileLoading ? (
+{/* MOBILE PROFILE */}
+  <div className="h-[1px] bg-black/10 mt-3"></div>
+
+<div
+  className="
+    block sm:hidden
+    bg-white rounded-[14px]
+    shadow mt-5
+    px-4 py-4
+    w-full
+  "
+>   <div className="flex gap-2">
+    {isProfileLoading ? (
                     <div className="w-[82px] h-[132px] rounded-2 bg-gray-200 animate-pulse"></div>
-                  ) : (
-                    <img
-                      src={profileData?.profile_picture || DefaultProfilePic}
-                      className="w-[82px] h-[132px] rounded-2 object-cover"
-                      alt="profile"
-                    />
-                  )}
+    ) : (
+      <img
+        src={profileData?.profile_picture || DefaultProfilePic}
+        className="w-[82px] h-[132px] rounded-2 object-cover flex-shrink-0"
+        alt="profile"
+      />
+    )}
 
-                  <div className="flex-1">
-                    <div className="flex justify-between items-center mb-3">
-                      {isProfileLoading ? (
-                        <div className="h-[24px] w-[120px] bg-gray-200 animate-pulse rounded"></div>
-                      ) : (
-                        <h3 className="text-[20px] font-semibold text-[#2A1E17]">
-                          {profileData?.full_name || "User"}
-                        </h3>
-                      )}
+    <div className="flex-1 min-w-0">
+      <div className="flex justify-between items-start gap-2 mb-2">
+        {isProfileLoading ? (
+          <div className="h-[20px] w-[100px] bg-gray-200 animate-pulse rounded flex-shrink-0"></div>
+        ) : (
+          <h3 className="text-[16px] font-semibold text-[#2A1E17] truncate flex-1">
+            {profileData?.full_name || "User"}
+          </h3>
+        )}
 
-                      <button
-                        onClick={() => setEditOpen(true)}
-                        className="!border border-[#51218F] text-[#51218F] text-[15px] px-3 py-[3px] rounded-full"
-                      >
-                        Edit Profile
-                      </button>
-                    </div>
+        <button
+          onClick={() => setEditOpen(true)}
+          className="!border border-[#51218F] text-[#51218F] text-[11px] px-4 py-[2px] rounded-full flex-shrink-0 whitespace-nowrap"
+        >
+          Edit profile
+        </button>
+      </div>
 
-                    {isProfileLoading ? (
-                      <div className="h-[16px] w-[200px] bg-gray-200 animate-pulse rounded mt-2"></div>
-                    ) : (
-                      <p className="text-[12px] text-[#6B6B6B] leading-tight mt-[2px]">
-                        {profileData?.creator_type && profileData?.primary_niche
-                          ? `${profileData.creator_type}, ${profileData.primary_niche}`
-                          : profileData?.creator_type ||
-                          profileData?.primary_niche ||
-                          "I am Looking for Designer, Graphic Designer"}
-                      </p>
-                    )}
+      {isProfileLoading ? (
+        <div className="h-[14px] w-[140px] bg-gray-200 animate-pulse rounded mt-1"></div>
+      ) : (
+        <p className="text-[11px] text-[#6B6B6B] leading-tight truncate">
+          {profileData?.creator_type && profileData?.primary_niche
+            ? `${profileData.creator_type}, ${profileData.primary_niche}`
+            : profileData?.creator_type ||
+            profileData?.primary_niche ||
+            "Designer, Graphic Designer"}
+        </p>
+      )}
 
-                    <div className="flex gap-3 mt-2 flex-wrap max-sm:gap-2">
-                      <div className="flex items-center gap-2">
-                        {renderStars(reviewStats.avg_rating)}
-                        <span className="text-[12px] text-gray-600">
-                          {reviewStats.avg_rating.toFixed(1)} (
-                          {reviewStats.total_reviews}{" "}
-                          {reviewStats.total_reviews === 1
-                            ? "Review"
-                            : "Reviews"}
-                          )
-                        </span>
-                      </div>
-                    </div>
+      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+        <div className="flex items-center gap-1">
+          <div className="flex">
+            {renderStars(reviewStats.avg_rating)}
+          </div>
+          <span className="text-[10px] text-gray-600 whitespace-nowrap">
+            {reviewStats.avg_rating.toFixed(1)} ({reviewStats.total_reviews})
+          </span>
+        </div>
+      </div>
 
-                    <div className="flex gap-3 mt-2 text-[11px] text-[#6B6B6B]">
-                      <div className="flex items-center gap-1">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                        >
-                          <rect
-                            x="3"
-                            y="4"
-                            width="18"
-                            height="18"
-                            rx="2"
-                            stroke="#6B6B6B"
-                            strokeWidth="1.5"
-                          />
-                          <path
-                            d="M8 2v4M16 2v4M3 10h18"
-                            stroke="#6B6B6B"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        <span>
-                          {isProfileLoading
-                            ? "Loading..."
-                            : profileData?.joined_date ||
-                            "Joined December 5, 2020"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <img
-                          src={flagUrl}
-                          alt="flag"
-                          className="w-3 h-2"
-                          onError={(e) => {
-                            e.target.src = FlagImg;
-                          }}
-                        />
-                        <span>
-                          {isProfileLoading ? "Loading..." : displayLocation()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+      <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] text-[#6B6B6B]">
+        <div className="flex items-center gap-1">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <rect
+              x="3"
+              y="4"
+              width="18"
+              height="18"
+              rx="2"
+              stroke="#6B6B6B"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M8 2v4M16 2v4M3 10h18"
+              stroke="#6B6B6B"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+          <span className="truncate max-w-[100px]">
+            {isProfileLoading
+              ? "Loading..."
+              : profileData?.joined_date ||
+              "Joined Dec 5, 2020"}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <img
+            src={flagUrl}
+            alt="flag"
+            className="w-2.5 h-2 object-cover"
+            onError={(e) => {
+              e.target.src = FlagImg;
+            }}
+          />
+          <span className="truncate max-w-[80px]">
+            {isProfileLoading ? "Loading..." : displayLocation()}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
 
-                {isProfileLoading ? (
-                  <div className="mt-3 space-y-2">
-                    <div className="h-[16px] w-full bg-gray-200 animate-pulse rounded"></div>
-                    <div className="h-[16px] w-4/5 bg-gray-200 animate-pulse rounded"></div>
-                    <div className="h-[16px] w-3/4 bg-gray-200 animate-pulse rounded"></div>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-[12px] leading-[18px] text-[#3A2A1A] break-words overflow-hidden [overflow-wrap:anywhere]">
-                    {profileData?.about || "No description available"}
-                  </p>
-                )}
-              </div>
+  {isProfileLoading ? (
+    <div className="mt-2 space-y-1.5">
+      <div className="h-[12px] w-full bg-gray-200 animate-pulse rounded"></div>
+      <div className="h-[12px] w-4/5 bg-gray-200 animate-pulse rounded"></div>
+      <div className="h-[12px] w-3/4 bg-gray-200 animate-pulse rounded"></div>
+    </div>
+  ) : (
+    <p className="mt-2 text-[11px] leading-[16px] text-[#3A2A1A] line-clamp-3">
+      {profileData?.about || "No description available"}
+    </p>
+  )}
+</div>
 
               {/* EDIT PROFILE MODAL */}
               {editOpen && createPortal(
@@ -2631,9 +2663,8 @@ if (formData.email && formData.email.trim() !== "") {
             </div>
 
             {/* RIGHT FIXED COLUMN */}
-            <div className="absolute top-0 left-[835px] max-sm:static max-sm:w-full lg:left-[705px] xl:left-[835px] w-[392px] lg:w-[320px] xl:w-[392px] space-y-6 shrink-0">
-              {/* VERIFICATION */}
-              <div className="bg-white rounded-xl shadow p-6 w-full">
+            
+<div className="w-full md:px-6 lg:px-0 lg:absolute mt-[16px] lg:top-[5px] lg:left-[705px] lg:w-[320px] xl:left-[835px] xl:w-[392px] space-y-6">   <div className="bg-white rounded-xl shadow p-6 w-full">
                 <h4 className="text-[18px] font-semibold mb-3">Verification</h4>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-4">
@@ -2816,104 +2847,113 @@ if (formData.email && formData.email.trim() !== "") {
               </div>
             </div>
 
-            {/* DESKTOP PORTFOLIO - MATCHES PROFILE WIDTH (804px) */}
-            <div className="bg-white shadow-lg hidden lg:block w-[804px] lg:w-[680px] xl:w-[804px] min-h-[337px] rounded-[10px] p-6 flex-col">
-              <div className="flex justify-between items-center">
-                <h3 className="text-[18px] font-semibold text-[#3A2A1A]">
-                  My Portfolio
-                </h3>
-                <div className="flex items-center gap-[10px]">
-                  <button
-                    onClick={() => setActiveModal("portfolio")}
-                    className="h-[29px] px-[36px] !border border-[#51218F] rounded-full text-[#6A3EA1]"
-                  >
-                    Add Portfolio
-                  </button>
-                </div>
-              </div>
+           {/* DESKTOP PORTFOLIO - FIXED TABLET SPACING */}
+<div
+  className="
+    hidden sm:block
+    bg-white shadow-lg mt-6 rounded-[10px] p-6
 
-              <div className="h-[1px] bg-black/10 my-4" />
+    md:w-auto md:mx-6
+    lg:w-[680px] lg:mx-0
+    xl:w-[804px]
 
-              {isLoading ? (
-                <div className="text-center py-10">Loading portfolio...</div>
-              ) : portfolioItems.length === 0 ? (
-                <div className="text-center py-10 text-gray-500">
-                  No portfolio items yet. Add your first project!
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-4 flex-grow">
-                  {portfolioItems.slice(0, 3).map((item) => (
-                    <div
-                      key={item.id}
-                      className="relative rounded-[10px] overflow-hidden cursor-pointer group"
-                      onClick={() => openPortfolioLink(item)}
-                    >
-                      <img
-                        src={getPortfolioImage(item)}
-                        alt={item.title}
-                        className="h-[174px] w-full object-cover"
-                        onError={(e) => {
-                          e.target.src = DefaultProfilePic;
-                        }}
-                      />
+    w-[804px]
+  "
+>   <div className="flex justify-between items-center">
+    <h3 className="text-[18px] font-semibold text-[#3A2A1A]">
+      My Portfolio
+    </h3>
+    <div className="flex items-center gap-[10px]">
+      <button
+        onClick={() => setActiveModal("portfolio")}
+        className="h-[29px] px-[36px] !border border-[#51218F] rounded-full text-[#6A3EA1]"
+      >
+        Add Portfolio
+      </button>
+    </div>
+  </div>
 
-                      {/* Edit Button - Top Right */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(item);
-                        }}
-                        className="absolute top-3 right-3 w-[46px] h-[46px] rounded-full bg-gradient-to-br from-[#7C3AED] to-[#2B0F4C] flex items-center justify-center shadow-[0_10px_30px_rgba(124,58,237,0.45)] cursor-pointer hover:scale-105 transition z-10"
-                      >
-                        <div className="w-[42px] h-[42px] flex items-center justify-center">
-                          <svg
-                            width="24"
-                            height="24"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="animate-pulse"
-                          >
-                            <path
-                              d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
-                              stroke="white"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                            <polygon
-                              points="18 2 22 6 12 16 8 16 8 12 18 2"
-                              fill="white"
-                              stroke="white"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </div>
-                      </div>
+  <div className="h-[1px] bg-black/10 my-4" />
 
-                      {/* Title Overlay - Bottom Center */}
-                      {item.title && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-3 py-2">
-                          <p className="text-[12px] font-semibold text-white text-center truncate">
-                            {item.title}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="flex justify-center mt-auto pt-6">
-                <button
-                  onClick={() => setShowPortfolioPopup(true)}
-                  className="text-[#6A3EA1] text-[15px] font-semibold hover:underline transition"
-                >
-                  View All
-                </button>
-              </div>
+  {isLoading ? (
+    <div className="text-center py-10">Loading portfolio...</div>
+  ) : portfolioItems.length === 0 ? (
+    <div className="text-center py-10 text-gray-500">
+      No portfolio items yet. Add your first project!
+    </div>
+  ) : (
+    <div className="grid grid-cols-3 gap-4 flex-grow">
+      {portfolioItems.slice(0, 3).map((item) => (
+        <div
+          key={item.id}
+          className="relative rounded-[10px] overflow-hidden cursor-pointer group"
+          onClick={() => openPortfolioLink(item)}
+        >
+          <img
+            src={getPortfolioImage(item)}
+            alt={item.title}
+            className="h-[174px] w-full object-cover"
+            onError={(e) => {
+              e.target.src = DefaultProfilePic;
+            }}
+          />
+
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditModal(item);
+            }}
+            className="absolute top-3 right-3 w-[46px] h-[46px] rounded-full bg-gradient-to-br from-[#7C3AED] to-[#2B0F4C] flex items-center justify-center shadow-[0_10px_30px_rgba(124,58,237,0.45)] cursor-pointer hover:scale-105 transition z-10"
+          >
+            <div className="w-[42px] h-[42px] flex items-center justify-center">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="animate-pulse"
+              >
+                <path
+                  d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <polygon
+                  points="18 2 22 6 12 16 8 16 8 12 18 2"
+                  fill="white"
+                  stroke="white"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
+          </div>
+
+          {item.title && (
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-3 py-2">
+              <p className="text-[12px] font-semibold text-white text-center truncate">
+                {item.title}
+              </p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )}
+
+  <div className="flex justify-center mt-auto pt-6">
+    <button
+      onClick={() => setShowPortfolioPopup(true)}
+      className="text-[#6A3EA1] text-[15px] font-semibold hover:underline transition"
+    >
+      View All
+    </button>
+  </div>
+</div>
 
             {/* ADD PORTFOLIO MODAL */}
             {activeModal === "portfolio" && (
@@ -3455,120 +3495,129 @@ if (formData.email && formData.email.trim() !== "") {
               </>
             )}
 
-            {/* MOBILE PORTFOLIO */}
-            {/* MOBILE PORTFOLIO */}
-            <div className="block lg:hidden bg-white rounded-[14px] shadow mt-5 px-4 py-5">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="text-[15px] font-semibold text-[#2A1E17]">
-                  My Portfolio
-                </h3>
-                <button
-                  onClick={() => setActiveModal("portfolio")}
-                  className="!border border-[#51218F] text-[#51218F] text-[12px] px-3 py-[3px] rounded-full"
-                >
-                  Add Portfolio
-                </button>
-              </div>
+{/* MOBILE PORTFOLIO */}
 
-              <div className="flex gap-3 overflow-x-auto pb-2">
-                {isLoading ? (
-                  <div className="text-center w-full py-4">Loading...</div>
-                ) : portfolioItems.length === 0 ? (
-                  <div className="text-center w-full py-4 text-gray-500">
-                    No portfolio items
-                  </div>
-                ) : (
-                  portfolioItems.slice(0, 3).map((item, i) => (
-                    <div
-                      key={i}
-                      className="relative min-w-[130px] h-[95px] rounded-[10px] overflow-hidden cursor-pointer group"
-                      onClick={() => openPortfolioLink(item)}
-                    >
-                      <img
-                        src={getPortfolioImage(item)}
-                        alt={item.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.src = DefaultProfilePic;
-                        }}
-                      />
+<div className="block sm:hidden  rounded-[14px] shadow mt-8 ...">  <div className="flex justify-between items-center mb-3">
+    <h3 className="text-[14px] sm:text-[15px] md:text-[16px] font-semibold text-[#2A1E17]">
+      My Portfolio
+    </h3>
+    <button
+      onClick={() => setActiveModal("portfolio")}
+      className="!border border-[#51218F] text-[#51218F] text-[11px] sm:text-[12px] md:text-[13px] px-3 sm:px-4 md:px-5 py-[2px] sm:py-[3px] md:py-[4px] rounded-full whitespace-nowrap"
+    >
+      Add Portfolio
+    </button>
+  </div>
 
-                      {/* Edit Button - Top Right for Mobile */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditModal(item);
-                        }}
-                        className="absolute top-1 right-1 w-[28px] h-[28px] bg-[#51218F] text-white rounded-full flex items-center justify-center cursor-pointer hover:scale-105 transition z-10"
-                      >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="animate-pulse"
-                        >
-                          <path
-                            d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
-                            stroke="white"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                          <polygon
-                            points="18 2 22 6 12 16 8 16 8 12 18 2"
-                            fill="white"
-                            stroke="white"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </div>
+  <div className="flex gap-2 sm:gap-3 md:gap-4 overflow-x-auto pb-2 md:pb-3 scrollbar-hide">
+    {isLoading ? (
+      <div className="text-center w-full py-4 text-[13px] sm:text-[14px] md:text-[15px]">Loading...</div>
+    ) : portfolioItems.length === 0 ? (
+      <div className="text-center w-full py-4 text-gray-500 text-[13px] sm:text-[14px] md:text-[15px]">
+        No portfolio items
+      </div>
+    ) : (
+      portfolioItems.slice(0, 3).map((item, i) => (
+        <div
+          key={i}
+          className="relative min-w-[110px] sm:min-w-[130px] md:min-w-[160px] lg:min-w-[180px] h-[80px] sm:h-[95px] md:h-[110px] rounded-[10px] overflow-hidden cursor-pointer group flex-shrink-0"
+          onClick={() => openPortfolioLink(item)}
+        >
+          <img
+            src={getPortfolioImage(item)}
+            alt={item.title}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.src = DefaultProfilePic;
+            }}
+          />
 
-                      {/* Title Overlay - Bottom Center for Mobile */}
-                      {item.title && (
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-2 py-1">
-                          <p className="text-[9px] font-semibold text-white text-center truncate">
-                            {item.title}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
+          {/* Edit Button - Top Right */}
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditModal(item);
+            }}
+            className="absolute top-1 right-1 w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] md:w-[32px] md:h-[32px] bg-[#51218F] text-white rounded-full flex items-center justify-center cursor-pointer hover:scale-105 transition z-10"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="sm:w-[14px] sm:h-[14px] md:w-[16px] md:h-[16px]"
+            >
+              <path
+                d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <polygon
+                points="18 2 22 6 12 16 8 16 8 12 18 2"
+                fill="white"
+                stroke="white"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
 
-              {/* View All Button for Mobile */}
-              {portfolioItems.length > 0 && (
-                <div className="flex justify-center mt-4 pt-2">
-                  <button
-                    onClick={() => setShowPortfolioPopup(true)}
-                    className="text-[#6A3EA1] text-[13px] font-semibold hover:underline transition flex items-center gap-1"
-                  >
-                    View All ({portfolioItems.length} {portfolioItems.length === 1 ? 'item' : 'items'})
-                    <svg
-                      className="w-3 h-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              )}
+          {/* Title Overlay - Bottom Center */}
+          {item.title && (
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-1.5 py-1 sm:px-2 sm:py-1 md:px-2.5 md:py-1.5">
+              <p className="text-[8px] sm:text-[9px] md:text-[10px] lg:text-[11px] font-semibold text-white text-center truncate">
+                {item.title}
+              </p>
             </div>
+          )}
+        </div>
+      ))
+    )}
+  </div>
+
+  {/* View All Button */}
+  {portfolioItems.length > 0 && (
+    <div className="flex justify-center mt-3 sm:mt-4 md:mt-5 pt-2">
+      <button
+        onClick={() => setShowPortfolioPopup(true)}
+        className="text-[#6A3EA1] text-[12px] sm:text-[13px] md:text-[14px] font-semibold hover:underline transition flex items-center gap-1"
+      >
+        View All ({portfolioItems.length} {portfolioItems.length === 1 ? 'item' : 'items'})
+        <svg
+          className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M9 5l7 7-7 7"
+          />
+        </svg>
+      </button>
+    </div>
+  )}
+</div>
 
             {/* DESKTOP REVIEWS - SAME WIDTH AS PROFILE (804px) */}
-            <div className="hidden sm:block bg-white shadow-lg mt-6 rounded-[10px] p-6 w-[804px] lg:w-[680px] xl:w-[804px]">
-              <div className="flex items-center justify-between mb-4">
+<div
+  className="
+    hidden sm:block
+    bg-white shadow-lg mt-6 rounded-[10px] p-6
+
+    md:w-auto md:mx-6
+    lg:w-[680px] lg:mx-0
+    xl:w-[804px]
+
+    w-[804px]
+  "
+>              <div className="flex items-center justify-between mb-4">
                 <h3 className="text-[18px] font-semibold text-[#3A2A1A]">
                   Reviews
                 </h3>
@@ -3808,7 +3857,7 @@ if (formData.email && formData.email.trim() !== "") {
             )}
 
             {/* MOBILE REVIEWS */}
-            <div className="block sm:hidden bg-white shadow-lg mt-4 rounded-[12px] p-4">
+            <div className="block sm:hidden  shadow-lg mt-15 rounded-[12px] p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[16px] font-semibold text-[#3A2A1A]">
                   Reviews
@@ -4813,4 +4862,4 @@ if (formData.email && formData.email.trim() !== "") {
       )}
     </div>
   );
-}
+}         

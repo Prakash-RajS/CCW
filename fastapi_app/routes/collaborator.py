@@ -21,6 +21,9 @@ import pycountry
 from fastapi_app.routes.plan_guard import check_storage_limit
 from creator_app.models import track_file_upload, track_file_deletion
 from fastapi_app.services.notification_service import create_notification
+from fastapi_app.routes.storage import get_profile_pic_url, save_profile_pic, delete_file, get_portfolio_upload_url  # ✅ Add get_portfolio_upload_url
+import os
+
 
 # ✅ DATABASE CONNECTION MANAGEMENT (Import from dbconnection)
 from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
@@ -97,6 +100,69 @@ def get_or_create_basic_plan(role: str):
     if created:
         print(f"✅ Created new Basic plan for {role}")
     return plan
+
+def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> str | None:
+    """Build full URL from relative path with S3 support for all file types"""
+    if not path:
+        return None
+    if path.startswith('http'):
+        return path
+    
+    # Check if using S3
+    use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+    base_url = str(request.base_url).rstrip('/')
+    clean_path = path.lstrip('/')
+    
+    if use_s3 and use_s3_env:
+        s3_key = path.lstrip('/')
+        
+        # Determine which S3 URL generator to use based on path
+        if s3_key.startswith('profile_pics/'):
+            from fastapi_app.routes.storage import get_profile_pic_url
+            file_url = get_profile_pic_url(s3_key)
+            if file_url:
+                return file_url
+        elif s3_key.startswith('portfolio_uploads/'):
+            from fastapi_app.routes.storage import get_portfolio_upload_url
+            file_url = get_portfolio_upload_url(s3_key)
+            if file_url:
+                return file_url
+        elif s3_key.startswith('collaborator_') or s3_key.startswith('creator_'):
+            from fastapi_app.routes.storage import get_profile_pic_url, get_portfolio_upload_url
+            
+            full_s3_key = f"profile_pics/{PathLib(s3_key).name}"
+            file_url = get_profile_pic_url(full_s3_key)
+            if file_url:
+                return file_url
+            
+            full_s3_key = f"portfolio_uploads/creator/{PathLib(s3_key).name}"
+            file_url = get_portfolio_upload_url(full_s3_key)
+            if file_url:
+                return file_url
+            
+            full_s3_key = f"portfolio_uploads/collaborator/{PathLib(s3_key).name}"
+            file_url = get_portfolio_upload_url(full_s3_key)
+            if file_url:
+                return file_url
+        else:
+            from fastapi_app.routes.storage import get_profile_pic_url
+            file_url = get_profile_pic_url(s3_key)
+            if file_url:
+                return file_url
+            
+            from fastapi_app.routes.storage import get_portfolio_upload_url
+            file_url = get_portfolio_upload_url(s3_key)
+            if file_url:
+                return file_url
+        
+        # ✅ NEW: Check if file exists locally before falling back to local URL
+        local_path = PathLib(f"media/{clean_path}")
+        if local_path.exists():
+            print(f"📁 File not in S3, serving from local: {clean_path}")
+            return f"{base_url}/media/{clean_path}"
+    
+    # Fallback to local media path
+    return f"{base_url}/media/{clean_path}"
 
 def get_user_location_from_profile(user: UserData):
     """
@@ -541,40 +607,84 @@ async def save_collaborator_profile(
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
     random_digits = generate_random_digits()
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
     # ========== HANDLE PROFILE PICTURE ==========
     if profile_picture and profile_picture.filename:
         try:
-            media_dir = FASTAPI_BASE_DIR.parent / "media" / "profile_pics"
-            media_dir.mkdir(parents=True, exist_ok=True)
-            content = await profile_picture.read()
-            ext = PathLib(profile_picture.filename).suffix
-            if not ext:
-                ext = '.jpg'
-            filename = f"collaborator_{user_id}_{random_digits}{ext}"
-            await sync_to_async(user.profile_picture.save)(
-                filename,
-                ContentFile(content),
-                save=True
-            )
-            print(f"✅ Saved profile picture: {filename}")
+            if use_s3:
+                # Use S3 storage
+                s3_key = await save_profile_pic(profile_picture, str(user_id))
+                user.profile_picture = s3_key
+                print(f"✅ Profile picture saved to S3: {s3_key}")
+            else:
+                # Use local storage
+                media_dir = FASTAPI_BASE_DIR.parent / "media" / "profile_pics"
+                media_dir.mkdir(parents=True, exist_ok=True)
+                content = await profile_picture.read()
+                ext = PathLib(profile_picture.filename).suffix
+                if not ext:
+                    ext = '.jpg'
+                filename = f"collaborator_{user_id}_{random_digits}{ext}"
+                await sync_to_async(user.profile_picture.save)(
+                    filename,
+                    ContentFile(content),
+                    save=True
+                )
+                print(f"✅ Saved profile picture locally: {filename}")
         except Exception as e:
             print(f"❌ Error saving profile picture: {e}")
 
-    # ========== HANDLE PORTFOLIO UPLOADS ==========
-    portfolio_content = None
-    portfolio_file_size = 0
-    original_filename = None
-    portfolio_ext = None
+    # ========== HANDLE PORTFOLIO UPLOADS (UPDATED FOR S3) ==========
     if portfolio_uploads and portfolio_uploads.filename:
         try:
+            # Read the file content
             portfolio_content = await portfolio_uploads.read()
             portfolio_file_size = len(portfolio_content)
             original_filename = PathLib(portfolio_uploads.filename).stem
             portfolio_ext = PathLib(portfolio_uploads.filename).suffix or ".png"
-            print(f"✅ Read portfolio file: {original_filename}{portfolio_ext} ({portfolio_file_size} bytes)")
+            
+            # Check storage limit
+            await sync_to_async(check_storage_limit)(user, portfolio_file_size)
+            
+            # Create portfolio item
+            portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
+                user=user,
+                role="collaborator",
+                media_link=portfolio_link if portfolio_link else None,
+                heading=original_filename,
+                description=None,
+                order=0,
+            )
+            
+            if use_s3:
+                # Use S3 storage for portfolio
+                from fastapi_app.routes.storage import save_portfolio_upload_collaborator
+                s3_key = await save_portfolio_upload_collaborator(portfolio_uploads, str(user_id), str(portfolio_item.id))
+                # Update the portfolio item with S3 key
+                portfolio_item.file.name = s3_key
+                await sync_to_async(portfolio_item.save)()
+                print(f"✅ Portfolio saved to S3: {s3_key}")
+            else:
+                # Use local storage
+                portfolio_filename = f"{user_id}_{random_digits}_portfolio_{original_filename}{portfolio_ext}"
+                await sync_to_async(portfolio_item.file.save)(
+                    portfolio_filename,
+                    ContentFile(portfolio_content),
+                    save=True,
+                )
+                print(f"✅ Portfolio saved locally: {portfolio_filename}")
+            
+            # Track file upload
+            await sync_to_async(track_file_upload)(
+                user,
+                str(portfolio_item.file.name),
+                portfolio_file_size,
+            )
+            print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
+            
         except Exception as e:
-            print(f"❌ Error reading portfolio upload: {e}")
+            print(f"❌ Error creating portfolio item: {e}")
 
     # ========== PARSE TIMING ==========
     parsed_timing = timing
@@ -653,41 +763,12 @@ async def save_collaborator_profile(
         print(f"❌ Error saving collaborator profile: {e}")
         raise HTTPException(status_code=500, detail=f"Profile save error: {str(e)}")
 
-    # ========== CREATE PORTFOLIO ITEM ==========
-    if portfolio_content:
-        try:
-            await sync_to_async(check_storage_limit)(user, portfolio_file_size)
-            portfolio_filename = f"{user_id}_{random_digits}_portfolio_{original_filename}{portfolio_ext}"
-            portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
-                user=user,
-                role="collaborator",
-                media_link=portfolio_link if portfolio_link else None,
-                heading=original_filename,
-                description=None,
-                order=0,
-            )
-            await sync_to_async(portfolio_item.file.save)(
-                portfolio_filename,
-                ContentFile(portfolio_content),
-                save=True,
-            )
-            await sync_to_async(track_file_upload)(
-                user,
-                str(portfolio_item.file.name),
-                portfolio_file_size,
-            )
-            print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
-            print(f"   - File: {portfolio_item.file.name}")
-            print(f"   - Media Link: {portfolio_link or 'None'}")
-        except Exception as e:
-            print(f"❌ Error creating portfolio item: {e}")
-
     # ========== UPDATE USER ROLE ==========
     if user.role != "collaborator":
         user.role = "collaborator"
         await sync_to_async(user.save)()
         
-        # Ensure Basic plan exists for collaborator role (FIXED: use "collaborator")
+        # Ensure Basic plan exists for collaborator role
         basic_plan = await sync_to_async(get_or_create_basic_plan)("collaborator")
         
         # Create a UserSubscription only if the user doesn't have one yet
@@ -701,10 +782,10 @@ async def save_collaborator_profile(
                 email=user.email or "",
                 current_plan=basic_plan.name,
                 plan_name=basic_plan.name,
-                duration=basic_plan.duration.capitalize(),  # "Monthly"
+                duration=basic_plan.duration.capitalize(),
                 plan_price=basic_plan.price,
                 plan_start_date=now,
-                plan_end_date=now + timedelta(days=365*100),   # Never expires
+                plan_end_date=now + timedelta(days=365*100),
                 renewal_date=now + timedelta(days=365*100),
                 status="active",
                 is_trial=False,
@@ -742,7 +823,7 @@ async def save_collaborator_profile(
         url="/ColabProfile"
     )
 
-    # ========== 🔔 NOTIFICATION: SKILLS SAVED (if skills were provided) ==========
+    # ========== 🔔 NOTIFICATION: SKILLS SAVED ==========
     if skills_list:
         await sync_to_async(create_notification)(
             user=user,
@@ -934,7 +1015,7 @@ async def delete_work_experience(exp_id: int):
 @router.post("/portfolio/add")
 async def add_portfolio_item(
     user_id: int = Form(...),
-    heading: str = Form(...),  # Required work name
+    heading: str = Form(...),
     description: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     media_link: Optional[str] = Form(None),
@@ -963,6 +1044,8 @@ async def add_portfolio_item(
         await sync_to_async(portfolio_item.save)()
 
         file_size = 0
+        use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+
         if file and file.filename:
             content = await file.read()
             file_size = len(content)
@@ -970,15 +1053,23 @@ async def add_portfolio_item(
             if content:
                 await sync_to_async(check_storage_limit)(user, file_size)
 
-                random_digits = generate_random_digits()
-                ext = PathLib(file.filename).suffix
-                filename = f"{user_id}_{random_digits}_portfolio_{portfolio_item.id}{ext}"
-
-                await sync_to_async(portfolio_item.file.save)(
-                    filename,
-                    ContentFile(content),
-                    save=True
-                )
+                if use_s3:
+                    # Use S3 storage for portfolio
+                    from fastapi_app.routes.storage import save_portfolio_upload_collaborator
+                    s3_key = await save_portfolio_upload_collaborator(file, str(user_id), str(portfolio_item.id))
+                    portfolio_item.file.name = s3_key
+                    await sync_to_async(portfolio_item.save)()
+                    print(f"✅ Portfolio saved to S3: {s3_key}")
+                else:
+                    # Use local storage
+                    random_digits = generate_random_digits()
+                    ext = PathLib(file.filename).suffix
+                    filename = f"{user_id}_{random_digits}_portfolio_{portfolio_item.id}{ext}"
+                    await sync_to_async(portfolio_item.file.save)(
+                        filename,
+                        ContentFile(content),
+                        save=True
+                    )
 
                 await sync_to_async(track_file_upload)(
                     user,
@@ -986,9 +1077,12 @@ async def add_portfolio_item(
                     file_size
                 )
 
+        # Generate file URL with S3 support
         file_url = None
         file_type = "unknown"
         if portfolio_item.file:
+            # Use a function that will be called from the request context
+            # We'll handle URL generation in the get endpoint
             file_url = f"/collaborator/files/{portfolio_item.file.name}"
             file_type = get_file_type(portfolio_item.file.name)
 
@@ -1018,8 +1112,8 @@ async def add_portfolio_item(
 
 
 @router.get("/portfolio/list/{user_id}")
-async def get_collaborator_portfolio(user_id: int):
-    """Get all portfolio items for a collaborator (up to 10 items)"""
+async def get_collaborator_portfolio(user_id: int, request: Request):
+    """Get all portfolio items for a collaborator (up to 10 items) with S3 support"""
     ensure_db_connection()
     
     try:
@@ -1035,7 +1129,8 @@ async def get_collaborator_portfolio(user_id: int):
             file_url = None
             file_type = "unknown"
             if item.file:
-                file_url = f"/collaborator/files/{item.file.name}"
+                # Use build_full_url with S3 support
+                file_url = build_full_url(request, item.file.name)
                 file_type = get_file_type(item.file.name)
             
             portfolio_data.append({
@@ -1057,8 +1152,8 @@ async def get_collaborator_portfolio(user_id: int):
 
 
 @router.get("/portfolio/item/{item_id}")
-async def get_portfolio_item(item_id: int):
-    """Get a single portfolio item by ID"""
+async def get_portfolio_item(item_id: int, request: Request):
+    """Get a single portfolio item by ID with S3 support"""
     ensure_db_connection()
     try:
         item = await sync_to_async(PortfolioItem.objects.get)(
@@ -1068,7 +1163,7 @@ async def get_portfolio_item(item_id: int):
         file_url = None
         file_type = "unknown"
         if item.file:
-            file_url = f"/collaborator/files/{item.file.name}"
+            file_url = build_full_url(request, item.file.name)
             file_type = get_file_type(item.file.name)
         return {
             "id": item.id,
@@ -1090,6 +1185,7 @@ async def get_portfolio_item(item_id: int):
 
 @router.put("/portfolio/item/{item_id}")
 async def update_portfolio_item(
+    request: Request,
     item_id: int,
     heading: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
@@ -1110,6 +1206,7 @@ async def update_portfolio_item(
             raise HTTPException(status_code=404, detail="Portfolio item not found")
 
         old_heading = item.heading
+        use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
         if heading is not None:
             item.heading = heading
@@ -1126,9 +1223,11 @@ async def update_portfolio_item(
 
             if content:
                 old_file_size = 0
+                old_file_name = None
                 if item.file:
                     try:
                         old_file_size = await sync_to_async(lambda: item.file.size)()
+                        old_file_name = item.file.name
                     except Exception:
                         old_file_size = 0
 
@@ -1137,22 +1236,38 @@ async def update_portfolio_item(
                     owner = await sync_to_async(lambda: item.user)()
                     await sync_to_async(check_storage_limit)(owner, net_increase)
 
-                if item.file and old_file_size > 0:
-                    owner = await sync_to_async(lambda: item.user)()
-                    await sync_to_async(item.file.delete)(save=False)
-                    await sync_to_async(track_file_deletion)(owner, old_file_size)
-                elif item.file:
-                    await sync_to_async(item.file.delete)(save=False)
+                # Delete old file from S3 or local
+                if item.file:
+                    try:
+                        if use_s3 and old_file_name:
+                            s3_key = old_file_name.lstrip('/')
+                            delete_file(s3_key)
+                            print(f"✅ Deleted old portfolio from S3: {s3_key}")
+                        else:
+                            await sync_to_async(item.file.delete)(save=False)
+                            print(f"✅ Deleted old portfolio locally")
+                        
+                        if old_file_size > 0:
+                            owner = await sync_to_async(lambda: item.user)()
+                            await sync_to_async(track_file_deletion)(owner, old_file_size)
+                    except Exception as e:
+                        print(f"Warning: Could not delete old file: {e}")
 
-                random_digits = generate_random_digits()
-                ext = PathLib(file.filename).suffix
-                filename = f"{item.user_id}_{random_digits}_updated_{item_id}{ext}"
-
-                await sync_to_async(item.file.save)(
-                    filename,
-                    ContentFile(content),
-                    save=True
-                )
+                # Save new file to S3 or local
+                if use_s3:
+                    from fastapi_app.routes.storage import save_portfolio_upload_collaborator
+                    s3_key = await save_portfolio_upload_collaborator(file, str(item.user_id), str(item_id))
+                    item.file.name = s3_key
+                    print(f"✅ Portfolio updated in S3: {s3_key}")
+                else:
+                    random_digits = generate_random_digits()
+                    ext = PathLib(file.filename).suffix
+                    filename = f"{item.user_id}_{random_digits}_updated_{item_id}{ext}"
+                    await sync_to_async(item.file.save)(
+                        filename,
+                        ContentFile(content),
+                        save=True
+                    )
 
                 owner = await sync_to_async(lambda: item.user)()
                 await sync_to_async(track_file_upload)(
@@ -1166,7 +1281,7 @@ async def update_portfolio_item(
         file_url = None
         file_type = "unknown"
         if item.file:
-            file_url = f"/collaborator/files/{item.file.name}"
+            file_url = build_full_url(request, item.file.name)
             file_type = get_file_type(item.file.name)
 
         user_obj = await sync_to_async(lambda: item.user)()
@@ -1204,18 +1319,33 @@ async def delete_portfolio_item(item_id: int, user_id: Optional[int] = None):
         item = await sync_to_async(query.first)()
         if not item:
             raise HTTPException(status_code=404, detail="Portfolio item not found")
+        
         file_size = 0
         owner = await sync_to_async(lambda: item.user)()
         item_user_id = item.user_id
+        use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+        
         if item.file:
             try:
                 file_size = await sync_to_async(lambda: item.file.size)()
+                file_name = item.file.name
             except Exception:
                 file_size = 0
-            await sync_to_async(item.file.delete)(save=False)
+            
+            # Delete from S3 or local
+            if use_s3 and file_name:
+                s3_key = file_name.lstrip('/')
+                delete_file(s3_key)
+                print(f"✅ Deleted portfolio from S3: {s3_key}")
+            else:
+                await sync_to_async(item.file.delete)(save=False)
+                print(f"✅ Deleted portfolio locally")
+                
         await sync_to_async(item.delete)()
+        
         if file_size > 0 and owner:
             await sync_to_async(track_file_deletion)(owner, file_size)
+            
         remaining_items = await sync_to_async(list)(
             PortfolioItem.objects.filter(
                 user_id=item_user_id,
@@ -1360,7 +1490,7 @@ def calculate_experience_years(work_experiences):
 
 
 @router.get("/get/{user_id}")
-async def get_collaborator_profile(user_id: int):
+async def get_collaborator_profile(user_id: int, request: Request):
     ensure_db_connection()
 
     try:
@@ -1415,7 +1545,8 @@ async def get_collaborator_profile(user_id: int):
         file_type = "unknown"
 
         if item.file:
-            file_url = f"/collaborator/files/{item.file.name}"
+            # Use build_full_url with S3 support
+            file_url = build_full_url(request, item.file.name)
             file_type = get_file_type(item.file.name)
 
         portfolio_data.append({
@@ -1428,13 +1559,11 @@ async def get_collaborator_profile(user_id: int):
             "original_filename": item.file.name.split('/')[-1]
             if item.file and '/' in item.file.name
             else (item.file.name if item.file else None),
-
             "upload_date": (
                 item.created_at.strftime("%Y-%m-%d %H:%M:%S")
                 if hasattr(item, 'created_at')
                 else datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ),
-
             "order": item.order
         })
 
@@ -1465,14 +1594,10 @@ async def get_collaborator_profile(user_id: int):
 
     # ================= PROFILE PICTURE =================
     profile_pic_url = None
-
     if user.profile_picture:
-        try:
-            profile_pic_url = f"/collaborator/files/{user.profile_picture.name}"
-        except:
-            pass
+        profile_pic_url = build_full_url(request, user.profile_picture.name)
 
-    # ================= REVIEWS (only for displaying reviews, NOT for skills_rating) =================
+    # ================= REVIEWS =================
     reviews = await sync_to_async(list)(
         Review.objects.select_related("reviewer")
         .filter(recipient=user)
@@ -1531,73 +1656,43 @@ async def get_collaborator_profile(user_id: int):
         "email": user.email,
         "full_name": user.full_name or "",
         "name": user.full_name,
-
         "language": profile.language,
         "skill_category": profile.skill_category,
-
         "skills": profile.skills,
-
         "experience": profile.experience,
-
         "experience_years": experience_years,
-
         "pricing_amount": (
             float(profile.pricing_amount)
             if profile.pricing_amount
             else None
         ),
-
         "pricing_unit": profile.pricing_unit,
-
         "pricing_type": profile.pricing_type or "hourly",
-
         "availability": profile.availability,
-
         "timing": profile.timing,
-
         "social_link": profile.social_link,
-
         "portfolio_link": profile.portfolio_link,
-
         "badges": profile.badges,
-
-        # ✅ FIX: Just return the value from database column, nothing else
         "skills_rating": profile.skills_rating or 0,
-
         "about": profile.about,
-
         "location": profile.location,
-
         "collaboration_type": profile.collaboration_type,
-
         "followers": profile.followers,
-        
         "total_earnings": total_earnings,
-
         "completed_projects_count": completed_projects_count,
-
         "profile_picture_url": profile_pic_url,
-
         "portfolio_items": portfolio_data,
-
         "work_experiences": work_data,
-
         "educations": education_data,
-
         "reviews": review_data,
-
         "review_count": len(reviews),
-
         "phone_number": user.phone_number or "",
-
         "created_at": (
             created_at.isoformat()
             if created_at
             else None
         ),
-
         "email_verified": email_verified,
-
         "phone_verified": phone_verified
     }
 
@@ -1640,19 +1735,42 @@ async def edit_collaborator_profile(
     random_digits = generate_random_digits()
     profile_updated = False
     skills_updated = False
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
+    # ========== PROFILE PICTURE ==========
     if profile_picture and profile_picture.filename:
         try:
+            # Delete old image
             if user.profile_picture:
-                await sync_to_async(user.profile_picture.delete)(save=False)
-            ext = PathLib(profile_picture.filename).suffix
-            filename = f"collaborator_{user_id}_{random_digits}{ext}"
-            content = await profile_picture.read()
-            await sync_to_async(user.profile_picture.save)(
-                filename,
-                ContentFile(content),
-                save=True
-            )
+                old_picture_name = str(user.profile_picture)
+                if old_picture_name and not old_picture_name.startswith(('http://', 'https://')):
+                    try:
+                        if use_s3:
+                            s3_key = old_picture_name.lstrip('/')
+                            delete_file(s3_key)
+                            print(f"✅ Deleted old profile picture from S3: {s3_key}")
+                        else:
+                            await sync_to_async(user.profile_picture.delete)(save=False)
+                            print(f"✅ Deleted old profile picture locally")
+                    except Exception as e:
+                        print(f"Warning: Could not delete old profile picture: {e}")
+
+            # Save new profile picture
+            if use_s3:
+                s3_key = await save_profile_pic(profile_picture, str(user_id))
+                user.profile_picture = s3_key
+                print(f"✅ Profile picture saved to S3: {s3_key}")
+            else:
+                ext = PathLib(profile_picture.filename).suffix
+                filename = f"collaborator_{user_id}_{random_digits}{ext}"
+                content = await profile_picture.read()
+                await sync_to_async(user.profile_picture.save)(
+                    filename,
+                    ContentFile(content),
+                    save=True
+                )
+                print(f"✅ Profile picture saved locally: {filename}")
+            
             profile_updated = True
         except Exception as e:
             print(f"❌ Error updating profile picture: {e}")
@@ -1661,13 +1779,11 @@ async def edit_collaborator_profile(
     
     if email is not None and email.strip():
         email_clean = email.strip().lower()
-        # Check if email already exists for another user
         email_exists = await sync_to_async(
             lambda: UserData.objects.filter(email=email_clean).exclude(id=user_id).exists()
         )()
         if email_exists:
             raise HTTPException(status_code=400, detail="Email already registered")
-        # Validate email format
         import re
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, email_clean):
@@ -1839,7 +1955,6 @@ def list_all_collaborators(request: Request):
     ensure_db_connection()
     try:
         all_collaborators = CollaboratorProfile.objects.select_related("user").all()
-        base_url = str(request.base_url).rstrip('/')
         result = []
         for collab in all_collaborators:
             if not collab.user:
@@ -1884,13 +1999,12 @@ def list_all_collaborators(request: Request):
                     collaborator_name = collab.user.name
                 else:
                     collaborator_name = collab.user.email.split('@')[0] if collab.user.email else "Collaborator"
+            
+            # ✅ UPDATED: Use build_full_url for profile picture
             profile_picture_url = None
             if collab.user and collab.user.profile_picture:
-                profile_pic = str(collab.user.profile_picture)
-                if profile_pic.startswith(('http://', 'https://')):
-                    profile_picture_url = profile_pic
-                else:
-                    profile_picture_url = f"{base_url}/media/{profile_pic.lstrip('/')}"
+                profile_picture_url = build_full_url(request, collab.user.profile_picture.name)
+            
             rating_value = float(getattr(collab, 'rating', 0) or 0)
             reviews_count = int(getattr(collab, 'reviews_count', 0) or 0)
 
@@ -2403,23 +2517,43 @@ async def add_collaborator_review(creator_id: int, collaborator_id: int, rating:
 
 
 @router.get("/reviews/list/{user_id}")
-async def get_collaborator_reviews(user_id: int):
-    reviews = await sync_to_async(list)(
-        Review.objects.select_related("reviewer")
-        .filter(recipient_id=user_id)
-        .order_by('-updated_at')
-    )
-    return [
-        {
-            "reviewer_name": r.reviewer.full_name,
-            "reviewer_id": r.reviewer.id,
-            "rating": r.rating,
-            "comment": r.comment,
-            "date": r.updated_at.strftime("%d %b %Y"),
-            "reviewer_profile_picture": r.reviewer.profile_picture.url if r.reviewer.profile_picture else None
-        }
-        for r in reviews
-    ]
+async def get_collaborator_reviews(user_id: int, request: Request):
+    """
+    Get all reviews for a collaborator with S3 support for reviewer profile pictures
+    """
+    ensure_db_connection()
+    
+    try:
+        reviews = await sync_to_async(list)(
+            Review.objects.select_related("reviewer")
+            .filter(recipient_id=user_id)
+            .order_by('-updated_at')
+        )
+        
+        result = []
+        for r in reviews:
+            reviewer = r.reviewer
+            
+            # Handle reviewer profile picture with S3 support
+            reviewer_profile_picture_url = None
+            if reviewer and reviewer.profile_picture:
+                # Use the build_full_url function which handles both S3 and local
+                reviewer_profile_picture_url = build_full_url(request, str(reviewer.profile_picture.name))
+            
+            result.append({
+                "reviewer_name": reviewer.full_name if reviewer else "Unknown",
+                "reviewer_id": reviewer.id if reviewer else None,
+                "rating": r.rating,
+                "comment": r.comment,
+                "date": r.updated_at.strftime("%d %b %Y") if r.updated_at else None,
+                "reviewer_profile_picture": reviewer_profile_picture_url
+            })
+        
+        return result
+        
+    except Exception as e:
+        print(f"Error in get_collaborator_reviews: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Add these to your collaborator.py
 

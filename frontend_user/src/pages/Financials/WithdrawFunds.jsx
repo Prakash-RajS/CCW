@@ -49,6 +49,11 @@ export default function WithdrawFunds() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [formError, setFormError] = useState("");
 
+  const closeWithdrawPopup = () => {
+  setShowWithdrawPopup(false);
+  setWithdrawAmount("");
+  setFormError("");
+};
   // Frontend validation errors only
   const [validationErrors, setValidationErrors] = useState({
     account_holder: '',
@@ -815,10 +820,12 @@ const handleWithdrawClick = () => {
       method_id: selectedMethod.id
     });
     if (response.data.success && response.data.status === "success") {
-      setShowWithdrawPopup(false);
-      setShowSuccessPopup(true);
-      setWalletBalance(response.data.new_balance);
-    } else {
+  setWithdrawAmount("");
+  setFormError("");
+  setShowWithdrawPopup(false);
+  setShowSuccessPopup(true);
+  setWalletBalance(response.data.new_balance);
+}else {
       toast.error("Withdrawal failed", response.data.message || "Please try again.");
     }
   } catch (err) {
@@ -1220,7 +1227,7 @@ const handleWithdrawClick = () => {
   <div className="fixed inset-0 z-50 bg-black/40 flex justify-center items-center p-3 md:p-4">
     <div className="relative w-full max-w-[350px] md:max-w-[400px] max-h-[90vh] bg-white rounded-[16px] md:rounded-[20px] flex flex-col overflow-hidden">
       <div className="flex items-center gap-2 md:gap-3 px-4 md:px-5 pt-3 pb-2 md:pt-4 md:pb-3 border-b border-gray-100 flex-shrink-0">
-        <button onClick={() => setShowWithdrawPopup(false)} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#51218F] flex items-center justify-center hover:bg-gradient-to-r hover:from-[#51218F] hover:to-black transition-all flex-shrink-0">
+        <button onClick={closeWithdrawPopup} className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-[#51218F] flex items-center justify-center hover:bg-gradient-to-r hover:from-[#51218F] hover:to-black transition-all flex-shrink-0">
           <svg className="w-3.5 h-3.5 md:w-4 md:h-4" viewBox="0 0 24 24" fill="none"><path d="M20 12H4M4 12L10 6M4 12L10 18" stroke="white" strokeWidth="2" /></svg>
         </button>
         <h2 className="text-base md:text-lg lg:text-2xl font-bold" style={{ fontFamily: "Trochut" }}>Withdraw Funds</h2>
@@ -1250,14 +1257,32 @@ const handleWithdrawClick = () => {
                 return;
               }
               setWithdrawAmount(value);
-              setFormError("");
+
+const amount = parseFloat(value);
+
+if (value && !isNaN(amount) && amount > walletBalance) {
+  setFormError(
+    `Entered amount exceeds available balance (₹${walletBalance.toFixed(2)})`
+  );
+} else {
+  setFormError("");
+}
             }}
             onBlur={() => {
               // Validate on blur
-              if (withdrawAmount && !isNaN(parseFloat(withdrawAmount)) && parseFloat(withdrawAmount) > 0) {
-                // Valid amount
-                setFormError("");
-              } else if (withdrawAmount) {
+              const amount = parseFloat(withdrawAmount);
+
+if (withdrawAmount) {
+  if (isNaN(amount) || amount <= 0) {
+    setFormError("Please enter a valid amount");
+  } else if (amount > walletBalance) {
+    setFormError(
+      `Entered amount exceeds available balance (₹${walletBalance.toFixed(2)})`
+    );
+  } else {
+    setFormError("");
+  }
+} else if (withdrawAmount) {
                 setFormError("Please enter a valid amount");
               }
             }}
@@ -1283,7 +1308,7 @@ const handleWithdrawClick = () => {
       </div>
       <div className="px-4 md:px-5 pb-4 md:pb-5 pt-2 md:pt-3 border-t border-gray-100 flex-shrink-0 space-y-2 md:space-y-3">
         <div className="flex gap-2 md:gap-3">
-          <button onClick={() => setShowWithdrawPopup(false)} className="flex-1 h-9 md:h-11 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-[11px] md:text-sm">Cancel</button>
+          <button onClick={closeWithdrawPopup} className="flex-1 h-9 md:h-11 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors text-[11px] md:text-sm">Cancel</button>
           <button 
             onClick={handleWithdrawClick} 
             disabled={

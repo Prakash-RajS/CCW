@@ -24,90 +24,90 @@ function resolveProfilePicUrl(raw) {
 // Helper function to get country code from location name
 const getCountryCodeFromLocation = (location) => {
   if (!location) return null;
-  
+
   const loc = location.toLowerCase();
-  
+
   // Common country mappings
   const countryMap = {
-    'india': 'IN',
-    'bharat': 'IN',
-    'usa': 'US',
-    'united states': 'US',
-    'america': 'US',
-    'uk': 'GB',
-    'united kingdom': 'GB',
-    'england': 'GB',
-    'britain': 'GB',
-    'canada': 'CA',
-    'australia': 'AU',
-    'germany': 'DE',
-    'france': 'FR',
-    'japan': 'JP',
-    'china': 'CN',
-    'singapore': 'SG',
-    'malaysia': 'MY',
-    'thailand': 'TH',
-    'vietnam': 'VN',
-    'korea': 'KR',
-    'south korea': 'KR',
-    'brazil': 'BR',
-    'mexico': 'MX',
-    'italy': 'IT',
-    'spain': 'ES',
-    'netherlands': 'NL',
-    'sweden': 'SE',
-    'norway': 'NO',
-    'denmark': 'DK',
-    'finland': 'FI',
-    'poland': 'PL',
-    'russia': 'RU',
-    'turkey': 'TR',
-    'south africa': 'ZA',
-    'egypt': 'EG',
-    'nigeria': 'NG',
-    'kenya': 'KE',
-    'argentina': 'AR',
-    'chile': 'CL',
-    'colombia': 'CO',
-    'peru': 'PE',
-    'venezuela': 'VE',
-    'new zealand': 'NZ',
-    'ireland': 'IE',
-    'portugal': 'PT',
-    'belgium': 'BE',
-    'switzerland': 'CH',
-    'austria': 'AT',
-    'greece': 'GR',
-    'czech republic': 'CZ',
-    'hungary': 'HU',
-    'romania': 'RO',
-    'ukraine': 'UA',
-    'israel': 'IL',
-    'saudi arabia': 'SA',
-    'uae': 'AE',
-    'pakistan': 'PK',
-    'bangladesh': 'BD',
-    'sri lanka': 'LK',
-    'nepal': 'NP',
-    'indonesia': 'ID',
-    'philippines': 'PH'
+    india: "IN",
+    bharat: "IN",
+    usa: "US",
+    "united states": "US",
+    america: "US",
+    uk: "GB",
+    "united kingdom": "GB",
+    england: "GB",
+    britain: "GB",
+    canada: "CA",
+    australia: "AU",
+    germany: "DE",
+    france: "FR",
+    japan: "JP",
+    china: "CN",
+    singapore: "SG",
+    malaysia: "MY",
+    thailand: "TH",
+    vietnam: "VN",
+    korea: "KR",
+    "south korea": "KR",
+    brazil: "BR",
+    mexico: "MX",
+    italy: "IT",
+    spain: "ES",
+    netherlands: "NL",
+    sweden: "SE",
+    norway: "NO",
+    denmark: "DK",
+    finland: "FI",
+    poland: "PL",
+    russia: "RU",
+    turkey: "TR",
+    "south africa": "ZA",
+    egypt: "EG",
+    nigeria: "NG",
+    kenya: "KE",
+    argentina: "AR",
+    chile: "CL",
+    colombia: "CO",
+    peru: "PE",
+    venezuela: "VE",
+    "new zealand": "NZ",
+    ireland: "IE",
+    portugal: "PT",
+    belgium: "BE",
+    switzerland: "CH",
+    austria: "AT",
+    greece: "GR",
+    "czech republic": "CZ",
+    hungary: "HU",
+    romania: "RO",
+    ukraine: "UA",
+    israel: "IL",
+    "saudi arabia": "SA",
+    uae: "AE",
+    pakistan: "PK",
+    bangladesh: "BD",
+    "sri lanka": "LK",
+    nepal: "NP",
+    indonesia: "ID",
+    philippines: "PH",
   };
-  
+
   for (const [country, code] of Object.entries(countryMap)) {
     if (loc.includes(country)) {
       return code;
     }
   }
-  
+
   // Try to extract from last part of location (e.g., "New York, USA" -> "USA")
-  const parts = loc.split(',').map(p => p.trim());
+  const parts = loc.split(",").map((p) => p.trim());
   const lastPart = parts[parts.length - 1];
   for (const [country, code] of Object.entries(countryMap)) {
     if (lastPart.includes(country)) {
       return code;
     }
   }
-  
+
   return null;
 };
 
@@ -226,26 +226,25 @@ const MyJobs = () => {
   };
 
   const handleMessage = (e, contract) => {
-  e.stopPropagation();
-  const receiverId = contract.creator?.id || contract.creator_id;
-  const receiverName = contract.creator?.name || "Client";
+    e.stopPropagation();
+    const receiverId = contract.creator?.id || contract.creator_id;
+    const receiverName = contract.creator?.name || "Client";
 
-  if (!receiverId) {
-    toast.error("Unable to start conversation: No user ID found");
-    return;
-  }
+    if (!receiverId) {
+      toast.error("Unable to start conversation: No user ID found");
+      return;
+    }
 
-  // Change this line from "/myprojectmessage" to "/message"
-  navigate("/message", {
-    state: {
-      receiverId,
-      userName: receiverName,
-      contractId: contract.contract_id || contract.id,
-      jobTitle: contract.job_title || contract.title || "Project",
-      openConversation: true,
-    },
-  });
-};
+    navigate("/message", {
+      state: {
+        receiverId,
+        userName: receiverName,
+        contractId: contract.contract_id || contract.id,
+        jobTitle: contract.job_title || contract.title || "Project",
+        openConversation: true,
+      },
+    });
+  };
 
   const handleContractsClick = () => navigate("/all-contacts");
 
@@ -299,15 +298,15 @@ const MyJobs = () => {
   };
 
   const formatCurrency = (amount) => {
-  if (!amount) return "₹0.00";
-  
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-};
+    if (!amount) return "₹0.00";
+
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
 
   const getSkills = (contract, index) => {
     const fromJob = contract?.job_details?.skills;
@@ -320,12 +319,6 @@ const MyJobs = () => {
       ["Video Editing", "Premiere Pro", "After Effects", "Motion Graphics"],
     ];
     return fallback[index % fallback.length];
-  };
-
-  // Placeholder earnings – replace with real data if available
-  const getRandomEarnings = (index) => {
-    const earnings = ["$45k", "$76k", "$32k", "$98k", "$54k"];
-    return earnings[index % earnings.length];
   };
 
   return (
@@ -348,29 +341,29 @@ const MyJobs = () => {
       >
         <div className="absolute inset-0 bg-black/10" />
 
-       <div className="relative z-10 max-w-[1200px] mx-auto px-4 sm:px-6 md:px-8 lg:px-12 text-white">
-  <div className="pt-2 pb-3 flex items-center justify-between">
-    <button
-      onClick={() => navigate(-1)}
-      className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-white hover:text-white/80 transition-colors group"
-    >
-      <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path d="M19 12H5M12 19l-7-7 7-7" />
-        </svg>
-      </div>
-      <span className="font-medium text-sm sm:text-base">Back</span>
-    </button>
-    <h1 className="text-2xl sm:text-[26px] md:text-[28px] font-semibold">My Jobs</h1>
-  </div>
-</div>
+        <div className="relative z-10 max-w-[1200px] mx-auto px-4 sm:px-6 md:px-8 lg:px-12 text-white">
+          <div className="pt-2 pb-3 flex items-center justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-white hover:text-white/80 transition-colors group"
+            >
+              <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.5}
+                >
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </div>
+              <span className="font-medium text-sm sm:text-base">Back</span>
+            </button>
+            <h1 className="text-2xl sm:text-[26px] md:text-[28px] font-semibold">My Jobs</h1>
+          </div>
+        </div>
       </div>
 
       {/* MAIN CONTENT - Fully Responsive */}
@@ -387,45 +380,45 @@ const MyJobs = () => {
               </div>
 
               {/* STATS CARDS - Responsive */}
-             <div className="flex flex-row gap-3 sm:gap-4 md:gap-6">
-  <div className="flex-1 flex items-center gap-2 sm:gap-3 rounded-lg px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 shadow-sm">
-    <div className="w-8 h-8 sm:w-[36px] sm:h-[36px] border border-gray-200 flex items-center justify-center rounded-md bg-gray-50">
-      <img src={jobIcon} className="w-4 h-4 sm:w-[20px] sm:h-[20px]" alt="jobs" />
-    </div>
-    <div>
-      <p className="text-sm sm:text-[20px] font-bold text-gray-900">{stats.totalJobs}</p>
-      <p className="text-[10px] sm:text-[13px] text-gray-600 whitespace-nowrap">Total Jobs</p>
-    </div>
-  </div>
+              <div className="flex flex-row gap-3 sm:gap-4 md:gap-6">
+                <div className="flex-1 flex items-center gap-2 sm:gap-3 rounded-lg px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 shadow-sm">
+                  <div className="w-8 h-8 sm:w-[36px] sm:h-[36px] border border-gray-200 flex items-center justify-center rounded-md bg-gray-50">
+                    <img src={jobIcon} className="w-4 h-4 sm:w-[20px] sm:h-[20px]" alt="jobs" />
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-[20px] font-bold text-gray-900">{stats.totalJobs}</p>
+                    <p className="text-[10px] sm:text-[13px] text-gray-600 whitespace-nowrap">Total Jobs</p>
+                  </div>
+                </div>
 
-  <div
-    onClick={handleContractsClick}
-    className="flex-1 flex items-center gap-2 sm:gap-3 rounded-lg px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-  >
-    <div className="w-8 h-8 sm:w-[36px] sm:h-[36px] border border-gray-200 flex items-center justify-center rounded-md bg-gray-50">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#51218F"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="sm:w-5 sm:h-5"
-      >
-        <rect x="2" y="7" width="20" height="14" rx="2" />
-        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-        <line x1="12" y1="12" x2="12" y2="17" />
-        <line x1="9" y1="14.5" x2="15" y2="14.5" />
-      </svg>
-    </div>
-    <div>
-      <p className="text-sm sm:text-[20px] font-bold text-gray-900">{stats.totalContracts}</p>
-      <p className="text-[10px] sm:text-[13px] text-gray-600 whitespace-nowrap">Contracts</p>
-    </div>
-  </div>
-</div>
+                <div
+                  onClick={handleContractsClick}
+                  className="flex-1 flex items-center gap-2 sm:gap-3 rounded-lg px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                >
+                  <div className="w-8 h-8 sm:w-[36px] sm:h-[36px] border border-gray-200 flex items-center justify-center rounded-md bg-gray-50">
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#51218F"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="sm:w-5 sm:h-5"
+                    >
+                      <rect x="2" y="7" width="20" height="14" rx="2" />
+                      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                      <line x1="12" y1="12" x2="12" y2="17" />
+                      <line x1="9" y1="14.5" x2="15" y2="14.5" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm sm:text-[20px] font-bold text-gray-900">{stats.totalContracts}</p>
+                    <p className="text-[10px] sm:text-[13px] text-gray-600 whitespace-nowrap">Contracts</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* CONTRACTS LIST - Fully Responsive Cards */}
@@ -443,14 +436,28 @@ const MyJobs = () => {
               ) : (
                 contracts.map((contract, index) => {
                   const skills = getSkills(contract, index);
-                  const earnings = getRandomEarnings(index);
+                  // Location now comes from the creator's CreatorProfile (via backend),
+                  // not from the raw UserData record.
                   const location = contract.creator?.location || "";
                   const countryCode = getCountryCodeFromLocation(location);
+                  const contractDescription =
+                    contract.work_description?.trim() ||
+                    contract.description?.trim() ||
+                    "No description provided yet.";
 
                   return (
                     <div
                       key={contract.contract_id || contract.id || `contract-${index}`}
-                      className="bg-white rounded-xl border border-gray-200 p-4 sm:p-5 md:p-6 hover:shadow-lg transition-shadow"
+                      className="
+  bg-white
+  rounded-xl
+  border-2 border-[#E2D7F3]
+  shadow-sm
+  p-4 sm:p-5 md:p-6
+  hover:shadow-lg
+  hover:border-[#51218F]
+  transition-all duration-200
+"
                     >
                       <div className="flex flex-col sm:flex-row gap-4 md:gap-6">
                         {/* LEFT SIDE - Avatar and Details */}
@@ -477,7 +484,7 @@ const MyJobs = () => {
                             {/* Price and Status - Responsive row */}
                             <div className="flex flex-wrap items-center gap-2 mb-2">
                               <span className="text-sm sm:text-[16px] font-bold text-gray-900">
-                                {formatCurrency(contract.budget || contract.amount || 50, "hourly")}
+                                {formatCurrency(contract.budget || contract.amount || 50)}
                               </span>
 
                               <span
@@ -487,9 +494,29 @@ const MyJobs = () => {
                               </span>
                             </div>
 
-                            <p className="text-xs sm:text-[13px] text-gray-500 mb-3">
-                              Total earnings {earnings} on web and mobile design
-                            </p>
+                            {/* DESCRIPTION + DATES (replaces earnings display) */}
+                            <p className="text-xs sm:text-[13px] text-gray-600 mb-2 line-clamp-2">
+  <span className="font-semibold text-[#51218F]">
+    Description:
+  </span>{" "}
+  {contractDescription}
+</p>
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-[13px] text-gray-600 mb-3">
+  <span>
+    <span className="font-semibold text-[#51218F]">
+      Start Date:
+    </span>{" "}
+    {formatDate(contract.start_date) || "Not set"}
+  </span>
+
+  <span>
+    <span className="font-semibold text-[#51218F]">
+      End Date:
+    </span>{" "}
+    {formatDate(contract.end_date) || "Not set"}
+  </span>
+</div>
 
                             {/* SKILLS - Responsive wrapping */}
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3">
@@ -537,7 +564,7 @@ const MyJobs = () => {
                                   ({contract.creator?.reviews_count || 0} Reviews)
                                 </span>
                               </div>
-                              
+
                               {/* Dynamic Flag Display */}
                               <div className="flex items-center gap-1">
                                 {countryCode ? (
@@ -548,7 +575,7 @@ const MyJobs = () => {
                                       width: "14px",
                                       height: "10px",
                                       borderRadius: "2px",
-                                      display: "block"
+                                      display: "block",
                                     }}
                                     title={location}
                                   />

@@ -705,7 +705,7 @@ def create_job_like_notification(collaborator, creator, job):
             title=f"❤️ {collaborator.full_name or collaborator.email} liked your job",
             message=f"Job: {job.title} - They're interested in your project",
             job=job,
-            url=f"/jobs/{job.id}",
+            url=f"/job-created",
             is_read=False
         )
         logger.info(f"Created job like notification {notification.id}")
@@ -744,7 +744,7 @@ def create_job_save_notification(collaborator, creator, job):
             title=f"📌 {collaborator.full_name or collaborator.email} saved your job",
             message=f"Job: {job.title} - They're considering your project",
             job=job,
-            url=f"/jobs/{job.id}",
+            url=f"/job-created",
             is_read=False
         )
         logger.info(f"Created job save notification {notification.id}")

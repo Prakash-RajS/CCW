@@ -378,7 +378,8 @@ const CollabSubscription = () => {
   const getPlanDuration = (plan) =>
     plan.duration?.toLowerCase().includes("year") ? "year" : "month";
 
-  const hasDiscount = (plan) => plan.discount_code && plan.discount_percentage > 0;
+const hasDiscount = (plan) =>
+  Number(plan.discount_percentage) > 0;
 
   const getButtonText = (plan) => {
     if (isVerifyingPayment) return "Processing...";
@@ -467,9 +468,6 @@ const CollabSubscription = () => {
               <div className="mt-4 bg-yellow-400/10 px-4 py-2 rounded-lg border border-yellow-500/30 w-full">
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-1">
                   <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full">{plan.discount_percentage}% OFF</span>
-                  {plan.discount_code && (
-                    <span className="text-yellow-300 text-xs font-mono bg-black/30 px-2 py-0.5 rounded">{plan.discount_code}</span>
-                  )}
                 </div>
                 {plan.discount_description && <p className="text-yellow-200 text-xs text-center">{plan.discount_description}</p>}
               </div>

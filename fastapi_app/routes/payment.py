@@ -1,9 +1,10 @@
+# fastapi_app/routes/payment.py
 import os
 import hmac
 import hashlib
 import json
 import requests
-from fastapi import APIRouter, HTTPException, Request, Header
+from fastapi import APIRouter, HTTPException, Request, Header, BackgroundTasks, Query 
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 from django.utils import timezone as django_timezone
@@ -19,7 +20,7 @@ from decimal import Decimal
 import logging
 
 # ==============================================================================
-# SUPPRESS FONTTOOLS DEBUG LOGS (stops "random things" in terminal)
+# SUPPRESS FONTTOOLS DEBUG LOGS
 # ==============================================================================
 logging.getLogger("fontTools").setLevel(logging.WARNING)
 
@@ -29,6 +30,17 @@ from django.core.mail import send_mail
 from fastapi.responses import FileResponse
 from pathlib import Path
 from creator_app.models import Invoice
+
+# ============================================================
+# S3 STORAGE IMPORTS
+# ============================================================
+from fastapi_app.routes.storage import (
+    USE_S3,
+    generate_presigned_url,
+    ExpiryPreset,
+    get_s3_key_from_path,
+    delete_file,
+)
 
 # Import models
 from creator_app.models import (
@@ -50,7 +62,7 @@ load_dotenv(dotenv_path=env_path)
 
 CASHFREE_APP_ID     = os.getenv("CASHFREE_APP_ID")
 CASHFREE_SECRET_KEY = os.getenv("CASHFREE_SECRET_KEY")
-CASHFREE_ENV        = os.getenv("CASHFREE_ENV", "sandbox")   # "sandbox" | "production"
+CASHFREE_ENV        = os.getenv("CASHFREE_ENV", "sandbox")
 FRONTEND_URL        = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 BACKEND_URL = os.getenv(
     "BACKEND_BASE_URL",
@@ -266,7 +278,12 @@ async def check_subscription_expiry():
 
                     await sync_to_async(sub.save)()
 
-                    # Notification
+                    subscription_url = (
+                        "/collab-subscription"
+                        if user.role == "collaborator"
+                        else "/subscription"
+                    )
+
                     await sync_to_async(create_notification)(
                         user=user,
                         notification_type="subscription_updated",
@@ -274,7 +291,8 @@ async def check_subscription_expiry():
                         message=(
                             "Your subscription has expired. "
                             "You have been moved to the Basic plan."
-                        )
+                        ),
+                        url=subscription_url,
                     )
 
                     # Email
@@ -343,6 +361,12 @@ Renew your subscription to continue premium features.
                 if remaining_days not in sent_reminders:
 
                     # Notification
+                    subscription_url = (
+                        "/collab-subscription"
+                        if user.role == "collaborator"
+                        else "/subscription"
+                    )
+                    
                     await sync_to_async(create_notification)(
                         user=user,
                         notification_type="subscription_updated",
@@ -351,7 +375,8 @@ Renew your subscription to continue premium features.
                             f"Your plan expires in "
                             f"{remaining_days} day(s). "
                             f"Renew now."
-                        )
+                        ),
+                        url=subscription_url,
                     )
 
                     # Email
@@ -812,7 +837,7 @@ async def check_cashfree_config():
 
 
 # ==============================================================================
-# 6. CREATE CHECKOUT SESSION  (replaces Stripe checkout)
+# 6. CREATE CHECKOUT SESSION
 # ==============================================================================
 
 @router.post("/create-checkout-session")
@@ -900,11 +925,71 @@ async def create_checkout_session(data: CheckoutRequest):
 
 
 # ==============================================================================
-# 7. VERIFY PAYMENT  (called by frontend after Cashfree redirect)
+# 7. INVOICE EMAIL WRAPPER (NEW)
+# ==============================================================================
+
+def send_invoice_email_wrapper(
+    user,
+    plan,
+    amount_paid: float,
+    duration_display: str,
+    invoice_number: str,
+    order_id: str,
+    subscription,
+    request,
+):
+    """
+    Wrapper to run the async invoice email in a synchronous context.
+    """
+    import asyncio
+    try:
+        print(f"📧 [WRAPPER] Starting invoice email for {getattr(user, 'email', 'unknown')}")
+        print(f"   Invoice: {invoice_number}")
+        print(f"   Plan: {getattr(plan, 'name', 'unknown')}")
+        print(f"   Amount: {amount_paid}")
+        print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
+        
+        # Create a new event loop for this task
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        try:
+            result = loop.run_until_complete(
+                send_invoice_email_async(
+                    user=user,
+                    plan=plan,
+                    amount_paid=amount_paid,
+                    duration_display=duration_display,
+                    invoice_number=invoice_number,
+                    order_id=order_id,
+                    subscription=subscription,
+                    request=request,
+                )
+            )
+            if result:
+                print(f"✅ [WRAPPER] Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
+            else:
+                print(f"❌ [WRAPPER] Invoice email returned False for {getattr(user, 'email', 'unknown')}")
+        except Exception as e:
+            print(f"❌ [WRAPPER] Error in invoice email async execution: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            loop.close()
+    except Exception as e:
+        print(f"❌ [WRAPPER] Failed to send invoice email: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+# ==============================================================================
+# 8. VERIFY PAYMENT (UPDATED with BackgroundTasks)
 # ==============================================================================
 
 @router.get("/verify-payment")
 async def verify_payment(
+    request: Request,
+    background_tasks: BackgroundTasks,
     order_id: str,
 ):
     """
@@ -919,11 +1004,8 @@ async def verify_payment(
     # ============================================================
 
     try:
-
         cf_order = cf_get_order(order_id)
-
     except requests.HTTPError as e:
-
         return {
             "success": False,
             "error": f"Cashfree fetch error: {e.response.text}"
@@ -936,14 +1018,10 @@ async def verify_payment(
     order_status = cf_order.get("order_status", "")
 
     if order_status != "PAID":
-
         return {
             "success": False,
             "status": order_status,
-            "message": (
-                f"Payment not completed. "
-                f"Status: {order_status}"
-            ),
+            "message": f"Payment not completed. Status: {order_status}"
         }
 
     # ============================================================
@@ -951,29 +1029,19 @@ async def verify_payment(
     # ============================================================
 
     try:
-
         payments = cf_get_payments(order_id)
-
     except Exception as e:
-
         return {
             "success": False,
-            "error": (
-                f"Failed to fetch payment details: "
-                f"{str(e)}"
-            )
+            "error": f"Failed to fetch payment details: {str(e)}"
         }
 
     successful_payment = next(
-        (
-            p for p in payments
-            if p.get("payment_status") == "SUCCESS"
-        ),
+        (p for p in payments if p.get("payment_status") == "SUCCESS"),
         None
     )
 
     if not successful_payment:
-
         return {
             "success": False,
             "error": "No successful payment found"
@@ -988,41 +1056,27 @@ async def verify_payment(
     payment_type = tags.get("payment_type")
 
     if payment_type != "subscription":
-
         return {
             "success": False,
-            "error": (
-                f"Invalid payment type: "
-                f"{payment_type}"
-            )
+            "error": f"Invalid payment type: {payment_type}"
         }
 
     user_email = tags.get("user_email")
-
     plan_name = tags.get("plan_name")
-    
     role = tags.get("role")
     plan_duration = tags.get("plan_duration", "monthly")
-
-    plan = await get_plan_by_name(
-        plan_name,
-        plan_duration,
-        role,
-    )
 
     # ============================================================
     # VALIDATE TAGS
     # ============================================================
 
     if not user_email:
-
         return {
             "success": False,
             "error": "Missing user_email in order tags"
         }
 
     if not plan_name:
-
         return {
             "success": False,
             "error": "Missing plan_name in order tags"
@@ -1035,7 +1089,6 @@ async def verify_payment(
     user = await get_user_by_email(user_email)
 
     if not user:
-
         return {
             "success": False,
             "error": "User not found"
@@ -1045,15 +1098,9 @@ async def verify_payment(
     # GET PLAN
     # ============================================================
 
-    plan = await get_plan_by_name(
-        plan_name,
-        plan_duration,
-        role,
-    )
-    
+    plan = await get_plan_by_name(plan_name, plan_duration, role)
 
     if not plan:
-
         return {
             "success": False,
             "error": "Plan not found"
@@ -1063,21 +1110,15 @@ async def verify_payment(
     # PAYMENT INFO
     # ============================================================
 
-    amount_paid = float(
-        cf_order.get("order_amount", 0)
-    )
+    amount_paid = float(cf_order.get("order_amount", 0))
 
     if amount_paid <= 0:
-
         return {
             "success": False,
             "error": "Invalid payment amount"
         }
 
-    invoice_number = (
-        successful_payment.get("cf_payment_id")
-        or order_id
-    )
+    invoice_number = successful_payment.get("cf_payment_id") or order_id
 
     # ============================================================
     # DB DEDUPE
@@ -1090,7 +1131,6 @@ async def verify_payment(
     )()
 
     if existing:
-
         existing_sub = await sync_to_async(
             lambda: UserSubscription.objects.filter(
                 stripe_subscription_id=order_id
@@ -1100,11 +1140,7 @@ async def verify_payment(
         return {
             "success": True,
             "status": "already_processed",
-            "plan_name": (
-                existing_sub.plan_name
-                if existing_sub
-                else plan.name
-            ),
+            "plan_name": existing_sub.plan_name if existing_sub else plan.name,
         }
 
     # ============================================================
@@ -1112,75 +1148,69 @@ async def verify_payment(
     # ============================================================
 
     try:
-
-        subscription, duration_display, is_new = (
-            await create_user_subscription_db(
-                user=user,
-                plan=plan,
-                cf_order_id=order_id,
-                invoice_number=invoice_number,
-                amount_paid=amount_paid,
-            )
+        subscription, duration_display, is_new = await create_user_subscription_db(
+            user=user,
+            plan=plan,
+            cf_order_id=order_id,
+            invoice_number=invoice_number,
+            amount_paid=amount_paid,
         )
-
     except Exception as e:
-
         import traceback
         traceback.print_exc()
-
         return {
             "success": False,
-            "error": (
-                f"Failed to create subscription: "
-                f"{str(e)}"
-            )
+            "error": f"Failed to create subscription: {str(e)}"
         }
 
     # ============================================================
-    # NOTIFICATION + EMAIL (FIRE-AND-FORGET → SPEEDS UP RESPONSE)
+    # NOTIFICATION + EMAIL (Using BackgroundTasks)
     # ============================================================
 
     email_sent = False
- 
+
     if is_new:
- 
+
         try:
+            subscription_url = (
+                "/collab-subscription"
+                if user.role == "collaborator"
+                else "/subscription"
+            )
+
             await sync_to_async(create_notification)(
                 user=user,
                 notification_type="subscription_updated",
                 title="Subscription Activated",
-                message=(
-                    f"Your {plan.name} subscription "
-                    f"has been activated successfully."
-                ),
-                url="/subscription",
+                message=f"Your {plan.name} subscription has been activated successfully.",
+                url=subscription_url,
                 icon="subscription",
             )
         except Exception as e:
             print(f"Notification error: {e}")
- 
-        # ── Send PDF invoice asynchronously without blocking ──
+
+        # ── Send PDF invoice using BackgroundTasks ──
         try:
-            # Fire-and-forget: do NOT await, so response returns immediately
-            asyncio.create_task(
-                send_invoice_email_async(
-                    user=user,
-                    plan=plan,
-                    amount_paid=amount_paid,
-                    duration_display=duration_display,
-                    invoice_number=invoice_number,
-                    order_id=order_id,
-                    subscription=subscription,  
-                )
+            background_tasks.add_task(
+                send_invoice_email_wrapper,
+                user=user,
+                plan=plan,
+                amount_paid=amount_paid,
+                duration_display=duration_display,
+                invoice_number=invoice_number,
+                order_id=order_id,
+                subscription=subscription,
+                request=request,
             )
-            # We set email_sent = True optimistically, but actual result is background.
             email_sent = True
+            print(f"📧 Invoice email queued for {user.email}")
         except Exception as e:
             print(f"Invoice email error: {e}")
- 
+            import traceback
+            traceback.print_exc()
 
     # ============================================================
-    # SUCCESS RESPONSE (RETURNS INSTANTLY)
+    # SUCCESS RESPONSE
     # ============================================================
 
     return {
@@ -1192,57 +1222,46 @@ async def verify_payment(
         "amount_paid": amount_paid,
         "is_new_subscription": is_new,
         "email_sent": email_sent,
+        "storage_mode": "s3" if USE_S3 else "local",
     }
 
 
 # ==============================================================================
-# 8. CASHFREE WEBHOOK  (server-to-server)
+# 9. CASHFREE WEBHOOK (UPDATED with BackgroundTasks)
 # ==============================================================================
 
 @router.post("/webhook")
-async def cashfree_webhook(request: Request):
+async def cashfree_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
     """
     Cashfree posts payment events here.
-    Set notify_url = https://vanilla-occultist-gristle.ngrok-free.dev/payment/webhook
-    in your Cashfree dashboard AND in every order you create.
     """
     ensure_db_connection()
 
-    raw_body  = await request.body()
+    raw_body = await request.body()
     timestamp = request.headers.get("x-webhook-timestamp", "")
     signature = request.headers.get("x-webhook-signature", "")
 
     # Verify signature ONLY in production
-
-    if (
-        CASHFREE_ENV == "production"
-        and CASHFREE_SECRET_KEY
-        and signature
-    ):
-
-        if not verify_cashfree_signature(
-            raw_body,
-            signature,
-            timestamp
-        ):
-
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid Cashfree webhook signature"
-            )
+    if CASHFREE_ENV == "production" and CASHFREE_SECRET_KEY and signature:
+        if not verify_cashfree_signature(raw_body, signature, timestamp):
+            raise HTTPException(status_code=400, detail="Invalid Cashfree webhook signature")
+    
     try:
         event = json.loads(raw_body)
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    event_type = event.get("type", "")           # e.g. "PAYMENT_SUCCESS_WEBHOOK"
-    data        = event.get("data", {})
-    order_data  = data.get("order", {})
+    event_type = event.get("type", "")
+    data = event.get("data", {})
+    order_data = data.get("order", {})
     payment_data = data.get("payment", {})
 
-    order_id     = order_data.get("order_id", "")
+    order_id = order_data.get("order_id", "")
     order_status = order_data.get("order_status", "")
-    order_tags   = order_data.get("order_tags", {})
+    order_tags = order_data.get("order_tags", {})
 
     print(f"🔄 CF Webhook: {event_type} | order={order_id} | status={order_status}")
 
@@ -1251,73 +1270,33 @@ async def cashfree_webhook(request: Request):
     # ------------------------------------------------------------------
     event_type_lower = (event.get("type") or "").lower()
 
-    if (
-        event_type_lower == "payment_success_webhook"
-        and order_status == "PAID"
-    ):
-    
+    if event_type_lower == "payment_success_webhook" and order_status == "PAID":
+
         user_email = order_tags.get("user_email")
         plan_name = order_tags.get("plan_name")
         plan_duration = order_tags.get("plan_duration", "monthly")
-    
-        if not user_email or not plan_name:
-        
-            print(
-                f"⚠️ Missing metadata "
-                f"| email={user_email} "
-                f"| plan={plan_name}"
-            )
-    
-            return {
-                "success": True,
-                "message": "Ignored webhook"
-            }
-    
-        user = await get_user_by_email(user_email)
-    
-        if not user:
-        
-            print(
-                f"⚠️ User not found: "
-                f"{user_email}"
-            )
-    
-            return {
-                "success": True,
-                "message": "User not found"
-            }
-    
-        role = order_tags.get("role")
 
-        plan = await get_plan_by_name(
-            plan_name,
-            plan_duration,
-            role,
-        )
-    
+        if not user_email or not plan_name:
+            print(f"⚠️ Missing metadata | email={user_email} | plan={plan_name}")
+            return {"success": True, "message": "Ignored webhook"}
+
+        user = await get_user_by_email(user_email)
+
+        if not user:
+            print(f"⚠️ User not found: {user_email}")
+            return {"success": True, "message": "User not found"}
+
+        role = order_tags.get("role")
+        plan = await get_plan_by_name(plan_name, plan_duration, role)
+
         if not plan:
-        
-            print(
-                f"⚠️ Plan not found: "
-                f"{plan_name}"
-            )
-    
-            return {
-                "success": True,
-                "message": "Plan not found"
-            }
-    
-        amount_paid = float(
-            order_data.get("order_amount", 0)
-        )
-    
-        invoice_number = (
-            payment_data.get("cf_payment_id")
-            or order_id
-        )
-    
+            print(f"⚠️ Plan not found: {plan_name}")
+            return {"success": True, "message": "Plan not found"}
+
+        amount_paid = float(order_data.get("order_amount", 0))
+        invoice_number = payment_data.get("cf_payment_id") or order_id
+
         try:
-        
             already_processed = await sync_to_async(
                 lambda: UserSubscription.objects.filter(
                     stripe_subscription_id=order_id
@@ -1325,14 +1304,9 @@ async def cashfree_webhook(request: Request):
             )()
 
             if already_processed:
-            
                 print(f"⚠️ Duplicate webhook skipped: {order_id}")
+                return {"success": True, "message": "Already processed"}
 
-                return {
-                    "success": True,
-                    "message": "Already processed"
-                }
-    
             subscription, duration_display, is_new = await create_user_subscription_db(
                 user=user,
                 plan=plan,
@@ -1341,31 +1315,42 @@ async def cashfree_webhook(request: Request):
                 amount_paid=amount_paid,
             )
 
-            print(
-                f"✅ Webhook subscription processed: "
-                f"{user.email}"
-            )
-    
+            print(f"✅ Webhook subscription processed: {user.email}")
+
+            # Send invoice in background for webhook too
+            if is_new:
+                try:
+                    background_tasks.add_task(
+                        send_invoice_email_wrapper,
+                        user=user,
+                        plan=plan,
+                        amount_paid=amount_paid,
+                        duration_display=duration_display,
+                        invoice_number=invoice_number,
+                        order_id=order_id,
+                        subscription=subscription,
+                        request=request,
+                    )
+                    print(f"📧 Invoice email queued from webhook for {user.email}")
+                except Exception as e:
+                    print(f"Invoice email error in webhook: {e}")
+
         except Exception as e:
-        
-            print(
-                f"❌ Webhook subscription error: {e}"
-            )
+            print(f"❌ Webhook subscription error: {e}")
+            import traceback
+            traceback.print_exc()
 
     # ------------------------------------------------------------------
-    # PAYMENT FAILURE  (optional — log only)
+    # PAYMENT FAILURE
     # ------------------------------------------------------------------
-    elif event_type_lower in (
-        "payment_failed_webhook",
-        "payment_user_dropped_webhook",
-    ):
+    elif event_type_lower in ("payment_failed_webhook", "payment_user_dropped_webhook"):
         print(f"⚠️ Payment not completed: {order_id} | type={event_type}")
 
     return {"success": True, "event": event_type}
 
 
 # ==============================================================================
-# 9. GET USER SUBSCRIPTION
+# 10. GET USER SUBSCRIPTION
 # ==============================================================================
 
 @router.get("/user/subscription")
@@ -1377,7 +1362,6 @@ async def get_user_subscription(user_email: str):
             raise HTTPException(status_code=404, detail="User not found")
 
         await check_and_downgrade_expired_subscriptions(user)
-       
 
         @sync_to_async
         def get_subscription():
@@ -1391,11 +1375,11 @@ async def get_user_subscription(user_email: str):
         if not subscription:
             return {"has_subscription": False, "message": "No subscription found"}
 
-        now      = datetime.now(dt_timezone.utc)
+        now = datetime.now(dt_timezone.utc)
         is_active = subscription.status == "active" and (
             not subscription.plan_end_date or subscription.plan_end_date > now
         )
-        is_basic  = subscription.current_plan and "basic" in subscription.current_plan.lower()
+        is_basic = subscription.current_plan and "basic" in subscription.current_plan.lower()
 
         plan_details = None
         if subscription.plan_name:
@@ -1404,39 +1388,41 @@ async def get_user_subscription(user_email: str):
             )()
             if plan:
                 plan_details = {
-                    "id":                   plan.id,
-                    "discount_code":        plan.discount_code,
-                    "discount_percentage":  plan.discount_percentage,
+                    "id": plan.id,
+                    "discount_code": plan.discount_code,
+                    "discount_percentage": plan.discount_percentage,
                     "discount_description": plan.discount_description,
                 }
 
         return {
             "has_subscription": True,
             "subscription": {
-                "plan_name":             subscription.plan_name or "No Plan",
-                "current_plan":          subscription.current_plan or "No Plan",
-                "duration":              subscription.duration or "N/A",
-                "status":                subscription.status,
-                "is_active":             is_active,
-                "is_basic":              is_basic,
-                "plan_price":            float(subscription.plan_price) if subscription.plan_price else 0,
-                "plan_start_date":       subscription.plan_start_date,
-                "plan_end_date":         subscription.plan_end_date,
-                "renewal_date":          subscription.renewal_date,
-                "user_email":            subscription.email or user_email,
-                "days_remaining":        subscription.days_remaining if hasattr(subscription, "days_remaining") else 0,
-                "last_payment_date":     subscription.last_payment_date,
-                "last_payment_amount":   float(subscription.last_payment_amount) if subscription.last_payment_amount else 0,
-                "plan_details":          plan_details,
+                "plan_name": subscription.plan_name or "No Plan",
+                "current_plan": subscription.current_plan or "No Plan",
+                "duration": subscription.duration or "N/A",
+                "status": subscription.status,
+                "is_active": is_active,
+                "is_basic": is_basic,
+                "plan_price": float(subscription.plan_price) if subscription.plan_price else 0,
+                "plan_start_date": subscription.plan_start_date,
+                "plan_end_date": subscription.plan_end_date,
+                "renewal_date": subscription.renewal_date,
+                "user_email": subscription.email or user_email,
+                "days_remaining": subscription.days_remaining if hasattr(subscription, "days_remaining") else 0,
+                "last_payment_date": subscription.last_payment_date,
+                "last_payment_amount": float(subscription.last_payment_amount) if subscription.last_payment_amount else 0,
+                "plan_details": plan_details,
+                "storage_mode": "s3" if USE_S3 else "local",
             },
         }
     except Exception as e:
-        import traceback; traceback.print_exc()
+        import traceback
+        traceback.print_exc()
         return {"has_subscription": False, "error": str(e)}
 
 
 # ==============================================================================
-# 10. GET SUBSCRIPTION HISTORY
+# 11. GET SUBSCRIPTION HISTORY
 # ==============================================================================
 
 @router.get("/user/subscription-history")
@@ -1457,14 +1443,14 @@ async def get_user_subscription_history(user_email: str):
             "success": True,
             "history": [
                 {
-                    "id":         h.id,
-                    "plan_name":  h.plan_name,
-                    "duration":   h.duration,
+                    "id": h.id,
+                    "plan_name": h.plan_name,
+                    "duration": h.duration,
                     "plan_price": float(h.plan_price),
                     "start_date": h.start_date,
-                    "end_date":   h.end_date,
-                    "status":     h.status,
-                    "action":     h.action,
+                    "end_date": h.end_date,
+                    "status": h.status,
+                    "action": h.action,
                     "created_at": h.created_at,
                 }
                 for h in history
@@ -1475,7 +1461,7 @@ async def get_user_subscription_history(user_email: str):
 
 
 # ==============================================================================
-# 11. PLANS LIST
+# 12. PLANS LIST
 # ==============================================================================
 
 @router.get("/plans")
@@ -1491,16 +1477,16 @@ async def get_all_plans():
     return {
         "plans": [
             {
-                "id":                   p.id,
-                "name":                 p.name,
-                "description":          p.description,
-                "price":                float(p.price),
-                "duration":             p.duration,
-                "features":             p.features if hasattr(p, "features") else [],
-                "discount_code":        p.discount_code,
-                "discount_percentage":  p.discount_percentage,
+                "id": p.id,
+                "name": p.name,
+                "description": p.description,
+                "price": float(p.price),
+                "duration": p.duration,
+                "features": p.features if hasattr(p, "features") else [],
+                "discount_code": p.discount_code,
+                "discount_percentage": p.discount_percentage,
                 "discount_description": p.discount_description,
-                "discounted_price":     float(p.discounted_price),
+                "discounted_price": float(p.discounted_price),
             }
             for p in plans
         ]
@@ -1508,16 +1494,14 @@ async def get_all_plans():
 
 
 # ==============================================================================
-# 12. ENSURE SUBSCRIPTION / ADMIN ENDPOINTS
+# 13. ENSURE SUBSCRIPTION / ADMIN ENDPOINTS
 # ==============================================================================
 
 @router.get("/user/ensure-subscription")
 async def ensure_user_subscription(user_email: str):
-
     ensure_db_connection()
 
     try:
-
         user = await get_user_by_email(user_email)
 
         if not user:
@@ -1549,7 +1533,6 @@ async def ensure_user_subscription(user_email: str):
         }
 
     except Exception as e:
-
         return {
             "success": False,
             "error": str(e)
@@ -1594,7 +1577,7 @@ async def subscription_expiry_status(user_email: str):
 
 
 # ==============================================================================
-# 13. TEST ENDPOINT
+# 14. TEST ENDPOINT
 # ==============================================================================
 
 @router.get("/test")
@@ -1603,13 +1586,10 @@ async def test_payment():
     if not CASHFREE_APP_ID:
         return {"success": False, "error": "CASHFREE_APP_ID not configured"}
     try:
-        # Lightweight ping — list orders (limit 1)
-        resp = requests.get(
-            f"{CF_BASE}/orders?count=1", headers=CF_HEADERS, timeout=10
-        )
+        resp = requests.get(f"{CF_BASE}/orders?count=1", headers=CF_HEADERS, timeout=10)
         return {
-            "success":   resp.status_code < 400,
-            "env":       CASHFREE_ENV,
+            "success": resp.status_code < 400,
+            "env": CASHFREE_ENV,
             "http_code": resp.status_code,
         }
     except Exception as e:
@@ -1627,20 +1607,25 @@ async def debug_order(order_id: str):
         return {"success": False, "error": str(e)}
 
 
+# ==============================================================================
+# 15. INVOICE DOWNLOAD (UPDATED WITH S3 SUPPORT)
+# ==============================================================================
+
 @router.get("/invoice/{identifier}")
 async def download_invoice(
+    request: Request,
     identifier: str,
     invoice_number: Optional[str] = None,
     subscription_id: Optional[str] = None,
 ):
     """
-    Download invoice PDF
+    Download invoice PDF with S3 support.
+    If USE_S3=True, returns a presigned URL for the invoice.
+    If USE_S3=False, returns the PDF file directly.
     """
-
     ensure_db_connection()
 
     try:
-
         invoice = None
 
         # =====================================================
@@ -1648,7 +1633,6 @@ async def download_invoice(
         # =====================================================
 
         if invoice_number:
-
             invoice = await sync_to_async(
                 lambda: Invoice.objects.filter(
                     invoice_number=str(invoice_number)
@@ -1660,7 +1644,6 @@ async def download_invoice(
         # =====================================================
 
         if not invoice and subscription_id:
-
             invoice = await sync_to_async(
                 lambda: Invoice.objects.filter(
                     subscription_id=subscription_id
@@ -1672,7 +1655,6 @@ async def download_invoice(
         # =====================================================
 
         if not invoice:
-
             invoice = await sync_to_async(
                 lambda: Invoice.objects.filter(
                     invoice_number=str(identifier)
@@ -1684,56 +1666,440 @@ async def download_invoice(
         # =====================================================
 
         if not invoice:
-
             raise HTTPException(
                 status_code=404,
                 detail="Invoice not found"
             )
 
         # =====================================================
-        # PDF PATH
+        # GET PDF URL/PATH
         # =====================================================
 
         if not invoice.pdf_file:
-
             raise HTTPException(
                 status_code=404,
                 detail="Invoice PDF missing"
             )
 
-        pdf_path = Path(settings.MEDIA_ROOT) / str(invoice.pdf_file)
-
-        print(f"📄 Invoice path: {pdf_path}")
+        pdf_path_or_key = str(invoice.pdf_file)
 
         # =====================================================
-        # FILE EXISTS?
+        # S3 MODE - Return Presigned URL
         # =====================================================
-
-        if not pdf_path.exists():
-
-            raise HTTPException(
-                status_code=404,
-                detail=f"Invoice file not found: {pdf_path}"
+        if USE_S3:
+            # Extract S3 key from the stored path
+            s3_key = get_s3_key_from_path(pdf_path_or_key)
+            
+            # ✅ FIX: Use s3_key parameter, not file_path
+            download_url = generate_presigned_url(
+                s3_key=s3_key,  # <-- FIXED: changed from file_path to s3_key
+                expires_in=ExpiryPreset.WEEKLY,
+                force_download=True
             )
+            
+            if download_url:
+                return {
+                    "success": True,
+                    "download_url": download_url,
+                    "invoice_number": invoice.invoice_number,
+                    "storage_mode": "s3",
+                    "expires_in": "7 days"
+                }
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Invoice file not found in S3"
+                )
 
         # =====================================================
-        # RETURN PDF
+        # LOCAL MODE - Return FileResponse
         # =====================================================
+        else:
+            pdf_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
 
-        return FileResponse(
-            path=str(pdf_path),
-            media_type="application/pdf",
-            filename=pdf_path.name,
-        )
+            print(f"📄 Invoice path: {pdf_path}")
+
+            if not pdf_path.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Invoice file not found: {pdf_path}"
+                )
+
+            return FileResponse(
+                path=str(pdf_path),
+                media_type="application/pdf",
+                filename=pdf_path.name,
+            )
 
     except HTTPException:
         raise
-
     except Exception as e:
-
         print(f"❌ Invoice download error: {e}")
-
         raise HTTPException(
             status_code=500,
             detail=str(e)
         )
+
+
+# ==============================================================================
+# 16. GET INVOICE URL (Helper Endpoint) - FIXED
+# ==============================================================================
+
+# ==============================================================================
+# 16. GET INVOICE URL (Helper Endpoint) - FIXED
+# ==============================================================================
+
+@router.get("/invoice-url")
+async def get_invoice_url_endpoint(
+    request: Request,
+    identifier: str = Query(..., description="Invoice number or subscription ID"),
+    invoice_number: Optional[str] = Query(None, description="Alternative invoice number"),
+    subscription_id: Optional[str] = Query(None, description="Subscription ID (stripe_subscription_id)"),
+):
+    """
+    Get a presigned URL for an invoice (S3 mode) or local URL (local mode).
+    Accepts invoice number or subscription ID as identifier.
+    """
+    ensure_db_connection()
+
+    try:
+        invoice = None
+
+        # =====================================================
+        # 1. SEARCH USING INVOICE NUMBER (from query param)
+        # =====================================================
+        if invoice_number:
+            invoice = await sync_to_async(
+                lambda: Invoice.objects.filter(
+                    invoice_number=str(invoice_number)
+                ).first()
+            )()
+
+        # =====================================================
+        # 2. SEARCH USING SUBSCRIPTION ID (stripe_subscription_id)
+        # =====================================================
+        if not invoice and subscription_id:
+            # First, find the UserSubscription by stripe_subscription_id
+            user_subscription = await sync_to_async(
+                lambda: UserSubscription.objects.filter(
+                    stripe_subscription_id=subscription_id
+                ).first()
+            )()
+            
+            if user_subscription:
+                # Then find the invoice by subscription ID (foreign key)
+                invoice = await sync_to_async(
+                    lambda: Invoice.objects.filter(
+                        subscription=user_subscription
+                    ).first()
+                )()
+            
+            # If still not found, try using the old invoice_number field
+            if not invoice:
+                # Some invoices might have the stripe_subscription_id stored in invoice_number
+                invoice = await sync_to_async(
+                    lambda: Invoice.objects.filter(
+                        invoice_number=subscription_id
+                    ).first()
+                )()
+
+        # =====================================================
+        # 3. SEARCH USING IDENTIFIER
+        # =====================================================
+        if not invoice and identifier:
+            # Try as invoice number
+            invoice = await sync_to_async(
+                lambda: Invoice.objects.filter(
+                    invoice_number=str(identifier)
+                ).first()
+            )()
+            
+            # If not found and identifier is a number, try as ID
+            if not invoice and identifier.isdigit():
+                invoice = await sync_to_async(
+                    lambda: Invoice.objects.filter(
+                        id=int(identifier)
+                    ).first()
+                )()
+            
+            # If still not found, try to find subscription by stripe_subscription_id
+            if not invoice:
+                user_subscription = await sync_to_async(
+                    lambda: UserSubscription.objects.filter(
+                        stripe_subscription_id=identifier
+                    ).first()
+                )()
+                
+                if user_subscription:
+                    invoice = await sync_to_async(
+                        lambda: Invoice.objects.filter(
+                            subscription=user_subscription
+                        ).first()
+                    )()
+
+        # =====================================================
+        # NOT FOUND
+        # =====================================================
+        if not invoice:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Invoice not found for identifier: {identifier}"
+            )
+
+        if not invoice.pdf_file:
+            raise HTTPException(
+                status_code=404,
+                detail="Invoice PDF missing"
+            )
+
+        pdf_path_or_key = str(invoice.pdf_file)
+
+        if USE_S3:
+            s3_key = get_s3_key_from_path(pdf_path_or_key)
+            download_url = generate_presigned_url(
+                s3_key=s3_key,
+                expires_in=ExpiryPreset.WEEKLY,
+                force_download=False
+            )
+            
+            return {
+                "success": True,
+                "invoice_id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "url": download_url,
+                "storage_mode": "s3",
+                "expires_in": "7 days"
+            }
+        else:
+            base_url = str(request.base_url).rstrip("/")
+            local_url = f"{base_url}/media/{pdf_path_or_key}"
+            
+            return {
+                "success": True,
+                "invoice_id": invoice.id,
+                "invoice_number": invoice.invoice_number,
+                "url": local_url,
+                "storage_mode": "local"
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Get invoice URL error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# ==============================================================================
+# 17. DELETE INVOICE (Admin/Support)
+# ==============================================================================
+
+@router.delete("/invoice/{invoice_id}")
+async def delete_invoice(
+    invoice_id: int,
+):
+    """
+    Delete an invoice from S3 or local storage.
+    """
+    ensure_db_connection()
+
+    try:
+        invoice = await sync_to_async(
+            lambda: Invoice.objects.filter(id=invoice_id).first()
+        )()
+
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        if not invoice.pdf_file:
+            raise HTTPException(status_code=404, detail="Invoice PDF missing")
+
+        pdf_path = str(invoice.pdf_file)
+
+        # Delete from S3 or local
+        if USE_S3:
+            s3_key = get_s3_key_from_path(pdf_path)
+            deleted = delete_file(s3_key)
+        else:
+            full_path = Path(settings.MEDIA_ROOT) / pdf_path
+            if full_path.exists():
+                full_path.unlink()
+                deleted = True
+            else:
+                deleted = False
+
+        if deleted:
+            return {
+                "success": True,
+                "message": "Invoice file deleted successfully",
+                "invoice_id": invoice_id,
+                "storage_mode": "s3" if USE_S3 else "local"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Invoice file not found",
+                "invoice_id": invoice_id
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Delete invoice error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==============================================================================
+# 18. TEST INVOICE EMAIL ENDPOINT (For Debugging)
+# ==============================================================================
+
+@router.post("/test-invoice-email")
+async def test_invoice_email(
+    background_tasks: BackgroundTasks,
+    user_email: str,
+):
+    """
+    TEST ENDPOINT: Send an invoice email directly for debugging.
+    """
+    ensure_db_connection()
+
+    try:
+        user = await get_user_by_email(user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        plan = await get_plan_by_name("Pro", "monthly", user.role)
+        if not plan:
+            plan = await sync_to_async(
+                lambda: SubscriptionPlan.objects.filter(is_active=True).first()
+            )()
+
+        if not plan:
+            raise HTTPException(status_code=404, detail="No active plan found")
+
+        invoice_number = f"TEST_INV_{int(datetime.now().timestamp())}"
+        amount_paid = float(plan.price) if plan.price else 99.00
+
+        from fastapi import Request
+        dummy_request = Request({"type": "http", "headers": []})
+
+        background_tasks.add_task(
+            send_invoice_email_wrapper,
+            user=user,
+            plan=plan,
+            amount_paid=amount_paid,
+            duration_display="Monthly",
+            invoice_number=invoice_number,
+            order_id=f"TEST_ORDER_{user.id}_{int(datetime.now().timestamp())}",
+            subscription=None,
+            request=dummy_request,
+        )
+
+        return {
+            "success": True,
+            "message": f"Invoice email queued for {user.email}",
+            "invoice_number": invoice_number,
+            "plan_name": plan.name,
+            "amount": amount_paid,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Test invoice email error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==============================================================================
+# 19. TEST S3 INVOICE UPLOAD (For Debugging)
+# ==============================================================================
+
+@router.post("/test-invoice-upload")
+async def test_invoice_upload(
+    user_email: str,
+):
+    """
+    TEST ENDPOINT: Test S3 invoice upload without sending email.
+    """
+    ensure_db_connection()
+
+    try:
+        from fastapi_app.services.invoice_service import (
+            generate_invoice_pdf,
+            save_invoice_pdf,
+            build_invoice_context,
+            USE_S3
+        )
+
+        user = await get_user_by_email(user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        plan = await get_plan_by_name("Pro", "monthly", user.role)
+        if not plan:
+            plan = await sync_to_async(
+                lambda: SubscriptionPlan.objects.filter(is_active=True).first()
+            )()
+
+        if not plan:
+            raise HTTPException(status_code=404, detail="No active plan found")
+
+        invoice_number = f"TEST_INV_{int(datetime.now().timestamp())}"
+        amount_paid = float(plan.price) if plan.price else 99.00
+
+        print(f"📧 Testing invoice upload for {user_email}")
+        print(f"   Plan: {plan.name}")
+        print(f"   Invoice: {invoice_number}")
+        print(f"   Amount: {amount_paid}")
+        print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
+
+        context = build_invoice_context(
+            user=user,
+            plan=plan,
+            amount_paid=amount_paid,
+            duration_display="Monthly",
+            invoice_number=invoice_number,
+            order_id=f"TEST_ORDER_{user.id}",
+            invoice_date=None,
+        )
+
+        pdf_bytes = generate_invoice_pdf(context)
+        print(f"✅ PDF generated: {len(pdf_bytes)} bytes")
+
+        save_result = save_invoice_pdf(pdf_bytes, invoice_number)
+        
+        print(f"✅ PDF saved to: {save_result['path']}")
+        print(f"   Storage Mode: {save_result['storage_mode']}")
+
+        from fastapi_app.services.invoice_service import create_invoice_record
+        
+        invoice_record = create_invoice_record(
+            user=user,
+            subscription=None,
+            invoice_number=invoice_number,
+            amount_paid=amount_paid,
+            pdf_file_path=save_result["path"],
+            storage_mode=save_result["storage_mode"],
+        )
+
+        return {
+            "success": True,
+            "invoice_number": invoice_number,
+            "file_path": save_result["path"],
+            "storage_mode": save_result["storage_mode"],
+            "file_size": len(pdf_bytes),
+            "invoice_id": invoice_record.id if invoice_record else None,
+            "message": f"Invoice saved successfully to {save_result['storage_mode']}"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Test invoice upload error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

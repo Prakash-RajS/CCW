@@ -13,6 +13,9 @@ from random import randint
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from creator_app.models import UserData, UserLoginActivity
+from fastapi_app.routes.storage import get_profile_pic_url
+from typing import Optional
+import re
 
 from fastapi import APIRouter, HTTPException, Request, Depends, status, Response
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
@@ -91,6 +94,38 @@ def create_otp_token(email: str, otp: int, purpose: str) -> str:
     }
     return jwt.encode(payload, OTP_SECRET, algorithm=ALGORITHM)
 
+def get_user_profile_picture_url(request: Request, user: UserData) -> Optional[str]:
+    """
+    Helper function to get profile picture URL with S3 support
+    Handles various storage formats
+    """
+    if not user.profile_picture:
+        return None
+    
+    stored_path = str(user.profile_picture)
+    
+    # If it's already a full URL (http/https)
+    if stored_path.startswith(('http://', 'https://')):
+        return stored_path
+    
+    # If it's a relative path
+    if stored_path:
+        # Check if using S3
+        use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+        
+        if use_s3:
+            # Use S3 presigned URL
+            s3_key = stored_path.lstrip('/')
+            profile_url = get_profile_pic_url(s3_key)
+            if profile_url:
+                return profile_url
+        
+        # Fallback to local media path
+        base_url = str(request.base_url).rstrip('/')
+        pic_path = stored_path.lstrip('/')
+        return f"{base_url}/media/{pic_path}"
+    
+    return None
 
 def verify_otp_token(token: str, otp: int, email: str, purpose: str) -> bool:
     """Verify OTP token without server-side storage"""
@@ -443,16 +478,8 @@ def login(request: Request, response: Response, email: str, password: str):
 
     set_auth_cookies(response, access_token, refresh_token)
 
-    # ✅ PROFILE IMAGE URL
-    base_url = str(request.base_url).rstrip('/')
-    profile_picture_url = None
-
-    if user.profile_picture:
-        if hasattr(user.profile_picture, 'url'):
-            profile_picture_url = f"{base_url}{user.profile_picture.url}"
-        else:
-            pic_path = str(user.profile_picture).lstrip('/')
-            profile_picture_url = f"{base_url}/media/{pic_path}"
+    # ✅ PROFILE IMAGE URL - USING HELPER FUNCTION
+    profile_picture_url = get_user_profile_picture_url(request, user)
 
     return {
         "message": "Login successful",
@@ -687,15 +714,12 @@ def read_users_me(request: Request, current_user: UserData = Depends(get_current
     """
     Get current authenticated user details with full profile picture URL
     Now fetches location, state, and about from the appropriate profile model
+    Uses S3 presigned URLs for profile pictures with auto-expiry
     """
     ensure_db_connection()
 
-    base_url = str(request.base_url).rstrip('/')
-    profile_picture_url = None
-
-    if current_user.profile_picture:
-        pic_path = str(current_user.profile_picture).lstrip("/")
-        profile_picture_url = f"{base_url}/media/{pic_path}"
+    # ✅ PROFILE IMAGE URL - USING HELPER FUNCTION
+    profile_picture_url = get_user_profile_picture_url(request, current_user)
 
     # Try to get profile data based on user role
     location = None
@@ -922,7 +946,7 @@ def verify_forgot_password_otp(email: str, otp: int, otp_token: str):
 def reset_password(email: str, new_password: str, confirm_password: str, reset_token: str):
     """Reset password using verified reset token"""
     ensure_db_connection()
-    
+
     # Verify reset token
     try:
         payload = jwt.decode(reset_token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -932,22 +956,28 @@ def reset_password(email: str, new_password: str, confirm_password: str, reset_t
         raise HTTPException(400, "Reset token expired. Please request a new OTP.")
     except jwt.PyJWTError:
         raise HTTPException(400, "Invalid reset token")
-    
+
     if new_password != confirm_password:
         raise HTTPException(400, "Passwords do not match")
-    
+
     strong_regex = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$"
     if not re.match(strong_regex, new_password):
         raise HTTPException(400, "Weak password")
-    
+
     try:
         user = UserData.objects.get(email=email)
     except UserData.DoesNotExist:
         raise HTTPException(404, "User not found")
-    
+    # Check if new password is same as current password
+    if user.check_password(new_password):
+        raise HTTPException(
+            status_code=400,
+            detail="New password cannot be the same as your current password"
+        )
+
     user.set_password(new_password)
     user.save()
-    
+
     return {"message": "Password reset successful. You can now login with your new password."}
 
 

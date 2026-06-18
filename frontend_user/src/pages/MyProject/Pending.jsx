@@ -707,59 +707,59 @@ export default function Pending() {
           </div>
 
           {/* TABS */}
-          <div className="flex flex-col md:flex-row md:justify-center border-b border-white/20 font-semibold">
-            {/* Top row - first 3 tabs on mobile */}
-            <div className="flex justify-center text-[9px] sm:text-[11px] md:text-[17px]">
-              {tabs.slice(0, 3).map((tab) => {
-                const isActive =
-                  location.pathname === tab.path ||
-                  (tab.path === "/pendingcontracts" &&
-                    location.pathname.startsWith("/pending/"));
-                return (
-                  <button
-                    key={tab.path}
-                    onClick={() => navigate(tab.path)}
-                    className={`relative pb-1.5 md:pb-2 pt-1 px-1 sm:px-2 md:px-4 whitespace-nowrap transition-colors duration-150 flex-1 md:flex-none ${
-                      isActive
-                        ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
-                        : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
-                    }`}
-                  >
-                    {tab.name} ({statusCounts[tab.key] || 0})
-                    {isActive && (
-                      <span className="absolute bottom-0 left-2 right-2 h-[2px] md:h-[4px] bg-[#A855F7] rounded-full [box-shadow:0_0_8px_2px_rgba(168,85,247,0.8)]" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            
-            {/* Bottom row - remaining 2 tabs on mobile */}
-            <div className="flex justify-center text-[9px] sm:text-[11px] md:text-[17px] border-t border-white/20 md:border-t-0">
-              {tabs.slice(3).map((tab) => {
-                const isActive =
-                  location.pathname === tab.path ||
-                  (tab.path === "/pendingcontracts" &&
-                    location.pathname.startsWith("/pending/"));
-                return (
-                  <button
-                    key={tab.path}
-                    onClick={() => navigate(tab.path)}
-                    className={`relative pb-1.5 md:pb-2 pt-1 px-1 sm:px-2 md:px-4 whitespace-nowrap transition-colors duration-150 flex-1 md:flex-none ${
-                      isActive
-                        ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
-                        : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
-                    }`}
-                  >
-                    {tab.name} ({statusCounts[tab.key] || 0})
-                    {isActive && (
-                      <span className="absolute bottom-0 left-2 right-2 h-[2px] md:h-[4px] bg-[#A855F7] rounded-full [box-shadow:0_0_8px_2px_rgba(168,85,247,0.8)]" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+         <div className="flex flex-col md:flex-row md:justify-center border-b border-white/20 font-semibold">
+  {/* Top row - first 3 tabs on mobile & tablet */}
+  <div className="flex justify-center text-[9px] sm:text-[11px] md:text-[13px] lg:text-[16px] xl:text-[17px] md:justify-center md:gap-1 lg:gap-2">
+    {tabs.slice(0, 3).map((tab) => {
+      const isActive =
+        location.pathname === tab.path ||
+        (tab.path === "/pendingcontracts" &&
+          location.pathname.startsWith("/pending/"));
+      return (
+        <button
+          key={tab.path}
+          onClick={() => navigate(tab.path)}
+          className={`relative pb-1.5 md:pb-2 pt-1 px-1 sm:px-1.5 md:px-2.5 lg:px-3 xl:px-4 whitespace-nowrap transition-colors duration-150 flex-1 md:flex-none ${
+            isActive
+              ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
+              : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
+          }`}
+        >
+          {tab.name} ({statusCounts[tab.key] || 0})
+          {isActive && (
+            <span className="absolute bottom-0 left-1 right-1 lg:left-2 lg:right-2 h-[2px] md:h-[3px] bg-[#A855F7] rounded-full [box-shadow:0_0_8px_2px_rgba(168,85,247,0.8)]" />
+          )}
+        </button>
+      );
+    })}
+  </div>
+
+  {/* Bottom row - remaining 2 tabs on mobile & tablet */}
+  <div className="flex justify-center text-[9px] sm:text-[11px] md:text-[13px] lg:text-[16px] xl:text-[17px] md:justify-center border-t border-white/20 md:border-t-0 md:gap-1 lg:gap-2">
+    {tabs.slice(3).map((tab) => {
+      const isActive =
+        location.pathname === tab.path ||
+        (tab.path === "/pendingcontracts" &&
+          location.pathname.startsWith("/pending/"));
+      return (
+        <button
+          key={tab.path}
+          onClick={() => navigate(tab.path)}
+          className={`relative pb-1.5 md:pb-2 pt-1 px-1 sm:px-1.5 md:px-2.5 lg:px-3 xl:px-4 whitespace-nowrap transition-colors duration-150 flex-1 md:flex-none ${
+            isActive
+              ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
+              : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
+          }`}
+        >
+          {tab.name} ({statusCounts[tab.key] || 0})
+          {isActive && (
+            <span className="absolute bottom-0 left-1 right-1 lg:left-2 lg:right-2 h-[2px] md:h-[3px] bg-[#A855F7] rounded-full [box-shadow:0_0_8px_2px_rgba(168,85,247,0.8)]" />
+          )}
+        </button>
+      );
+    })}
+  </div>
+</div>
         </div>
       </div>
 

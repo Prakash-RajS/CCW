@@ -757,11 +757,13 @@
 
 
 
+# fastapi_app/routes/jobs.py
 import fastapi_app.django_setup
-
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException, Request, Query
+from fastapi.responses import FileResponse
 import os
 import re
+import mimetypes  
 from django.db import transaction
 import pycountry
 import asyncio
@@ -772,18 +774,102 @@ from django.conf import settings
 from creator_app.models import CollaboratorProfile, JobPost, UserData, Contract, Proposal, Review
 from fastapi_app.services.notification_service import create_notification
 
-# ✅ DATABASE CONNECTION MANAGEMENT (Import from dbconnection)
+# ✅ DATABASE CONNECTION MANAGEMENT
 from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
 
 # 🔒 PLAN GUARD
 from fastapi_app.routes.plan_guard import check_job_limit, check_storage_limit
 
+# ============================================================
+# S3 STORAGE IMPORTS
+# ============================================================
+from fastapi_app.routes.storage import (
+    USE_S3,
+    save_upload_file,
+    build_full_url,
+    delete_file,
+    generate_presigned_url,
+    ExpiryPreset,
+    StoragePath,
+    get_storage_path,
+    get_s3_key_from_path,
+)
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
 BASE_DIR = settings.BASE_DIR
 
 # Create a thread pool for sync operations
 thread_pool = ThreadPoolExecutor(max_workers=10)
+
+
+# ============================================================
+# S3 HELPER FUNCTIONS FOR JOB ATTACHMENTS
+# ============================================================
+async def save_job_attachment_s3(file: UploadFile, job_id: int, filename: str) -> str:
+    """
+    Save job attachment to S3 or local storage
+    S3 Folder Used: job_attachments/
+    """
+    # Clean filename
+    safe_filename = filename.replace("..", "").replace("/", "").replace("\\", "")
+    # Create unique filename
+    name, ext = os.path.splitext(safe_filename)
+    unique_filename = f"{job_id}_{int(asyncio.get_event_loop().time())}_{name}{ext}"
+    
+    if USE_S3:
+        # S3 path
+        s3_key = f"job_attachments/{unique_filename}"
+        await save_upload_file(file, s3_key)
+        return s3_key
+    else:
+        # Local storage
+        upload_dir = os.path.join(BASE_DIR, "fastapi_app", "media", "job_attachments")
+        os.makedirs(upload_dir, exist_ok=True)
+        save_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        await file.seek(0)
+        content = await file.read()
+        
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(thread_pool, lambda: open(save_path, "wb").write(content))
+        
+        # Return relative path
+        return f"job_attachments/{unique_filename}"
+
+
+async def delete_job_attachment_s3(file_path: str, user: UserData = None) -> bool:
+    """
+    Delete job attachment from S3 or local storage
+    """
+    if USE_S3:
+        # For S3, extract the key
+        s3_key = get_s3_key_from_path(file_path)
+        return delete_file(s3_key)
+    else:
+        # Local storage
+        full_path = os.path.join(BASE_DIR, "fastapi_app", "media", file_path)
+        if os.path.exists(full_path):
+            if user:
+                file_size = os.path.getsize(full_path)
+                await sync_to_async(track_file_deletion)(user, file_size)
+            os.remove(full_path)
+            return True
+        return False
+
+
+def get_job_attachment_url(request: Request, file_path: str) -> str:
+    """
+    Get URL for job attachment with S3 support
+    """
+    if not file_path:
+        return None
+    
+    return build_full_url(
+        request=request,
+        path=file_path,
+        file_type="job"
+    )
 
 
 # =========================================================
@@ -819,7 +905,7 @@ def get_country_code(country_name):
         return None
     
 # =========================================================
-# JOB SEARCH SUGGESTIONS (for autocomplete) - MUST BE BEFORE /{job_id}
+# JOB SEARCH SUGGESTIONS (for autocomplete)
 # =========================================================
 @router.get("/job-search-suggestions")
 async def job_search_suggestions(
@@ -831,18 +917,15 @@ async def job_search_suggestions(
     Get job title suggestions based on search query for autocomplete.
     Returns unique job titles that match the search term.
     """
-    print(f"🔍 Search suggestions called with search='{search}', limit={limit}")  # Debug log
+    print(f"🔍 Search suggestions called with search='{search}', limit={limit}")
     
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
     
-    # Early return for empty search
     if not search or not search.strip():
         return []
     
     search_query = search.strip()
     
-    # Only search if query has at least 2 characters
     if len(search_query) < 2:
         return []
     
@@ -850,9 +933,8 @@ async def job_search_suggestions(
         def get_suggestions():
             from django.db.models import Q
             
-            print(f"🔎 Searching for jobs containing: {search_query}")  # Debug log
+            print(f"🔎 Searching for jobs containing: {search_query}")
             
-            # Get unique job titles from posted/active jobs
             jobs = JobPost.objects.filter(
                 Q(status__in=["posted", "active"]),
                 Q(title__icontains=search_query) |
@@ -864,13 +946,12 @@ async def job_search_suggestions(
                 title__exact=''
             ).values_list('title', flat=True).distinct()[:limit]
             
-            # Clean and return results
             suggestions = []
             for job in jobs:
                 if job and job.strip() and job not in suggestions:
                     suggestions.append(job.strip())
             
-            print(f"✅ Found {len(suggestions)} suggestions: {suggestions}")  # Debug log
+            print(f"✅ Found {len(suggestions)} suggestions: {suggestions}")
             return suggestions
         
         suggestions = await sync_to_async(get_suggestions)()
@@ -882,81 +963,13 @@ async def job_search_suggestions(
         traceback.print_exc()
         return []
 
-#updated file to use only if we want to exclude jobs with active contracts from search suggestions. Otherwise, we can use the above version which is simpler and faster.
-# @router.get("/job-search-suggestions")
-# async def job_search_suggestions(
-#     request: Request,
-#     search: str = Query(default="", description="Search query"),
-#     limit: int = Query(default=10, ge=1, le=50, description="Maximum number of suggestions")
-# ):
-#     """
-#     Get job title suggestions based on search query for autocomplete.
-#     Returns unique job titles that match the search term.
-#     Only returns jobs that are NOT already assigned/contracted.
-#     """
-#     print(f"🔍 Search suggestions called with search='{search}', limit={limit}")  # Debug log
-    
-#     # Ensure database connection
-#     await sync_to_async(ensure_db_connection)()
-    
-#     # Early return for empty search
-#     if not search or not search.strip():
-#         return []
-    
-#     search_query = search.strip()
-    
-#     # Only search if query has at least 2 characters
-#     if len(search_query) < 2:
-#         return []
-    
-#     try:
-#         def get_suggestions():
-#             from django.db.models import Q
-            
-#             print(f"🔎 Searching for jobs containing: {search_query}")  # Debug log
-            
-#             # Get unique job titles from posted/active jobs that DON'T have active contracts
-#             jobs = JobPost.objects.filter(
-#                 Q(status__in=["posted", "active"]),
-#                 Q(title__icontains=search_query) |
-#                 Q(description__icontains=search_query) |
-#                 Q(skills__icontains=search_query),
-#                 # ✅ EXCLUDE JOBS WITH ACTIVE CONTRACTS
-#                 Q(has_contract=False)  # Only jobs that haven't been contracted at all
-#             ).exclude(
-#                 # ✅ EXCLUDE JOBS THAT HAVE ANY ACTIVE CONTRACTS (awaiting, in_progress, in_review)
-#                 id__in=Contract.objects.filter(
-#                     status__in=["awaiting", "in_progress", "in_review", "pending"]
-#                 ).values_list('job_id', flat=True)
-#             ).exclude(
-#                 title__isnull=True
-#             ).exclude(
-#                 title__exact=''
-#             ).values_list('title', flat=True).distinct()[:limit]
-            
-#             # Clean and return results
-#             suggestions = []
-#             for job in jobs:
-#                 if job and job.strip() and job not in suggestions:
-#                     suggestions.append(job.strip())
-            
-#             print(f"✅ Found {len(suggestions)} suggestions: {suggestions}")  # Debug log
-#             return suggestions
-        
-#         suggestions = await sync_to_async(get_suggestions)()
-#         return suggestions
-        
-#     except Exception as e:
-#         print(f"❌ Error fetching search suggestions: {str(e)}")
-#         import traceback
-#         traceback.print_exc()
-#         return []
 
 # =========================================================
-# CREATE JOB (DRAFT / POSTED)
+# CREATE JOB (DRAFT / POSTED) - UPDATED WITH S3
 # =========================================================
 @router.post("/create/{employer_id}")
 async def create_job(
+    request: Request,
     employer_id: int,
     title: str = Form(...),
     description: str = Form(...),
@@ -969,7 +982,11 @@ async def create_job(
     attachments: list[UploadFile] = File(None),
     status: str = Form(...),
 ):
-    # Ensure database connection
+    """
+    Create a new job with S3 support for attachments
+    S3 Folder Used: job_attachments/
+    File Type: job
+    """
     await sync_to_async(ensure_db_connection)()
     
     try:
@@ -984,7 +1001,7 @@ async def create_job(
         # Auto timeline
         auto_timeline = calculate_timeline(duration)
 
-        # Create job (has_contract defaults to False)
+        # Create job
         job = await sync_to_async(JobPost.objects.create)(
             employer=employer,
             title=title,
@@ -1010,31 +1027,48 @@ async def create_job(
 
         print(f"🔔 Job notification created for {employer.email}")
 
-        # Save attachments
+        # Save attachments using S3
         if attachments:
-            upload_dir = os.path.join(BASE_DIR, "fastapi_app", "media", "job_attachments")
-            os.makedirs(upload_dir, exist_ok=True)
             uploaded_files = []
+            total_new_bytes = 0
+            
+            # Calculate total size for storage limit
+            for file in attachments:
+                await file.seek(0)
+                content = await file.read()
+                total_new_bytes += len(content)
+                await file.seek(0)
+            
+            if total_new_bytes > 0:
+                await sync_to_async(check_storage_limit)(employer, total_new_bytes)
 
             for file in attachments:
-                file_content = await file.read()
-                file_size = len(file_content)
-
-                # 🔒 ADD THIS — check per file before writing to disk
-                await sync_to_async(check_storage_limit)(employer, file_size)
-
-                save_path = os.path.join(upload_dir, file.filename)
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(thread_pool, lambda: open(save_path, "wb").write(file_content))
-                uploaded_files.append(f"job_attachments/{file.filename}")
-
-                # ✅ Track after save
-                await sync_to_async(track_file_upload)(employer, save_path, file_size)
+                if file.filename:
+                    # Save attachment using S3-aware function
+                    saved_path = await save_job_attachment_s3(
+                        file, 
+                        job.id, 
+                        file.filename
+                    )
+                    uploaded_files.append(saved_path)
+                    
+                    # Track file upload for storage limits (only for local)
+                    if not USE_S3:
+                        full_path = os.path.join(BASE_DIR, "fastapi_app", "media", saved_path)
+                        if os.path.exists(full_path):
+                            file_size = os.path.getsize(full_path)
+                            await sync_to_async(track_file_upload)(employer, full_path, file_size)
 
             job.attachments = uploaded_files
             await sync_to_async(job.save)()
 
-        return {"message": "Job created successfully", "job_id": job.id, "has_contract": job.has_contract}
+        return {
+            "message": "Job created successfully", 
+            "job_id": job.id, 
+            "has_contract": job.has_contract,
+            "attachments": uploaded_files if attachments else [],
+            "storage_mode": "s3" if USE_S3 else "local"
+        }
 
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
@@ -1044,16 +1078,18 @@ async def create_job(
 
 
 # =========================================================
-# GET JOBS BY EMPLOYER WITH STATUS FILTER
+# GET JOBS BY EMPLOYER WITH STATUS FILTER (UPDATED WITH S3)
 # =========================================================
-
 @router.get("/my-jobs/{employer_id}")
-def get_my_jobs(employer_id: int, status: str = "posted"):
-    # Ensure database connection
-    ensure_db_connection()
+async def get_my_jobs(request: Request, employer_id: int, status: str = "posted"):
+    """
+    Get jobs by employer with S3 support for attachments
+    """
+    await sync_to_async(ensure_db_connection)()
 
     try:
-        employer = UserData.objects.get(id=employer_id)
+        # ✅ FIX: Use sync_to_async for all database operations
+        employer = await sync_to_async(UserData.objects.get)(id=employer_id)
 
         status = status.lower()
         if status not in ["draft", "posted"]:
@@ -1062,84 +1098,96 @@ def get_my_jobs(employer_id: int, status: str = "posted"):
                 detail="Invalid status. Allowed values: draft, posted"
             )
 
-        jobs = JobPost.objects.filter(
-            employer_id=employer_id,
-            status__iexact=status
-        ).order_by("-id")
+        # ✅ FIX: Define a synchronous function and call it with sync_to_async
+        def get_jobs_data():
+            jobs = JobPost.objects.filter(
+                employer_id=employer_id,
+                status__iexact=status
+            ).order_by("-id")
 
-        data = []
-        for job in jobs:
-            # ✅ FIXED: Get location from CreatorProfile
-            employer_location = None
-            employer_state = None
-            country_code = None
-            
-            try:
-                from creator_app.models import CreatorProfile
-                creator_profile = CreatorProfile.objects.filter(user=employer).first()
-                if creator_profile:
-                    employer_location = creator_profile.location or ""
-                    employer_state = creator_profile.state or ""
-                    if employer_location:
-                        try:
-                            country_code = get_country_code(employer_location)
-                        except:
-                            pass
-            except:
-                pass
+            data = []
+            for job in jobs:
+                # Get location from CreatorProfile
+                employer_location = None
+                employer_state = None
+                country_code = None
+                
+                try:
+                    from creator_app.models import CreatorProfile
+                    creator_profile = CreatorProfile.objects.filter(user=employer).first()
+                    if creator_profile:
+                        employer_location = creator_profile.location or ""
+                        employer_state = creator_profile.state or ""
+                        if employer_location:
+                            try:
+                                country_code = get_country_code(employer_location)
+                            except:
+                                pass
+                except:
+                    pass
 
-            # Count PROPOSALS (applications/bids from collaborators)
-            proposals_count = Proposal.objects.filter(job_id=job.id).count()
+                proposals_count = Proposal.objects.filter(job_id=job.id).count()
+                hired_count = Contract.objects.filter(job_id=job.id, status__in=["in_progress", "completed", "awaiting"]).count()
+                has_completed_contract = Contract.objects.filter(job_id=job.id, status="completed").exists()
+                
+                reviews = Review.objects.filter(recipient=employer)
+                review_count = reviews.count()
+                
+                if review_count > 0:
+                    total_rating = sum(r.rating for r in reviews)
+                    avg_rating = round(total_rating / review_count, 1)
+                else:
+                    avg_rating = 0
 
-            # Count hired (accepted proposals that became contracts)
-            hired_count = Contract.objects.filter(job_id=job.id, status__in=["in_progress", "completed", "awaiting"]).count()
+                data.append({
+                    "id": job.id,
+                    "title": job.title,
+                    "description": job.description,
+                    "skills": job.skills,
+                    "timeline": job.timeline,
+                    "duration": job.duration,
+                    "expertise_level": job.expertise_level,
+                    "budget_type": job.budget_type,
+                    "budget_from": float(job.budget_from) if job.budget_from else None,
+                    "budget_to": float(job.budget_to) if job.budget_to else None,
+                    "status": job.status,
+                    "created_at": job.created_at.isoformat() if job.created_at else None,
+                    "has_contract": job.has_contract,
+                    "has_completed_contract": has_completed_contract,
+                    "country": employer_location,
+                    "state": employer_state,
+                    "country_code": country_code,
+                    "proposals_count": proposals_count,
+                    "hired_count": hired_count,
+                    "rating": avg_rating,
+                    "reviews_count": review_count,
+                })
 
-            has_completed_contract = Contract.objects.filter(
-    job_id=job.id,
-    status="completed"
-).exists()
-            
-            # Get all reviews for this employer (creator)
-            reviews = Review.objects.filter(recipient=employer)
-            review_count = reviews.count()
-            
-            # Calculate average rating
-            if review_count > 0:
-                total_rating = sum(r.rating for r in reviews)
-                avg_rating = round(total_rating / review_count, 1)
-            else:
-                avg_rating = 0
+            return data
 
-            data.append({
-                "id": job.id,
-                "title": job.title,
-                "description": job.description,
-                "skills": job.skills,
-                "timeline": job.timeline,
-                "duration": job.duration,
-                "expertise_level": job.expertise_level,
-                "budget_type": job.budget_type,
-                "budget_from": float(job.budget_from) if job.budget_from else None,
-                "budget_to": float(job.budget_to) if job.budget_to else None,
-                "status": job.status,
-                "attachments": job.attachments,
-                "created_at": job.created_at.isoformat() if job.created_at else None,
-                "has_contract": job.has_contract,
-                "has_completed_contract": has_completed_contract,
-                "country": employer_location,
-                "state": employer_state,
-                "country_code": country_code,
-                "proposals_count": proposals_count,
-                "hired_count": hired_count,
-                "rating": avg_rating,
-                "reviews_count": review_count,
-            })
+        # ✅ FIX: Get jobs data using sync_to_async
+        jobs_data = await sync_to_async(get_jobs_data)()
+        
+        # Generate attachment URLs (this part can stay outside since it's async-safe)
+        for job_data in jobs_data:
+            # Get the actual job object to access attachments
+            job = await sync_to_async(JobPost.objects.get)(id=job_data["id"])
+            attachment_urls = []
+            if job.attachments:
+                for att in job.attachments:
+                    url = get_job_attachment_url(request, att)
+                    if url:
+                        attachment_urls.append(url)
+            job_data["attachments"] = attachment_urls
+            job_data["attachments_paths"] = job.attachments
+            job_data["storage_mode"] = "s3" if USE_S3 else "local"
 
         return {
             "employer_id": employer_id,
             "status": status,
-            "count": len(data),
-            "jobs": data
+            "count": len(jobs_data),
+            "jobs": jobs_data,
+            "storage_mode": "s3" if USE_S3 else "local"
         }
 
     except UserData.DoesNotExist:
@@ -1149,11 +1197,14 @@ def get_my_jobs(employer_id: int, status: str = "posted"):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
 # =========================================================
-# EDIT JOB
+# EDIT JOB (UPDATED WITH S3)
 # =========================================================
 @router.put("/edit/{job_id}")
 async def edit_job(
+    request: Request,
     job_id: int,
     title: str | None = Form(None),
     description: str | None = Form(None),
@@ -1166,7 +1217,11 @@ async def edit_job(
     status: str | None = Form(None),
     attachments: list[UploadFile] | None = File(None),
 ):
-    # Ensure database connection
+    """
+    Edit job with S3 support for attachments
+    S3 Folder Used: job_attachments/
+    File Type: job
+    """
     await sync_to_async(ensure_db_connection)()
     
     try:
@@ -1208,42 +1263,62 @@ async def edit_job(
             )
         job.status = status
 
+    # Handle attachments with S3
     if attachments:
-        upload_dir = os.path.join(BASE_DIR, "fastapi_app", "media", "job_attachments")
-        os.makedirs(upload_dir, exist_ok=True)
-        uploaded_files = []
-
+        # Calculate total size for storage limit
+        total_new_bytes = 0
         for file in attachments:
-            file_content = await file.read()
-            file_size = len(file_content)
+            await file.seek(0)
+            content = await file.read()
+            total_new_bytes += len(content)
+            await file.seek(0)
+        
+        if total_new_bytes > 0:
+            await sync_to_async(check_storage_limit)(job.employer, total_new_bytes)
 
-            # 🔒 ADD THIS
-            await sync_to_async(check_storage_limit)(job.employer, file_size)
+        # Delete old attachments
+        if job.attachments:
+            for old_path in job.attachments:
+                await delete_job_attachment_s3(old_path, job.employer)
 
-            save_path = os.path.join(upload_dir, file.filename)
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(thread_pool, lambda: open(save_path, "wb").write(file_content))
-            uploaded_files.append(f"job_attachments/{file.filename}")
-
-            # ✅ Track after save
-            await sync_to_async(track_file_upload)(job.employer, save_path, file_size)
+        # Save new attachments
+        uploaded_files = []
+        for file in attachments:
+            if file.filename:
+                saved_path = await save_job_attachment_s3(
+                    file, 
+                    job.id, 
+                    file.filename
+                )
+                uploaded_files.append(saved_path)
+                
+                if not USE_S3:
+                    full_path = os.path.join(BASE_DIR, "fastapi_app", "media", saved_path)
+                    if os.path.exists(full_path):
+                        file_size = os.path.getsize(full_path)
+                        await sync_to_async(track_file_upload)(job.employer, full_path, file_size)
 
         job.attachments = uploaded_files
 
     await sync_to_async(job.save)()
+    
     return {
         "message": "Job updated successfully",
         "job_id": job.id,
         "status": job.status,
-        "has_contract": job.has_contract
+        "has_contract": job.has_contract,
+        "storage_mode": "s3" if USE_S3 else "local"
     }
 
 
 # =========================================================
-# DELETE JOB
+# DELETE JOB (UPDATED WITH S3)
 # =========================================================
 @router.delete("/{job_id}/delete")
 async def delete_job(job_id: int):
+    """
+    Delete job with S3 support for attachments
+    """
     await sync_to_async(ensure_db_connection)()
 
     try:
@@ -1262,10 +1337,7 @@ async def delete_job(job_id: int):
 
         creator = job.employer
 
-        # ==================================================
-        # COLLECT USERS TO NOTIFY
-        # ==================================================
-
+        # Collect users to notify
         notified_users = set()
 
         proposals = list(
@@ -1283,10 +1355,7 @@ async def delete_job(job_id: int):
             .select_related("collaborator")
         )
 
-        # ==================================================
-        # NOTIFY CREATOR
-        # ==================================================
-
+        # Notify creator
         create_notification(
             user=creator,
             notification_type="system",
@@ -1296,22 +1365,12 @@ async def delete_job(job_id: int):
             url="/jobpost"
         )
 
-        # ==================================================
-        # NOTIFY PROPOSAL SUBMITTERS
-        # ==================================================
-
+        # Notify proposal submitters
         for proposal in proposals:
-
             collaborator = proposal.freelancer
-
-            if not collaborator:
+            if not collaborator or collaborator.id in notified_users:
                 continue
-
-            if collaborator.id in notified_users:
-                continue
-
             notified_users.add(collaborator.id)
-
             create_notification(
                 user=collaborator,
                 sender=creator,
@@ -1323,22 +1382,12 @@ async def delete_job(job_id: int):
                 url="/all-contacts"
             )
 
-        # ==================================================
-        # NOTIFY INVITED COLLABORATORS
-        # ==================================================
-
+        # Notify invited collaborators
         for invitation in invitations:
-
             collaborator = invitation.receiver
-
-            if not collaborator:
+            if not collaborator or collaborator.id in notified_users:
                 continue
-
-            if collaborator.id in notified_users:
-                continue
-
             notified_users.add(collaborator.id)
-
             create_notification(
                 user=collaborator,
                 sender=creator,
@@ -1350,22 +1399,12 @@ async def delete_job(job_id: int):
                 url="/all-contacts"
             )
 
-        # ==================================================
-        # NOTIFY CONTRACT COLLABORATORS
-        # ==================================================
-
+        # Notify contract collaborators
         for contract in contracts:
-
             collaborator = contract.collaborator
-
-            if not collaborator:
+            if not collaborator or collaborator.id in notified_users:
                 continue
-
-            if collaborator.id in notified_users:
-                continue
-
             notified_users.add(collaborator.id)
-
             create_notification(
                 user=collaborator,
                 sender=creator,
@@ -1377,91 +1416,63 @@ async def delete_job(job_id: int):
                 url="/all-contacts"
             )
 
-        # ==================================================
-        # DELETE JOB ATTACHMENTS
-        # ==================================================
-
+        # Delete job attachments from S3 or local
         if job.attachments:
-
             for file_path in job.attachments:
-
                 try:
-                    full_path = os.path.join(
-                        BASE_DIR,
-                        "fastapi_app",
-                        "media",
-                        file_path
-                    )
-
-                    if os.path.exists(full_path):
-                        os.remove(full_path)
-
+                    # Use S3-aware deletion
+                    if USE_S3:
+                        s3_key = get_s3_key_from_path(file_path)
+                        delete_file(s3_key)
+                    else:
+                        full_path = os.path.join(BASE_DIR, "fastapi_app", "media", file_path)
+                        if os.path.exists(full_path):
+                            os.remove(full_path)
                 except Exception as e:
-                    print(
-                        f"Attachment delete error: {e}"
-                    )
+                    print(f"Attachment delete error: {e}")
 
-        # ==================================================
-        # DELETE RELATED RECORDS
-        # ==================================================
+        # Delete related records
+        Proposal.objects.filter(job=job).delete()
+        Invitation.objects.filter(job=job).delete()
+        Contract.objects.filter(job=job).delete()
 
-        Proposal.objects.filter(
-            job=job
-        ).delete()
-
-        Invitation.objects.filter(
-            job=job
-        ).delete()
-
-        Contract.objects.filter(
-            job=job
-        ).delete()
-
-        # ==================================================
-        # DELETE JOB
-        # ==================================================
-
+        # Delete job
         job.delete()
 
-    await sync_to_async(
-        perform_delete
-    )()
+    await sync_to_async(perform_delete)()
 
     return {
         "success": True,
         "message": "Job and all related data deleted successfully",
-        "job_id": job_id
+        "job_id": job_id,
+        "storage_mode": "s3" if USE_S3 else "local"
     }
 
 
 # =========================================================
-# LIST ALL JOBS (ADMIN / PUBLIC)
+# LIST ALL JOBS (ADMIN / PUBLIC) - UPDATED WITH S3
 # =========================================================
 @router.get("/all")
-async def list_all_jobs(status: str | None = None):
+async def list_all_jobs(request: Request, status: str | None = None):
     """
-    Get all jobs. Can filter by status (draft, posted)
-    Returns array directly for easier frontend consumption
+    Get all jobs with S3 support for attachments
     """
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
     
     try:
         def get_jobs():
             jobs = JobPost.objects.filter(status__in=["posted", "active"]).order_by("-id")
 
-            # Only filter by status if provided and valid
             if status:
                 status_lower = status.lower()
                 if status_lower not in ["draft", "posted", "active"]:
-                    return []  # Return empty array instead of raising error
+                    return []
                 jobs = jobs.filter(status__iexact=status_lower)
 
             data = []
             for job in jobs:
                 employer = job.employer
                 
-                # Calculate rating for the employer
                 reviews = Review.objects.filter(recipient=employer)
                 review_count = reviews.count()
                 if review_count > 0:
@@ -1470,13 +1481,12 @@ async def list_all_jobs(status: str | None = None):
                 else:
                     avg_rating = 0
                 
-                # ✅ FIXED: Get location from CreatorProfile instead of UserData
+                # Get location from CreatorProfile
                 employer_location = None
                 employer_state = None
                 employer_country_code = None
                 
                 try:
-                    # Try to get location from CreatorProfile
                     from creator_app.models import CreatorProfile
                     creator_profile = CreatorProfile.objects.filter(user=employer).first()
                     if creator_profile:
@@ -1489,15 +1499,21 @@ async def list_all_jobs(status: str | None = None):
                                 pass
                 except Exception as e:
                     print(f"Could not fetch creator profile location: {e}")
-                    # Don't fail the whole job fetch - just continue with None values
                 
-                # Get employer name - handle None case
                 employer_name = "Client"
                 if employer:
                     if employer.full_name:
                         employer_name = employer.full_name
                     elif employer.email:
                         employer_name = employer.email.split('@')[0]
+                
+                # Generate attachment URLs with S3 support
+                attachment_urls = []
+                if job.attachments:
+                    for att in job.attachments:
+                        url = get_job_attachment_url(request, att)
+                        if url:
+                            attachment_urls.append(url)
                 
                 data.append({
                     "id": job.id,
@@ -1518,33 +1534,37 @@ async def list_all_jobs(status: str | None = None):
                     "budget_from": float(job.budget_from) if job.budget_from else None,
                     "budget_to": float(job.budget_to) if job.budget_to else None,
                     "status": job.status,
-                    "attachments": job.attachments if job.attachments else [],
+                    "attachments": attachment_urls,  # Now returns URLs
+                    "attachments_paths": job.attachments,  # Still return paths
                     "created_at": job.created_at.isoformat() if job.created_at else None,
                     "has_contract": job.has_contract,
+                    "storage_mode": "s3" if USE_S3 else "local"
                 })
 
-            return data  # Return array directly
+            return data
 
         jobs_data = await sync_to_async(get_jobs)()
-        
-        # Return array directly for easier frontend use
         return jobs_data
 
     except Exception as e:
         print(f"Error in list_all_jobs: {str(e)}")
         import traceback
         traceback.print_exc()
-        # Return empty array instead of throwing error
         return []
 
+
+# =========================================================
+# LIST ALL JOBS WITH PAGINATION (UPDATED WITH S3)
+# =========================================================
 @router.get("/all-paginated")
 async def list_all_jobs_paginated(
+    request: Request,
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=50),
     status: str | None = None
 ):
     """
-    Get all jobs with pagination
+    Get all jobs with pagination and S3 support
     """
     await sync_to_async(ensure_db_connection)()
     
@@ -1558,7 +1578,6 @@ async def list_all_jobs_paginated(
             
             total = jobs.count()
             
-            # Apply pagination
             start = (page - 1) * limit
             end = start + limit
             paginated_jobs = jobs[start:end]
@@ -1567,12 +1586,10 @@ async def list_all_jobs_paginated(
             for job in paginated_jobs:
                 employer = job.employer
                 
-                # Calculate rating for the employer
                 reviews = Review.objects.filter(recipient=employer)
                 review_count = reviews.count()
                 avg_rating = round(sum(r.rating for r in reviews) / review_count, 1) if review_count > 0 else 0
                 
-                # Get location from CreatorProfile
                 employer_location = None
                 employer_state = None
                 
@@ -1592,6 +1609,14 @@ async def list_all_jobs_paginated(
                     elif employer.email:
                         employer_name = employer.email.split('@')[0]
                 
+                # Generate attachment URLs
+                attachment_urls = []
+                if job.attachments:
+                    for att in job.attachments:
+                        url = get_job_attachment_url(request, att)
+                        if url:
+                            attachment_urls.append(url)
+                
                 data.append({
                     "id": job.id,
                     "employer_id": job.employer_id,
@@ -1606,7 +1631,9 @@ async def list_all_jobs_paginated(
                     "budget_type": job.budget_type,
                     "budget_from": float(job.budget_from) if job.budget_from else None,
                     "budget_to": float(job.budget_to) if job.budget_to else None,
+                    "attachments": attachment_urls,
                     "created_at": job.created_at.isoformat() if job.created_at else None,
+                    "storage_mode": "s3" if USE_S3 else "local"
                 })
             
             return {
@@ -1630,11 +1657,12 @@ async def list_all_jobs_paginated(
             "jobs": []
         }
 
+
 # =========================================================
-# GET JOBS USER IS WORKING ON (AS COLLABORATOR)
+# GET JOBS USER IS WORKING ON (UPDATED WITH S3)
 # =========================================================
 @router.get("/working/{user_id}")
-async def get_working_jobs(user_id: int, request: Request):
+async def get_working_jobs(request: Request, user_id: int):
     """
     Get all jobs where the user is working as a collaborator
     (through contracts with status = in_progress)
@@ -1651,10 +1679,13 @@ async def get_working_jobs(user_id: int, request: Request):
                 pic = user_obj.profile_picture
                 if not pic:
                     return None
-                pic_name = str(pic.name).lstrip("/")
-                if not pic_name:
-                    return None
-                return f"{base_url}/media/{pic_name}"
+                # Use build_full_url for profile picture
+                from fastapi_app.routes.storage import build_full_url
+                return build_full_url(
+                    request=request,
+                    path=pic.name if hasattr(pic, 'name') else str(pic),
+                    file_type="profile"
+                )
             except Exception:
                 return None
 
@@ -1694,19 +1725,24 @@ async def get_working_jobs(user_id: int, request: Request):
                     if contract.collaborator:
                         collaborator_name = contract.collaborator.full_name or contract.collaborator.email
 
-                    # ========== ADD THIS: Calculate creator rating ==========
+                    # Calculate creator rating
                     creator_rating = 0
                     creator_reviews_count = 0
                     
                     if employer:
-                        # Get all reviews for this creator
                         reviews = Review.objects.filter(recipient=employer)
                         if reviews.exists():
                             total_rating = sum(r.rating for r in reviews)
                             creator_rating = total_rating / reviews.count()
                             creator_reviews_count = reviews.count()
                     
-                    # ========== END ADD ==========
+                    # Generate attachment URLs
+                    attachment_urls = []
+                    if job.attachments:
+                        for att in job.attachments:
+                            url = get_job_attachment_url(request, att)
+                            if url:
+                                attachment_urls.append(url)
 
                     job_details = {
                         "skills": job.skills if hasattr(job, 'skills') else [],
@@ -1714,7 +1750,8 @@ async def get_working_jobs(user_id: int, request: Request):
                         "expertise_level": job.expertise_level if hasattr(job, 'expertise_level') else '',
                         "budget_type": job.budget_type if hasattr(job, 'budget_type') else '',
                         "budget_from": float(job.budget_from) if job.budget_from else None,
-                        "budget_to": float(job.budget_to) if job.budget_to else None
+                        "budget_to": float(job.budget_to) if job.budget_to else None,
+                        "attachments": attachment_urls
                     }
 
                     start_date = None
@@ -1748,10 +1785,8 @@ async def get_working_jobs(user_id: int, request: Request):
                             "location": employer.location if employer and hasattr(employer, 'location') else "",
                             "city": employer.city if employer and hasattr(employer, 'city') else "",
                             "profile_picture": build_pic_url(employer),
-                            # ========== ADD THESE FIELDS ==========
                             "rating": round(creator_rating, 1),
                             "reviews_count": creator_reviews_count,
-                            # ========== END ADD ==========
                         },
                         "collaborator": {
                             "id": contract.collaborator.id if contract.collaborator else None,
@@ -1761,7 +1796,8 @@ async def get_working_jobs(user_id: int, request: Request):
                         },
                         "job_details": job_details,
                         "created_at": contract.created_at.isoformat() if hasattr(contract, 'created_at') and contract.created_at else None,
-                        "updated_at": contract.updated_at.isoformat() if hasattr(contract, 'updated_at') and contract.updated_at else None
+                        "updated_at": contract.updated_at.isoformat() if hasattr(contract, 'updated_at') and contract.updated_at else None,
+                        "storage_mode": "s3" if USE_S3 else "local"
                     }
                     jobs_data.append(contract_data)
 
@@ -1791,7 +1827,7 @@ async def get_working_jobs(user_id: int, request: Request):
             "contracts": [],
             "error": str(e)
         }
-        
+
 
 # =========================================================
 # GET COLLABORATOR CONTRACT STATISTICS
@@ -1801,21 +1837,17 @@ async def get_contract_stats(collaborator_id: int):
     """
     Get statistics for contracts where the user is a collaborator
     """
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
     
     try:
         def get_stats():
-            # Verify user exists
             try:
                 user = UserData.objects.get(id=collaborator_id)
             except UserData.DoesNotExist:
                 raise HTTPException(status_code=404, detail="User not found")
             
-            # Get all contracts where this user is the collaborator
             all_contracts = Contract.objects.filter(collaborator_id=collaborator_id)
             
-            # Calculate statistics
             stats = {
                 'active': all_contracts.filter(status='in_progress').count(),
                 'completed': all_contracts.filter(status='completed').count(),
@@ -1852,29 +1884,24 @@ async def toggle_job_like(user_id: int, job_id: int):
     """
     Toggle like on a job for a collaborator
     """
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
    
     try:
         def toggle_like():
-            # Get the collaborator profile
             try:
                 collaborator = CollaboratorProfile.objects.get(user_id=user_id)
             except CollaboratorProfile.DoesNotExist:
                 raise HTTPException(status_code=404, detail="Collaborator profile not found")
            
-            # Get the job to get the employer/creator
             try:
                 job = JobPost.objects.get(id=job_id)
             except JobPost.DoesNotExist:
                 raise HTTPException(status_code=404, detail="Job not found")
            
-            # Get current liked jobs (handle both list and None)
             liked_jobs = collaborator.liked_jobs
             if liked_jobs is None:
                 liked_jobs = []
            
-            # Toggle the like
             if job_id in liked_jobs:
                 liked_jobs.remove(job_id)
                 action = 'unliked'
@@ -1884,18 +1911,14 @@ async def toggle_job_like(user_id: int, job_id: int):
                 action = 'liked'
                 message = 'Job liked successfully'
                
-                # ⭐⭐⭐ ADD NOTIFICATION WHEN JOB IS LIKED ⭐⭐⭐
                 from fastapi_app.services.notification_service import create_job_like_notification
                
-                # Get the collaborator user and job employer
                 collaborator_user = UserData.objects.get(id=user_id)
                 job_creator = job.employer
                
-                # Send notification to job creator
                 create_job_like_notification(collaborator_user, job_creator, job)
                 print(f"✅ Like notification sent for job {job_id} by user {user_id}")
            
-            # Save back to database
             collaborator.liked_jobs = liked_jobs
             collaborator.save()
            
@@ -1925,12 +1948,10 @@ async def get_liked_jobs(collaborator_id: int):
     """
     Get all jobs liked by a collaborator
     """
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
     
     try:
         def get_likes():
-            # Get the collaborator profile
             try:
                 collaborator = CollaboratorProfile.objects.get(user_id=collaborator_id)
             except CollaboratorProfile.DoesNotExist:
@@ -1940,7 +1961,6 @@ async def get_liked_jobs(collaborator_id: int):
                     'liked_jobs': []
                 }
             
-            # Get liked jobs
             liked_jobs = collaborator.liked_jobs or []
             
             return {
@@ -1963,38 +1983,48 @@ async def get_liked_jobs(collaborator_id: int):
 
 
 # =========================================================
-# GET JOB BY ID (for invitation details)
+# GET JOB BY ID (UPDATED WITH S3)
 # =========================================================
 @router.get("/{job_id}")
-async def get_job_by_id(job_id: int):
+async def get_job_by_id(request: Request, job_id: int):
     """
-    Get job details by ID
+    Get job details by ID with S3 support for attachments
     """
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
     
     try:
         def get_job_details():
             job = JobPost.objects.get(id=job_id)
             
-            # Get employer info
             employer = job.employer
             employer_name = employer.full_name or employer.email if employer else "Unknown"
             employer_profile_pic = None
             
             if employer and hasattr(employer, 'profile_picture') and employer.profile_picture:
                 try:
-                    employer_profile_pic = employer.profile_picture.url if hasattr(employer.profile_picture, 'url') else str(employer.profile_picture)
+                    from fastapi_app.routes.storage import build_full_url
+                    employer_profile_pic = build_full_url(
+                        request=request,
+                        path=employer.profile_picture.name if hasattr(employer.profile_picture, 'name') else str(employer.profile_picture),
+                        file_type="profile"
+                    )
                 except:
                     pass
             
-            # Get country code for location
             country_code = None
             if employer and employer.location:
                 try:
                     country_code = get_country_code(employer.location)
                 except:
                     pass
+            
+            # Generate attachment URLs with S3 support
+            attachment_urls = []
+            if job.attachments:
+                for att in job.attachments:
+                    url = get_job_attachment_url(request, att)
+                    if url:
+                        attachment_urls.append(url)
             
             return {
                 "id": job.id,
@@ -2008,7 +2038,8 @@ async def get_job_by_id(job_id: int):
                 "budget_from": float(job.budget_from) if job.budget_from else None,
                 "budget_to": float(job.budget_to) if job.budget_to else None,
                 "status": job.status,
-                "attachments": job.attachments,
+                "attachments": attachment_urls,  # Now returns URLs
+                "attachments_paths": job.attachments,  # Still return paths
                 "created_at": job.created_at.isoformat() if job.created_at else None,
                 "has_contract": job.has_contract,
                 "employer": {
@@ -2019,7 +2050,8 @@ async def get_job_by_id(job_id: int):
                     "state": employer.state if employer else "",
                     "country_code": country_code,
                     "profile_picture": employer_profile_pic
-                }
+                },
+                "storage_mode": "s3" if USE_S3 else "local"
             }
 
         job_data = await sync_to_async(get_job_details)()
@@ -2035,15 +2067,14 @@ async def get_job_by_id(job_id: int):
 
 
 # =========================================================
-# ✅ NEW: GET JOBS WITHOUT CONTRACTS (for inviting collaborators)
+# GET JOBS WITHOUT CONTRACTS (for inviting collaborators)
 # =========================================================
 @router.get("/available-for-invite/{employer_id}")
-async def get_available_jobs_for_invite(employer_id: int):
+async def get_available_jobs_for_invite(request: Request, employer_id: int):
     """
     Get all posted jobs for an employer that don't have contracts yet.
     These are the jobs that can be used to invite collaborators.
     """
-    # Ensure database connection
     await sync_to_async(ensure_db_connection)()
     
     try:
@@ -2052,7 +2083,6 @@ async def get_available_jobs_for_invite(employer_id: int):
         raise HTTPException(status_code=404, detail="Employer not found")
     
     def get_jobs():
-        # Get posted/active jobs without contracts
         available_jobs = JobPost.objects.filter(
             employer=employer,
             status__in=["posted", "active"],
@@ -2082,6 +2112,97 @@ async def get_available_jobs_for_invite(employer_id: int):
     return {
         "employer_id": employer_id,
         "count": len(jobs),
-        "jobs": jobs
+        "jobs": jobs,
+        "storage_mode": "s3" if USE_S3 else "local"
     }
-    
+
+
+# =========================================================
+# DOWNLOAD JOB ATTACHMENT (UPDATED WITH S3)
+# =========================================================
+@router.get("/download-attachment/{job_id}/{filename}")
+async def download_job_attachment(job_id: int, filename: str):
+    """
+    Download job attachment with S3 support
+    S3 Folder Used: job_attachments/
+    File Type: job
+    """
+    try:
+        ensure_db_connection()
+
+        job = JobPost.objects.get(id=job_id)
+
+        if not job.attachments:
+            raise HTTPException(status_code=404, detail="No attachments found for this job")
+
+        # Find the attachment
+        attachment_path = None
+        for att in job.attachments:
+            if filename == att or att.endswith(filename) or filename in att:
+                attachment_path = att
+                break
+
+        if not attachment_path:
+            for att in job.attachments:
+                if att.split('/')[-1] == filename:
+                    attachment_path = att
+                    break
+
+        if not attachment_path:
+            raise HTTPException(status_code=404, detail=f"Attachment '{filename}' not found")
+
+        if USE_S3:
+            # For S3, generate a presigned download URL
+            s3_key = get_s3_key_from_path(attachment_path)
+            download_url = generate_presigned_url(
+                file_path=s3_key,
+                expires_in=ExpiryPreset.DAILY,
+                force_download=True
+            )
+            
+            if download_url:
+                return {
+                    "download_url": download_url,
+                    "filename": filename,
+                    "storage_mode": "s3"
+                }
+            else:
+                raise HTTPException(status_code=404, detail="File not found in S3")
+        else:
+            # Local storage download
+            full_path = os.path.join(BASE_DIR, "fastapi_app", "media", attachment_path)
+
+            if not os.path.exists(full_path):
+                alt_path = os.path.join(BASE_DIR, attachment_path)
+                if os.path.exists(alt_path):
+                    full_path = alt_path
+                else:
+                    raise HTTPException(status_code=404, detail="File not found on server")
+
+            original_filename = os.path.basename(attachment_path)
+            parts = original_filename.split('_', 2)
+            if len(parts) >= 3 and parts[0].isdigit():
+                original_filename = parts[2]
+
+            mime_type, _ = mimetypes.guess_type(original_filename)
+            if not mime_type:
+                mime_type = 'application/octet-stream'
+
+            return FileResponse(
+                full_path,
+                media_type=mime_type,
+                filename=original_filename,
+                headers={
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{original_filename}"
+                }
+            )
+
+    except JobPost.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Job not found")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"❌ Download attachment error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

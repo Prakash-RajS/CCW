@@ -1,15 +1,18 @@
 # fastapi_app/routes/storage.py
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, Dict, Any, List
 import boto3
 from fastapi import UploadFile, HTTPException
 from dotenv import load_dotenv
 import logging
 from botocore.config import Config
+from botocore.exceptions import ClientError
 import mimetypes
 from enum import Enum
+import uuid
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,7 +22,7 @@ load_dotenv(dotenv_path=env_path)
 # =====================================================
 # CONFIG
 # =====================================================
-USE_S3 = False  # Set False for local dev if needed
+USE_S3 = os.getenv("USE_S3", "False").lower() == "true"  # Use environment variable
 S3_BUCKET = os.getenv("S3_BUCKET", "ccw-test-s3")
 S3_REGION = os.getenv("S3_REGION", "us-east-2")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
@@ -28,7 +31,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 if USE_S3:
     if not AWS_ACCESS_KEY_ID or not AWS_SECRET_ACCESS_KEY:
         raise RuntimeError("AWS credentials missing")
-    
+
     S3_CLIENT = boto3.client(
         "s3",
         region_name=S3_REGION,
@@ -51,7 +54,6 @@ class ExpiryPreset:
     EXTENDED = 14400     # 4 hours - for report viewing
     DAILY = 86400        # 24 hours - for patient sharing
     WEEKLY = 604800      # 7 days - for long-term access
-    MONTHLY = 2592000    # 30 days - for archival access
 
 # =====================================================
 # CCW STORAGE PATHS (from your S3 bucket)
@@ -96,6 +98,100 @@ if not USE_S3:
         path.mkdir(parents=True, exist_ok=True)
 
 # =====================================================
+# FILE TYPE DETECTION
+# =====================================================
+def detect_file_type_from_path(path: str) -> str:
+    """
+    Detect file type from S3 path or local path
+    
+    Returns:
+    - "profile" -> profile_pics
+    - "portfolio" -> portfolio_uploads
+    - "portfolio_collaborator" -> portfolio_uploads/collaborator
+    - "portfolio_creator" -> portfolio_uploads/creator
+    - "job" -> job_attachments
+    - "message" -> message_files
+    - "invoice" -> invoices
+    - "chat" -> chat_files
+    - "admin" -> admin_profiles
+    - "milestone" -> milestone_submissions
+    - "proposal" -> proposal_attachments
+    - "work_assignment" -> work_assignments
+    - "work_submission" -> work_submissions
+    """
+    if not path:
+        return "unknown"
+    
+    path_lower = path.lower()
+    
+    if "profile_pics" in path_lower:
+        return "profile"
+    elif "portfolio_uploads/collaborator" in path_lower or "portfolio_uploads\\collaborator" in path_lower:
+        return "portfolio_collaborator"
+    elif "portfolio_uploads/creator" in path_lower or "portfolio_uploads\\creator" in path_lower:
+        return "portfolio_creator"
+    elif "portfolio_uploads" in path_lower:
+        return "portfolio"
+    elif "job_attachments" in path_lower:
+        return "job"
+    elif "message_files" in path_lower:
+        return "message"
+    elif "invoices" in path_lower:
+        return "invoice"
+    elif "chat_files" in path_lower:
+        return "chat"
+    elif "admin_profiles" in path_lower:
+        return "admin"
+    elif "milestone_submissions" in path_lower:
+        return "milestone"
+    elif "proposal_attachments" in path_lower:
+        return "proposal"
+    elif "work_assignments" in path_lower:
+        return "work_assignment"
+    elif "work_submissions" in path_lower:
+        return "work_submission"
+    else:
+        return "unknown"
+
+def get_folder_for_file_type(file_type: str) -> str:
+    """Get the appropriate folder name for a file type"""
+    folder_map = {
+        "profile": "profile_pics",
+        "portfolio": "portfolio_uploads",
+        "portfolio_collaborator": "portfolio_uploads/collaborator",
+        "portfolio_creator": "portfolio_uploads/creator",
+        "job": "job_attachments",
+        "message": "message_files",
+        "invoice": "invoices",
+        "chat": "chat_files",
+        "admin": "admin_profiles",
+        "milestone": "milestone_submissions",
+        "proposal": "proposal_attachments",
+        "work_assignment": "work_assignments",
+        "work_submission": "work_submissions",
+    }
+    return folder_map.get(file_type, "unknown")
+
+def get_expiry_for_file_type(file_type: str) -> int:
+    """Get expiry time for a file type"""
+    expiry_map = {
+        "profile": ExpiryPreset.DAILY,
+        "portfolio": ExpiryPreset.WEEKLY,
+        "portfolio_collaborator": ExpiryPreset.WEEKLY,
+        "portfolio_creator": ExpiryPreset.WEEKLY,
+        "job": ExpiryPreset.DAILY,
+        "message": ExpiryPreset.STANDARD,
+        "invoice": ExpiryPreset.WEEKLY,
+        "chat": ExpiryPreset.SHORT,
+        "admin": ExpiryPreset.STANDARD,
+        "milestone": ExpiryPreset.DAILY,
+        "proposal": ExpiryPreset.WEEKLY,
+        "work_assignment": ExpiryPreset.EXTENDED,
+        "work_submission": ExpiryPreset.WEEKLY,
+    }
+    return expiry_map.get(file_type, ExpiryPreset.STANDARD)
+
+# =====================================================
 # PATH HELPERS
 # =====================================================
 def get_storage_path(storage_type: StoragePath, filename: str) -> str:
@@ -108,6 +204,81 @@ def get_storage_path(storage_type: StoragePath, filename: str) -> str:
 def extract_filename_from_path(file_path: str) -> str:
     """Extract filename from full path"""
     return Path(file_path).name
+
+def get_s3_key_from_path(file_path) -> str:
+    """
+    Extract S3 key from a file path.
+    Handles both string and Path objects safely.
+    """
+    # Convert to string first if needed
+    if file_path is None:
+        return ""
+    
+    # If it's a coroutine, return empty string
+    import asyncio
+    if asyncio.iscoroutine(file_path):
+        logger.warning(f"Received coroutine in get_s3_key_from_path: {file_path}")
+        return ""
+    
+    # Convert Path to string
+    if isinstance(file_path, Path):
+        file_path = str(file_path)
+    
+    # Ensure it's a string
+    if not isinstance(file_path, str):
+        try:
+            file_path = str(file_path)
+        except Exception:
+            logger.error(f"Cannot convert {type(file_path)} to string in get_s3_key_from_path")
+            return ""
+    
+    if not file_path:
+        return ""
+    
+    # If it's already a relative path (S3 key) and doesn't contain backslashes
+    if not Path(file_path).is_absolute() and '/' in file_path:
+        return file_path
+    
+    # Try to find the relative path from BASE_DIR
+    try:
+        return str(Path(file_path).relative_to(BASE_DIR))
+    except ValueError:
+        # If not under BASE_DIR, try LOCAL_STORAGE
+        try:
+            return str(Path(file_path).relative_to(LOCAL_STORAGE))
+        except ValueError:
+            # Return just the filename
+            return Path(file_path).name
+
+
+def ensure_string_path(file_path) -> str:
+    """
+    Ensure file_path is a string, converting from Path or coroutine if needed.
+    """
+    if file_path is None:
+        return ""
+    
+    # If it's a coroutine, return empty string (shouldn't happen)
+    import asyncio
+    if asyncio.iscoroutine(file_path):
+        logger.warning(f"Received coroutine instead of path: {file_path}")
+        return ""
+    
+    # Convert Path to string
+    if isinstance(file_path, Path):
+        return str(file_path)
+    
+    # Already a string
+    if isinstance(file_path, str):
+        return file_path
+    
+    # Try to convert to string
+    try:
+        return str(file_path)
+    except Exception:
+        logger.error(f"Cannot convert {type(file_path)} to string")
+        return ""
+
 
 # CCW-specific path helpers
 def admin_profile_path(filename: str) -> str:
@@ -165,13 +336,14 @@ async def save_upload_file(
                 "CacheControl": "no-store, no-cache, must-revalidate",
                 "ContentDisposition": "inline",
             }
-            
+
             # Add metadata for tracking
             extra_args["Metadata"] = {
                 "uploaded-via": "CCW-FastAPI",
-                "file-original-name": file.filename or "unknown"
+                "file-original-name": file.filename or "unknown",
+                "upload-timestamp": datetime.utcnow().isoformat()
             }
-            
+
             S3_CLIENT.upload_fileobj(
                 file.file,
                 S3_BUCKET,
@@ -212,6 +384,7 @@ async def save_bytes_content(
                 ContentDisposition="inline",
                 Metadata={
                     "uploaded-via": "CCW-FastAPI",
+                    "upload-timestamp": datetime.utcnow().isoformat()
                 }
             )
             logger.info(f"Bytes saved to S3: {s3_key}, size: {len(content)} bytes")
@@ -225,90 +398,130 @@ async def save_bytes_content(
             f.write(content)
         return str(file_path)
 
+# fastapi_app/routes/storage.py - Add this after save_bytes_content function
+
+def save_bytes_content_sync(
+    content: bytes, 
+    s3_key: str, 
+    content_type: str = "application/octet-stream",
+    acl: str = "private"
+):
+    """
+    Save bytes content to S3 or local storage (SYNCHRONOUS VERSION).
+    This is used in non-async contexts like invoice generation.
+    """
+    if USE_S3:
+        try:
+            S3_CLIENT.put_object(
+                Bucket=S3_BUCKET,
+                Key=s3_key,
+                Body=content,
+                ACL=acl,
+                ContentType=content_type,
+                CacheControl="no-store, no-cache, must-revalidate",
+                ContentDisposition="inline",
+                Metadata={
+                    "uploaded-via": "CCW-FastAPI",
+                    "upload-timestamp": datetime.utcnow().isoformat()
+                }
+            )
+            logger.info(f"Bytes saved to S3 (sync): {s3_key}, size: {len(content)} bytes")
+            return s3_key
+        except Exception as e:
+            logger.error(f"Failed to save bytes to S3 (sync): {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+    else:
+        file_path = Path(s3_key)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(file_path, "wb") as f:
+            f.write(content)
+        logger.info(f"Bytes saved locally (sync): {file_path}")
+        return str(file_path)
+
 # =====================================================
 # CCW-SPECIFIC SAVE FUNCTIONS
 # =====================================================
 async def save_admin_profile(file: UploadFile, admin_id: str) -> str:
     """Save admin profile document"""
     file_extension = Path(file.filename).suffix if file.filename else ".pdf"
-    filename = f"admin_{admin_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"admin_{admin_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = admin_profile_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_chat_file(file: UploadFile, chat_id: str, user_id: str) -> str:
     """Save chat file attachment"""
     file_extension = Path(file.filename).suffix if file.filename else ".bin"
-    filename = f"chat_{chat_id}_user_{user_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"chat_{chat_id}_user_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = chat_file_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_invoice(file: UploadFile, invoice_id: str) -> str:
     """Save invoice document"""
     file_extension = Path(file.filename).suffix if file.filename else ".pdf"
-    filename = f"invoice_{invoice_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"invoice_{invoice_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = invoice_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_job_attachment(file: UploadFile, job_id: str, user_id: str) -> str:
     """Save job attachment"""
     file_extension = Path(file.filename).suffix if file.filename else ".bin"
-    filename = f"job_{job_id}_user_{user_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"job_{job_id}_user_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = job_attachment_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_message_file(file: UploadFile, message_id: str) -> str:
     """Save message file attachment"""
     file_extension = Path(file.filename).suffix if file.filename else ".bin"
-    filename = f"message_{message_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"message_{message_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = message_file_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_milestone_submission(file: UploadFile, milestone_id: str, user_id: str) -> str:
     """Save milestone submission"""
     file_extension = Path(file.filename).suffix if file.filename else ".zip"
-    filename = f"milestone_{milestone_id}_user_{user_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"milestone_{milestone_id}_user_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = milestone_submission_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_portfolio_upload_collaborator(file: UploadFile, user_id: str, portfolio_id: str) -> str:
     """Save collaborator portfolio upload"""
     file_extension = Path(file.filename).suffix if file.filename else ".pdf"
-    filename = f"collaborator_{user_id}_portfolio_{portfolio_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"collaborator_{user_id}_portfolio_{portfolio_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = portfolio_upload_collaborator_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_portfolio_upload_creator(file: UploadFile, user_id: str, portfolio_id: str) -> str:
     """Save creator portfolio upload"""
     file_extension = Path(file.filename).suffix if file.filename else ".pdf"
-    filename = f"creator_{user_id}_portfolio_{portfolio_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"creator_{user_id}_portfolio_{portfolio_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = portfolio_upload_creator_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_profile_pic(file: UploadFile, user_id: str) -> str:
     """Save profile picture"""
     file_extension = Path(file.filename).suffix if file.filename else ".jpg"
-    filename = f"user_{user_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"user_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = profile_pic_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_proposal_attachment(file: UploadFile, proposal_id: str, user_id: str) -> str:
     """Save proposal attachment"""
     file_extension = Path(file.filename).suffix if file.filename else ".pdf"
-    filename = f"proposal_{proposal_id}_user_{user_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"proposal_{proposal_id}_user_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = proposal_attachment_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_work_assignment(file: UploadFile, assignment_id: str) -> str:
     """Save work assignment document"""
     file_extension = Path(file.filename).suffix if file.filename else ".pdf"
-    filename = f"assignment_{assignment_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"assignment_{assignment_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = work_assignment_path(filename)
     return await save_upload_file(file, s3_key)
 
 async def save_work_submission(file: UploadFile, submission_id: str, user_id: str) -> str:
     """Save work submission"""
     file_extension = Path(file.filename).suffix if file.filename else ".zip"
-    filename = f"submission_{submission_id}_user_{user_id}_{os.urandom(4).hex()}{file_extension}"
+    filename = f"submission_{submission_id}_user_{user_id}_{uuid.uuid4().hex[:8]}{file_extension}"
     s3_key = work_submission_path(filename)
     return await save_upload_file(file, s3_key)
 
@@ -317,6 +530,9 @@ async def save_work_submission(file: UploadFile, submission_id: str, user_id: st
 # =====================================================
 def delete_file(s3_key: str):
     """Delete file from S3 or local storage"""
+    if not s3_key:
+        return False
+    
     if USE_S3:
         try:
             # Check if file exists first
@@ -324,7 +540,7 @@ def delete_file(s3_key: str):
             S3_CLIENT.delete_object(Bucket=S3_BUCKET, Key=s3_key)
             logger.info(f"File deleted from S3: {s3_key}")
             return True
-        except S3_CLIENT.exceptions.ClientError as e:
+        except ClientError as e:
             if e.response['Error']['Code'] == '404':
                 logger.warning(f"File not found in S3: {s3_key}")
                 return False
@@ -346,62 +562,132 @@ def delete_file_by_path(storage_type: StoragePath, filename: str):
 # PRE-SIGNED URL WITH AUTO EXPIRE
 # =====================================================
 def generate_presigned_url(
-    s3_key: str,
-    expires_in: int = ExpiryPreset.STANDARD,  # Default: 1 hour
+    s3_key: str,  # <-- First parameter should be s3_key
+    expires_in: int = ExpiryPreset.STANDARD,
     force_download: bool = False
 ) -> Optional[str]:
     """
     Generate presigned URL that AUTO EXPIRES after specified time.
-    
+
     Args:
         s3_key: S3 object key
         expires_in: Seconds until URL expires (default: 3600 = 1 hour)
         force_download: If True, browser will download instead of displaying
-    
+
     Returns:
         Presigned URL string or None if file not found
     """
     if not USE_S3:
-        return f"/static/{s3_key}"
-    
+        return f"/media/{s3_key}"
+
     if not s3_key or not s3_key.strip():
         logger.warning("Empty S3 key provided for presigned URL")
         return None
-    
+
     try:
-        # Fetch metadata to get real content-type
         head = S3_CLIENT.head_object(Bucket=S3_BUCKET, Key=s3_key)
         content_type = head.get("ContentType") or mimetypes.guess_type(s3_key)[0]
-        
+
         params = {
             "Bucket": S3_BUCKET,
             "Key": s3_key,
             "ResponseCacheControl": "no-store, no-cache, must-revalidate, max-age=0",
             "ResponseExpires": "0",
         }
-        
+
         if content_type:
             params["ResponseContentType"] = content_type
-        
+
         if force_download:
             filename = extract_filename_from_path(s3_key)
             params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
-        
+
         url = S3_CLIENT.generate_presigned_url(
             ClientMethod="get_object",
             Params=params,
             ExpiresIn=expires_in,
         )
-        
+
         logger.info(f"Generated presigned URL for: {s3_key} (expires in {expires_in}s)")
         return url
-    
-    except S3_CLIENT.exceptions.ClientError as e:
+
+    except ClientError as e:
         if e.response['Error']['Code'] == '404':
             logger.warning(f"File not found for presigned URL: {s3_key}")
             return None
         logger.error(f"Failed to generate presigned URL for '{s3_key}': {str(e)}")
         return None
+
+# =====================================================
+# BUILD FULL URL - MAIN HELPER FUNCTION
+# =====================================================
+def build_full_url(
+    request: Request,
+    path: str | None,
+    file_type: str = "auto"
+) -> str | None:
+    """
+    Build full URL with S3 support for different file types
+    
+    This is the main function to use when you need to generate a URL for a file.
+    It automatically handles S3 vs local storage and applies appropriate expiry times.
+    
+    Args:
+        request: FastAPI Request object
+        path: File path (S3 key or local path)
+        file_type: Type of file for appropriate URL generation
+                  Options: "profile", "portfolio", "portfolio_collaborator", 
+                          "portfolio_creator", "job", "message", "invoice", 
+                          "chat", "admin", "milestone", "proposal", 
+                          "work_assignment", "work_submission", "auto"
+        
+    Returns:
+        Full URL string or None
+    """
+    if not path:
+        return None
+    
+    # Auto-detect file type if not specified
+    if file_type == "auto":
+        file_type = detect_file_type_from_path(path)
+    
+    # If using S3, generate presigned URL
+    if USE_S3:
+        # Extract the S3 key from the path
+        s3_key = get_s3_key_from_path(path)
+        
+        # Get expiry time based on file type
+        expires_in = get_expiry_for_file_type(file_type)
+        
+        # Generate presigned URL
+        return generate_presigned_url(s3_key, expires_in=expires_in)
+    
+    else:
+        # Local storage - return URL path
+        # Clean up the path to be relative to media
+        media_path = path
+        
+        # Check if path is already relative to LOCAL_STORAGE
+        try:
+            rel_path = str(Path(path).relative_to(LOCAL_STORAGE))
+            media_path = rel_path
+        except ValueError:
+            # If path is absolute but not under LOCAL_STORAGE, try to extract
+            for folder in LOCAL_PATHS.values():
+                if str(folder) in path:
+                    try:
+                        media_path = str(Path(path).relative_to(LOCAL_STORAGE))
+                        break
+                    except ValueError:
+                        continue
+        
+        # If path doesn't start with media, add it
+        if not media_path.startswith("media/"):
+            media_path = f"media/{media_path}"
+        
+        # Build full URL
+        base_url = str(request.base_url).rstrip("/")
+        return f"{base_url}/{media_path}".replace("\\", "/")
 
 # =====================================================
 # CCW-SPECIFIC URL GENERATORS (with pre-set expiry)
@@ -431,8 +717,8 @@ def get_milestone_submission_url(s3_key: str) -> Optional[str]:
     return generate_presigned_url(s3_key, expires_in=ExpiryPreset.DAILY)
 
 def get_portfolio_upload_url(s3_key: str) -> Optional[str]:
-    """Get portfolio upload URL - expires in 30 days"""
-    return generate_presigned_url(s3_key, expires_in=ExpiryPreset.MONTHLY)
+    """Get portfolio upload URL - expires in 7 days"""
+    return generate_presigned_url(s3_key, expires_in=ExpiryPreset.WEEKLY)
 
 def get_profile_pic_url(s3_key: str) -> Optional[str]:
     """Get profile picture URL - expires in 24 hours"""
@@ -470,7 +756,7 @@ def read_file_bytes(s3_key: str) -> bytes:
                 Key=s3_key,
             )
             return response["Body"].read()
-        except S3_CLIENT.exceptions.ClientError as e:
+        except ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchKey':
                 raise HTTPException(status_code=404, detail=f"File not found: {s3_key}")
             raise HTTPException(status_code=500, detail=f"Failed to read file: {str(e)}")
@@ -491,7 +777,7 @@ def get_file_info(s3_key: str) -> dict:
                 "last_modified": response.get("LastModified", None),
                 "etag": response.get("ETag", "").strip('"'),
             }
-        except S3_CLIENT.exceptions.ClientError as e:
+        except ClientError as e:
             if e.response['Error']['Code'] == '404':
                 return None
             raise
@@ -538,7 +824,7 @@ async def bulk_upload_work_submissions(files: list[UploadFile], submission_id: s
 def get_all_files_in_folder(storage_type: StoragePath) -> list[str]:
     """List all files in a specific storage folder"""
     prefix = f"{storage_type.value}/"
-    
+
     if USE_S3:
         try:
             response = S3_CLIENT.list_objects_v2(
@@ -591,3 +877,55 @@ def get_files_by_prefix(prefix: str) -> list[dict]:
                     })
             return files
         return []
+
+# =====================================================
+# HEALTH CHECK ENDPOINT
+# =====================================================
+@router.get("/storage/health")
+async def storage_health_check():
+    """Check storage configuration status"""
+    return {
+        "storage_mode": "s3" if USE_S3 else "local",
+        "use_s3": USE_S3,
+        "bucket": S3_BUCKET if USE_S3 else None,
+        "region": S3_REGION if USE_S3 else None,
+        "local_storage_path": str(LOCAL_STORAGE),
+        "local_directories": {k: str(v) for k, v in LOCAL_PATHS.items()},
+        "folders_ready": all(p.exists() for p in LOCAL_PATHS.values()) if not USE_S3 else True
+    }
+
+# =====================================================
+# MEDIA FILE SERVING FOR LOCAL STORAGE
+# =====================================================
+if not USE_S3:
+    from fastapi.responses import FileResponse
+    
+    @router.get("/media/{file_path:path}")
+    async def serve_media(file_path: str):
+        """Serve media files from local storage (only when not using S3)"""
+        local_file = LOCAL_STORAGE / file_path
+        
+        # Check for security - prevent path traversal
+        try:
+            resolved_path = local_file.resolve()
+            if not str(resolved_path).startswith(str(LOCAL_STORAGE.resolve())):
+                raise HTTPException(status_code=403, detail="Access denied")
+        except Exception:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        if not local_file.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Get MIME type
+        mime_type, _ = mimetypes.guess_type(str(local_file))
+        if not mime_type:
+            mime_type = "application/octet-stream"
+        
+        return FileResponse(
+            path=local_file,
+            media_type=mime_type,
+            headers={
+                "Cache-Control": "public, max-age=86400",
+                "Access-Control-Allow-Origin": "*",
+            }
+        )

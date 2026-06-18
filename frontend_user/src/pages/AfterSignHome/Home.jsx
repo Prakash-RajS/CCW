@@ -1352,10 +1352,6 @@ const ratingsMap =
       const platform =
         item.skill_category || item.profession || item.creator_type || "";
       const about = item.about || item.description || item.bio || "";
-      const followers =
-        item.followers !== undefined && item.followers !== null
-          ? Number(item.followers)
-          : 0;
 
       let hourlyRate = "₹0.00 /hr";
       if (item.formatted_rate) {
@@ -1471,35 +1467,39 @@ const ratingsMap =
       ratingValue = Math.round(Math.min(5, Math.max(0, ratingValue)) * 10) / 10;
 
       const skillRatingRaw =
-        item.skill_rating !== undefined && item.skill_rating !== null
-          ? Number(item.skill_rating)
-          : item.skills_rating !== undefined && item.skills_rating !== null
-            ? Number(item.skills_rating)
-            : 0;
-      const skillRatingOutOf100 = Math.round(
-        Math.min(100, Math.max(0, skillRatingRaw)),
-      );
+  item.skill_rating !== undefined && item.skill_rating !== null
+    ? Number(item.skill_rating)
+    : item.skills_rating !== undefined && item.skills_rating !== null
+      ? Number(item.skills_rating)
+      : 0;
+const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 10) / 10;
 
       return {
-        id: item.user_id || item.id || item._id || index + 100,
-        name: item.full_name || item.name || "Collaborator",
-        jobTitle,
-        hourlyRate,
-        about,
-        followers,
-        platform,
-        ratingValue,
-        reviewsCount,
-        location,
-        countryCode,
-        isOnline:
-          item.is_online !== undefined ? item.is_online : Math.random() > 0.3,
-        skills: displaySkills,
-        dpImage,
-        badge,
-        rawData: item,
-        skillRatingOutOf100,
-      };
+  id: item.user_id || item.id || item._id || index + 100,
+  name: item.full_name || item.name || "Collaborator",
+  jobTitle,
+
+  expertiseLevel:
+    item.expertise_level ||
+    item.experience ||
+    item.rawData?.expertise_level ||
+    "Intermediate",
+
+  hourlyRate,
+  about,
+  platform,
+  ratingValue,
+  reviewsCount,
+  location,
+  countryCode,
+  isOnline:
+    item.is_online !== undefined ? item.is_online : Math.random() > 0.3,
+  skills: displaySkills,
+  dpImage,
+  badge,
+  rawData: item,
+  skillRatingOutOf5,
+};
     });
   };
 
@@ -1947,10 +1947,9 @@ const ratingsMap =
     return count.toString();
   };
 
-  const getSkillStars = (skillRatingOutOf100) => {
-    const starRating = skillRatingOutOf100 / 20;
-    return Math.round(starRating * 10) / 10;
-  };
+  const getSkillStars = (ratingOutOf5) => {
+  return Math.round(ratingOutOf5 * 10) / 10;
+};
 
   return (
     <div className="w-full min-h-screen flex flex-col overflow-x-hidden">
@@ -2151,7 +2150,7 @@ const ratingsMap =
                     ? availableSkills.slice(4, 8)
                     : [];
                   const skillStarRating = getSkillStars(
-                    profile.skillRatingOutOf100 || 0,
+                    profile.skillRatingOutOf5 || 0,
                   );
 
                   return (
@@ -2193,6 +2192,7 @@ const ratingsMap =
                               <p className="font-outfit text-[12px] lg:text-[14px] text-black/60 mt-0.5">
                                 {profile.jobTitle}
                               </p>
+                              
                               {/* Improved About, Followers, Skill Rating Section */}
                               {/* Improved About, Followers, Skill Rating Section */}
                               <div className="mt-3 space-y-2">
@@ -2211,95 +2211,58 @@ const ratingsMap =
                                     </div>
                                   )}
 
-                                {/* Followers Section */}
-                                {profile.followers > 0 && (
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                                    <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
-                                      Followers:
-                                    </span>
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] lg:text-[12px] text-black/70">
-                                      <svg
-                                        width="12"
-                                        height="12"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                      >
-                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                        <circle cx="9" cy="7" r="4" />
-                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                                      </svg>
-                                      <span className="font-medium">
-                                        {formatFollowers(profile.followers)}{" "}
-                                        followers
-                                      </span>
-                                    </span>
-                                  </div>
-                                )}
+                                {/* Expertise Level Section */}
+<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+  <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
+    Expertise:
+  </span>
 
-                                {/* Skill Rating Section */}
-                                {profile.skillRatingOutOf100 > 0 && (
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                                    <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
-                                      Skill Rating:
-                                    </span>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <div className="flex items-center gap-0.5">
-                                        {[1, 2, 3, 4, 5].map((_, i) => (
-                                          <svg
-                                            key={i}
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 12 12"
-                                          >
-                                            <defs>
-                                              <linearGradient
-                                                id={`half-skill-${profile.id}-${i}`}
-                                                x1="0%"
-                                                y1="0%"
-                                                x2="100%"
-                                                y2="0%"
-                                              >
-                                                <stop
-                                                  offset="50%"
-                                                  stopColor="#FFD700"
-                                                />
-                                                <stop
-                                                  offset="50%"
-                                                  stopColor="#E5E7EB"
-                                                />
-                                              </linearGradient>
-                                            </defs>
-                                            <path
-                                              d="M6 1L7.545 4.13L11 4.635L8.5 7.07L9.09 10.51L6 8.885L2.91 10.51L3.5 7.07L1 4.635L4.455 4.13L6 1Z"
-                                              fill={
-                                                i < Math.floor(skillStarRating)
-                                                  ? "#FFD700"
-                                                  : i <
-                                                    Math.ceil(
-                                                      skillStarRating,
-                                                    ) &&
-                                                    skillStarRating % 1 !== 0
-                                                    ? `url(#half-skill-${profile.id}-${i})`
-                                                    : "#E5E7EB"
-                                              }
-                                              stroke="#FFD700"
-                                              strokeWidth="0.3"
-                                            />
-                                          </svg>
-                                        ))}
-                                      </div>
-                                      <span className="text-[10px] lg:text-[11px] text-gray-600 font-medium">
-                                        {skillStarRating.toFixed(1)} ★
-                                      </span>
-                                      <span className="text-[10px] lg:text-[11px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                                        {profile.skillRatingOutOf100}/100
-                                      </span>
-                                    </div>
-                                  </div>
-                                )}
+  <span className="font-medium text-[11px] lg:text-[12px] text-black/70">
+    {profile.expertiseLevel || "Intermediate"}
+  </span>
+</div>
+
+                                {profile.skillRatingOutOf5 > 0 && (
+  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+    <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
+      Skill Rating:
+    </span>
+    <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-0.5">
+        {[1, 2, 3, 4, 5].map((_, i) => {
+          const starValue = i + 1;
+          const isFullStar = starValue <= Math.floor(skillStarRating);
+          const isHalfStar = !isFullStar && starValue - 0.5 <= skillStarRating;
+          return (
+            <svg key={i} width="12" height="12" viewBox="0 0 12 12">
+              <defs>
+                <linearGradient id={`half-skill-${profile.id}-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="50%" stopColor="#FFD700" />
+                  <stop offset="50%" stopColor="#E5E7EB" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M6 1L7.545 4.13L11 4.635L8.5 7.07L9.09 10.51L6 8.885L2.91 10.51L3.5 7.07L1 4.635L4.455 4.13L6 1Z"
+                fill={
+                  isFullStar
+                    ? "#FFD700"
+                    : isHalfStar
+                      ? `url(#half-skill-${profile.id}-${i})`
+                      : "#E5E7EB"
+                }
+                stroke="#FFD700"
+                strokeWidth="0.3"
+              />
+            </svg>
+          );
+        })}
+      </div>
+      <span className="text-[10px] lg:text-[11px] text-gray-600 font-medium">
+        {skillStarRating.toFixed(1)} ★
+      </span>
+    </div>
+  </div>
+)}
                               </div>
                             </div>
                           </div>

@@ -5,6 +5,7 @@ import shutil
 import zipfile
 import io
 from django.db import transaction
+from pathlib import Path  
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse, StreamingResponse
@@ -15,7 +16,15 @@ from datetime import date
 from creator_app.models import Contract, ContractWorkAssignment, Invitation, JobPost, Proposal, UserData, timezone, CollaboratorProfile, CreatorProfile, Review, WalletTransaction
 from django.db.models import Avg, Count, Sum
 import pycountry
-
+from fastapi_app.routes.storage import (
+    save_work_submission,
+    save_work_assignment,
+    get_work_submission_url,
+    get_work_assignment_url,
+    delete_file,
+    USE_S3
+)
+from asgiref.sync import sync_to_async
 from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
 from fastapi_app.routes.auth import get_current_user
 from fastapi_app.routes.plan_guard import check_contract_limit
@@ -350,21 +359,45 @@ def download_work_attachment(id: int, user_id: int):
     if not contract.work_attachment:
         raise HTTPException(status_code=404, detail="No attachment found")
 
-    file_path = contract.work_attachment.path
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+    
+    if use_s3:
+        # ========== S3 STORAGE ==========
+        from fastapi_app.routes.storage import read_file_bytes
+        try:
+            s3_key = str(contract.work_attachment.name).lstrip('/')
+            file_content = read_file_bytes(s3_key)
+            filename = os.path.basename(s3_key)
+            
+            # Return the file directly without redirect
+            return StreamingResponse(
+                io.BytesIO(file_content),
+                media_type='application/octet-stream',
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Type": "application/octet-stream"
+                }
+            )
+        except Exception as e:
+            print(f"Error downloading from S3: {e}")
+            raise HTTPException(status_code=404, detail=f"Failed to download file: {str(e)}")
+    else:
+        # ========== LOCAL STORAGE ==========
+        file_path = contract.work_attachment.path
 
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="File not found")
 
-    filename = os.path.basename(file_path)
-    content_type, _ = mimetypes.guess_type(file_path)
-    content_type = content_type or "application/octet-stream"
+        filename = os.path.basename(file_path)
+        content_type, _ = mimetypes.guess_type(file_path)
+        content_type = content_type or "application/octet-stream"
 
-    return FileResponse(
-        path=file_path,
-        media_type=content_type,
-        filename=filename,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
-    )
+        return FileResponse(
+            path=file_path,
+            media_type=content_type,
+            filename=filename,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
 
 
 # ==========================================================
@@ -430,7 +463,7 @@ def reject_contract(id: int, user_id: int):
 # SUBMIT WORK
 # ==========================================================
 @router.post("/{id}/submit-work")
-def submit_work(
+async def submit_work(
     id: int,
     user_id: int,
     description: str = Form(""),
@@ -440,12 +473,18 @@ def submit_work(
     ensure_db_connection()
 
     try:
-        contract = Contract.objects.get(id=id)
-        user = UserData.objects.get(id=user_id)
-    except (Contract.DoesNotExist, UserData.DoesNotExist):
-        raise HTTPException(status_code=404, detail="Contract or User not found")
+        # Use select_related to preload related fields
+        contract = await sync_to_async(
+            lambda: Contract.objects.select_related("job", "creator", "collaborator").get(id=id)
+        )()
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
+    except Contract.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    if contract.collaborator != user:
+    # Now these are preloaded and accessible
+    if contract.collaborator.id != user.id:
         raise HTTPException(status_code=403, detail="Only the collaborator can submit work")
 
     if contract.status not in ["in_progress", "in_review"]:
@@ -458,54 +497,81 @@ def submit_work(
     contract.external_file_link = external_file_link
     contract.work_submitted_at = timezone.now()
 
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+
     if attachment:
-        file_content = attachment.file.read()
-        max_size = 25 * 1024 * 1024
+        if use_s3:
+            # ========== S3 STORAGE ==========
+            try:
+                s3_key = await save_work_submission(
+                    attachment,
+                    str(contract.id),
+                    str(contract.collaborator.id)
+                )
+                contract.work_attachment.name = s3_key
+                print(f"✅ Work submission saved to S3: {s3_key}")
+            except Exception as e:
+                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # Fallback to local storage
+                file_content = await attachment.read()
+                max_size = 25 * 1024 * 1024
+                if len(file_content) > max_size:
+                    raise HTTPException(status_code=400, detail="File exceeds 25MB. Please use Google Drive or external file link.")
+                
+                upload_folder = os.path.join(settings.MEDIA_ROOT, "work_submissions")
+                os.makedirs(upload_folder, exist_ok=True)
+                filename = os.path.basename(attachment.filename)
+                full_disk_path = os.path.join(upload_folder, filename)
+                
+                with open(full_disk_path, "wb") as buffer:
+                    buffer.write(file_content)
+                contract.work_attachment.name = f"work_submissions/{filename}"
+        else:
+            # ========== LOCAL STORAGE ==========
+            file_content = await attachment.read()
+            max_size = 25 * 1024 * 1024
 
-        if len(file_content) > max_size:
-            raise HTTPException(status_code=400, detail="File exceeds 25MB. Please use Google Drive or external file link.")
+            if len(file_content) > max_size:
+                raise HTTPException(status_code=400, detail="File exceeds 25MB. Please use Google Drive or external file link.")
 
-        attachment.file.seek(0)
+            upload_folder = os.path.join(settings.MEDIA_ROOT, "work_submissions")
+            os.makedirs(upload_folder, exist_ok=True)
+            filename = os.path.basename(attachment.filename)
+            full_disk_path = os.path.join(upload_folder, filename)
 
-        upload_folder = os.path.join(settings.MEDIA_ROOT, "work_submissions")
-        os.makedirs(upload_folder, exist_ok=True)
-        filename = os.path.basename(attachment.filename)
-        full_disk_path = os.path.join(upload_folder, filename)
-
-        try:
             with open(full_disk_path, "wb") as buffer:
-                shutil.copyfileobj(attachment.file, buffer)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+                buffer.write(file_content)
 
-        contract.work_attachment.name = f"work_submissions/{filename}"
+            contract.work_attachment.name = f"work_submissions/{filename}"
 
     contract.revision_description = None
     contract.status_reason = None
     contract.status = "in_review"
-    contract.save()
+    await sync_to_async(contract.save)()
+    
     job_title = contract.job.title if contract.job else "Project"
     
-    create_notification(
-    user=contract.creator,
-    sender=contract.collaborator,
-    notification_type="contract_completed",
-    title="Work Submitted",
-    message=f"{contract.collaborator.full_name} submitted completed work for '{job_title}'",
-    contract=contract,
-    job=contract.job,
-    url="/pendingcontracts"
-)
-    create_notification(
-    user=contract.collaborator,
-    sender=contract.creator,
-    notification_type="contract_completed",
-    title="Work Submitted Successfully",
-    message=f"Your completed work for '{job_title}' has been submitted for review",
-    contract=contract,
-    job=contract.job,
-    url="/all-contacts"
-)
+    # Notifications (using sync_to_async)
+    await sync_to_async(create_notification)(
+        user=contract.creator,
+        sender=contract.collaborator,
+        notification_type="contract_completed",
+        title="Work Submitted",
+        message=f"{contract.collaborator.full_name} submitted completed work for '{job_title}'",
+        contract=contract,
+        job=contract.job,
+        url="/pendingcontracts"
+    )
+    await sync_to_async(create_notification)(
+        user=contract.collaborator,
+        sender=contract.creator,
+        notification_type="contract_completed",
+        title="Work Submitted Successfully",
+        message=f"Your completed work for '{job_title}' has been submitted for review",
+        contract=contract,
+        job=contract.job,
+        url="/all-contacts"
+    )
     
     return {
         "message": "Work submitted successfully",
@@ -519,7 +585,7 @@ def submit_work(
 # SUBMIT MILESTONE WORK
 # ==========================================================
 @router.post("/{contract_id}/milestones/{milestone_index}/submit-work")
-def submit_milestone_work(
+async def submit_milestone_work(
     contract_id: int,
     milestone_index: int,
     user_id: int = Query(...),
@@ -533,12 +599,16 @@ def submit_milestone_work(
     ensure_db_connection()
 
     try:
-        contract = Contract.objects.get(id=contract_id)
-        user = UserData.objects.get(id=user_id)
-    except (Contract.DoesNotExist, UserData.DoesNotExist):
-        raise HTTPException(status_code=404, detail="Contract or User not found")
+        contract = await sync_to_async(
+            lambda: Contract.objects.select_related("job", "creator", "collaborator").get(id=contract_id)
+        )()
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
+    except Contract.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    except UserData.DoesNotExist:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    if contract.collaborator != user:
+    if contract.collaborator.id != user.id:
         raise HTTPException(status_code=403, detail="Only the collaborator can submit work")
 
     if contract.status not in ["in_progress", "in_review"]:
@@ -566,32 +636,69 @@ def submit_milestone_work(
         "submitted_at": timezone.now().isoformat()
     }
 
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+
     if attachment:
+        # Delete old attachment if exists
         if milestone.get('submission') and milestone['submission'].get('attachment'):
-            old_path = os.path.join(settings.MEDIA_ROOT, milestone['submission']['attachment'])
-            if os.path.exists(old_path):
-                os.remove(old_path)
-                print(f"✅ Deleted old attachment: {old_path}")
+            old_path = milestone['submission']['attachment']
+            if use_s3:
+                s3_key = old_path.lstrip('/')
+                await sync_to_async(delete_file)(s3_key)
+                print(f"✅ Deleted old attachment from S3: {s3_key}")
+            else:
+                old_full_path = os.path.join(settings.MEDIA_ROOT, old_path)
+                if os.path.exists(old_full_path):
+                    os.remove(old_full_path)
+                    print(f"✅ Deleted old attachment: {old_full_path}")
         
-        file_content = attachment.file.read()
-        max_size = 25 * 1024 * 1024
+        if use_s3:
+            # ========== S3 STORAGE ==========
+            try:
+                s3_key = await save_work_submission(
+                    attachment,
+                    str(contract_id),
+                    str(contract.collaborator.id)
+                )
+                submission_data["attachment"] = s3_key
+                submission_data["attachment_name"] = attachment.filename
+                print(f"✅ Milestone submission saved to S3: {s3_key}")
+            except Exception as e:
+                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # Fallback to local storage
+                file_content = await attachment.read()
+                max_size = 25 * 1024 * 1024
+                if len(file_content) > max_size:
+                    raise HTTPException(status_code=400, detail="File exceeds 25MB. Please use external link.")
+                
+                upload_folder = os.path.join(settings.MEDIA_ROOT, "milestone_submissions")
+                os.makedirs(upload_folder, exist_ok=True)
+                filename = f"contract_{contract_id}_milestone_{milestone_index}_{int(timezone.now().timestamp())}_{attachment.filename}"
+                full_disk_path = os.path.join(upload_folder, filename)
+                
+                with open(full_disk_path, "wb") as buffer:
+                    buffer.write(file_content)
+                submission_data["attachment"] = f"milestone_submissions/{filename}"
+                submission_data["attachment_name"] = attachment.filename
+        else:
+            # ========== LOCAL STORAGE ==========
+            file_content = await attachment.read()
+            max_size = 25 * 1024 * 1024
 
-        if len(file_content) > max_size:
-            raise HTTPException(status_code=400, detail="File exceeds 25MB. Please use external link.")
+            if len(file_content) > max_size:
+                raise HTTPException(status_code=400, detail="File exceeds 25MB. Please use external link.")
 
-        attachment.file.seek(0)
+            upload_folder = os.path.join(settings.MEDIA_ROOT, "milestone_submissions")
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            filename = f"contract_{contract_id}_milestone_{milestone_index}_{int(timezone.now().timestamp())}_{attachment.filename}"
+            full_disk_path = os.path.join(upload_folder, filename)
 
-        upload_folder = os.path.join(settings.MEDIA_ROOT, "milestone_submissions")
-        os.makedirs(upload_folder, exist_ok=True)
-        
-        filename = f"contract_{contract_id}_milestone_{milestone_index}_{int(timezone.now().timestamp())}_{attachment.filename}"
-        full_disk_path = os.path.join(upload_folder, filename)
+            with open(full_disk_path, "wb") as buffer:
+                buffer.write(file_content)
 
-        with open(full_disk_path, "wb") as buffer:
-            shutil.copyfileobj(attachment.file, buffer)
-
-        submission_data["attachment"] = f"milestone_submissions/{filename}"
-        submission_data["attachment_name"] = attachment.filename
+            submission_data["attachment"] = f"milestone_submissions/{filename}"
+            submission_data["attachment_name"] = attachment.filename
 
     milestone["status"] = "submitted"
     milestone["submission"] = submission_data
@@ -601,12 +708,12 @@ def submit_milestone_work(
     
     contract.milestones_data = milestones
     contract.status = "in_review"
-    contract.save()
+    await sync_to_async(contract.save)()
+    
     try:
         milestone_title = milestone.get("description", f"Milestone {milestone_index + 1}")
 
-        # Creator notification
-        create_notification(
+        await sync_to_async(create_notification)(
             user=contract.creator,
             sender=contract.collaborator,
             notification_type="milestone_submitted",
@@ -620,8 +727,7 @@ def submit_milestone_work(
             url="/pendingcontracts"
         )
 
-        # Collaborator notification
-        create_notification(
+        await sync_to_async(create_notification)(
             user=contract.collaborator,
             sender=contract.creator,
             notification_type="milestone_submitted",
@@ -644,7 +750,6 @@ def submit_milestone_work(
         "milestone_index": milestone_index,
         "milestone_status": milestone["status"]
     }
-
 
 # ==========================================================
 # APPROVE MILESTONE WORK
@@ -963,23 +1068,51 @@ def download_work_zip(contract_id: int, user_id: int):
         if not contract.work_attachment:
             raise HTTPException(status_code=404, detail="No work has been submitted for this contract.")
 
-        file_path = contract.work_attachment.path
-        if not os.path.exists(file_path):
-            raise HTTPException(status_code=404, detail="File not found on server.")
+        use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
-        file_name = os.path.basename(file_path)
-        zip_buffer = io.BytesIO()
+        if use_s3:
+            # ========== S3 STORAGE ==========
+            s3_key = str(contract.work_attachment.name).lstrip('/')
+            
+            # Get file from S3
+            from fastapi_app.routes.storage import read_file_bytes
+            try:
+                file_content = read_file_bytes(s3_key)
+                # ✅ Path is now imported
+                file_name = Path(s3_key).name
+                
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                    zip_file.writestr(file_name, file_content)
+                
+                zip_buffer.seek(0)
+                
+                return StreamingResponse(
+                    zip_buffer,
+                    media_type="application/x-zip-compressed",
+                    headers={"Content-Disposition": f"attachment; filename=work_submission_{contract_id}.zip"}
+                )
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Failed to download from S3: {str(e)}")
+        else:
+            # ========== LOCAL STORAGE ==========
+            file_path = contract.work_attachment.path
+            if not os.path.exists(file_path):
+                raise HTTPException(status_code=404, detail="File not found on server.")
 
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            zip_file.write(file_path, arcname=file_name)
+            file_name = os.path.basename(file_path)
+            zip_buffer = io.BytesIO()
 
-        zip_buffer.seek(0)
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                zip_file.write(file_path, arcname=file_name)
 
-        return StreamingResponse(
-            zip_buffer,
-            media_type="application/x-zip-compressed",
-            headers={"Content-Disposition": f"attachment; filename=work_submission_{contract_id}.zip"}
-        )
+            zip_buffer.seek(0)
+
+            return StreamingResponse(
+                zip_buffer,
+                media_type="application/x-zip-compressed",
+                headers={"Content-Disposition": f"attachment; filename=work_submission_{contract_id}.zip"}
+            )
 
     except Contract.DoesNotExist:
         raise HTTPException(status_code=404, detail="Contract not found")
@@ -1156,7 +1289,7 @@ def get_collaborator_contracts(
 # ASSIGN WORK
 # ==========================================================
 @router.post("/{contract_id}/assign-work")
-def assign_work(
+async def assign_work(
     contract_id: int,
     user_id: int,
     title: str = Form(...),
@@ -1166,32 +1299,60 @@ def assign_work(
     ensure_db_connection()
 
     try:
-        contract = Contract.objects.get(id=contract_id)
-        user = UserData.objects.get(id=user_id)
+        contract = await sync_to_async(Contract.objects.get)(id=contract_id)
+        user = await sync_to_async(UserData.objects.get)(id=user_id)
     except (Contract.DoesNotExist, UserData.DoesNotExist):
         raise HTTPException(status_code=404, detail="Contract or user not found")
 
     if contract.creator != user:
         raise HTTPException(status_code=403, detail="Only creator can assign work")
 
-    assignment = ContractWorkAssignment.objects.create(
+    assignment = ContractWorkAssignment(
         contract=contract,
         title=title,
         description=description
     )
+    await sync_to_async(assignment.save)()
+
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
     if attachment:
-        upload_folder = os.path.join(settings.MEDIA_ROOT, "work_assignments")
-        os.makedirs(upload_folder, exist_ok=True)
+        if use_s3:
+            # ========== S3 STORAGE ==========
+            try:
+                s3_key = await save_work_assignment(
+                    attachment,
+                    str(contract_id)
+                )
+                assignment.attachment.name = s3_key
+                await sync_to_async(assignment.save)()
+                print(f"✅ Work assignment saved to S3: {s3_key}")
+            except Exception as e:
+                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # Fallback to local storage
+                file_content = await attachment.read()
+                upload_folder = os.path.join(settings.MEDIA_ROOT, "work_assignments")
+                os.makedirs(upload_folder, exist_ok=True)
+                filename = os.path.basename(attachment.filename)
+                full_disk_path = os.path.join(upload_folder, filename)
+                with open(full_disk_path, "wb") as buffer:
+                    buffer.write(file_content)
+                assignment.attachment.name = f"work_assignments/{filename}"
+                await sync_to_async(assignment.save)()
+        else:
+            # ========== LOCAL STORAGE ==========
+            file_content = await attachment.read()
+            upload_folder = os.path.join(settings.MEDIA_ROOT, "work_assignments")
+            os.makedirs(upload_folder, exist_ok=True)
 
-        filename = os.path.basename(attachment.filename)
-        file_path = os.path.join(upload_folder, filename)
+            filename = os.path.basename(attachment.filename)
+            full_disk_path = os.path.join(upload_folder, filename)
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(attachment.file, buffer)
+            with open(full_disk_path, "wb") as buffer:
+                buffer.write(file_content)
 
-        assignment.attachment.name = f"work_assignments/{filename}"
-        assignment.save()
+            assignment.attachment.name = f"work_assignments/{filename}"
+            await sync_to_async(assignment.save)()
 
     return {
         "message": "Work assigned successfully",
@@ -1675,15 +1836,38 @@ def download_milestone_attachment(
         raise HTTPException(status_code=404, detail="No attachment found for this milestone")
     
     attachment_path = milestone['submission']['attachment']
-    full_path = os.path.join(settings.MEDIA_ROOT, attachment_path)
-    
-    if not os.path.exists(full_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    
     filename = milestone['submission'].get('attachment_name', f'milestone_{milestone_index + 1}_work')
     
-    return FileResponse(
-        path=full_path,
-        filename=filename,
-        media_type='application/octet-stream'
-    )
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+    
+    if use_s3:
+        # ========== S3 STORAGE ==========
+        from fastapi_app.routes.storage import read_file_bytes
+        try:
+            s3_key = attachment_path.lstrip('/')
+            file_content = read_file_bytes(s3_key)
+            
+            # Return the file directly without redirect
+            return StreamingResponse(
+                io.BytesIO(file_content),
+                media_type='application/octet-stream',
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Content-Type": "application/octet-stream"
+                }
+            )
+        except Exception as e:
+            print(f"Error downloading from S3: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
+    else:
+        # ========== LOCAL STORAGE ==========
+        full_path = os.path.join(settings.MEDIA_ROOT, attachment_path)
+        
+        if not os.path.exists(full_path):
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        return FileResponse(
+            path=full_path,
+            filename=filename,
+            media_type='application/octet-stream'
+        )

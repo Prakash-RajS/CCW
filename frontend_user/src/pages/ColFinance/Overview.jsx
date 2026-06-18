@@ -904,10 +904,17 @@ useEffect(() => {
     }
 
     if (Number(withdrawAmount) > walletBalance) {
-      setWithdrawError(`Insufficient balance. Maximum withdrawal: ₹${formatIndianRupee(walletBalance)}`);
-      toast.error("Insufficient balance", `Your available balance is ₹${formatIndianRupee(walletBalance)}.`);
-      return;
-    }
+  setWithdrawError(
+    `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
+  );
+
+  toast.error(
+    "Insufficient balance",
+    `Entered amount exceeds your available balance of ₹${formatIndianRupee(walletBalance)}`
+  );
+
+  return;
+}
 
     if (!selectedMethod) {
       setWithdrawError("Please select a withdrawal method");
@@ -965,9 +972,11 @@ useEffect(() => {
       return false;
     }
     if (numValue > walletBalance) {
-      setWithdrawError(`Insufficient balance. Maximum withdrawal: ₹${formatIndianRupee(walletBalance)}`);
-      return false;
-    }
+  setWithdrawError(
+    `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
+  );
+  return false;
+}
     setWithdrawError('');
     return true;
   };

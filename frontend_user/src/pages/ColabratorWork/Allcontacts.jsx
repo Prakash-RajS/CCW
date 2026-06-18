@@ -4180,7 +4180,7 @@ const Allcontacts = () => {
 
   // ---------- Main render ----------
   return (
-   <div className="w-full min-h-screen flex flex-col overflow-x-hidden" style={{ background: "linear-gradient(180deg, #b8b2c4 100%, #0a0515 100%)" }}>
+    <div className="w-full min-h-screen flex flex-col overflow-x-hidden" style={{ background: "linear-gradient(180deg, #b8b2c4 100%, #0a0515 100%)" }}>
       {/* GLOBAL STYLES */}
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
@@ -4196,10 +4196,10 @@ const Allcontacts = () => {
       </div>
 
       {/* Hero Section */}
-     <section
-  className="relative w-full h-[350px] md:h-[420px] flex-shrink-0"
-  style={{ backgroundImage: `url(${heroBg})`, backgroundSize: "cover", backgroundPosition: "center" }}
->
+      <section
+        className="relative w-full h-[350px] md:h-[420px] flex-shrink-0"
+        style={{ backgroundImage: `url(${heroBg})`, backgroundSize: "cover", backgroundPosition: "center" }}
+      >
         <div className="absolute inset-0 bg-white/1" />
         <div className="relative z-10 px-6 md:px-12 pt-[90px] text-white">
           <div className="flex justify-between items-center mt-16 sm:mt-12 md:mt-16 mb-8 md:mb-6">
@@ -4561,48 +4561,48 @@ const Allcontacts = () => {
                   </div>
                 </div>
                 {/* Mobile Invitations */}
-               <div className="block md:hidden">
-  <div className={`grid grid-cols-5 ${tableHeaderClass} border-b border-purple-900/30`}>
-    <div className="px-2 py-3 text-left text-[10px] font-semibold">Client</div>
-    <div className="px-2 py-3 text-left text-[10px] font-semibold">Project</div>
-    <div className="px-2 py-3 text-left text-[10px] font-semibold">Date</div>
-    <div className="px-2 py-3 text-left text-[10px] font-semibold">Revenue</div>
-    <div className="px-2 py-3 text-center text-[10px] font-semibold">Action</div>
-  </div>
-  <div>
-    {paginatedInvitations.map((invitation, idx) => {
-      const isLast = idx === paginatedInvitations.length - 1;
-      return (
-        <div key={invitation.id} className={`grid grid-cols-5 items-center hover:bg-purple-50/20 transition ${rowBorderClass(isLast)}`}>
-          <div className="px-2 py-3">
-            <p className="text-[11px] font-semibold text-gray-800 truncate">{invitation.client_name || "—"}</p>
-          </div>
-          <div className="px-2 py-3">
-            <p className="text-[10px] text-gray-600 truncate">{invitation.project_name || "—"}</p>
-          </div>
-          <div className="px-2 py-3">
-            <p className="text-[10px] text-gray-500">{formatDate(invitation.date)}</p>
-          </div>
-          <div className="px-2 py-3">
-            <p className="text-[10px] font-semibold text-emerald-600">{getInvitationRevenue(invitation)}</p>
-          </div>
-          <div className="px-2 py-3 flex justify-center">
-            <button
-              onClick={async () => {
-                const d = await fetchInvitationDetails(invitation.id);
-                if (d) setSelectedInvitation(d);
-              }}
-              className="px-2.5 py-1 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white text-[9px] font-semibold whitespace-nowrap"
-            >
-              View
-            </button>
-          </div>
-        </div>
-      );
-    })}
-    {paginatedInvitations.length === 0 && <EmptyState message="No invitations found" />}
-  </div>
-</div>
+                <div className="block md:hidden">
+                  <div className={`grid grid-cols-5 ${tableHeaderClass} border-b border-purple-900/30`}>
+                    <div className="px-2 py-3 text-left text-[10px] font-semibold">Client</div>
+                    <div className="px-2 py-3 text-left text-[10px] font-semibold">Project</div>
+                    <div className="px-2 py-3 text-left text-[10px] font-semibold">Date</div>
+                    <div className="px-2 py-3 text-left text-[10px] font-semibold">Revenue</div>
+                    <div className="px-2 py-3 text-center text-[10px] font-semibold">Action</div>
+                  </div>
+                  <div>
+                    {paginatedInvitations.map((invitation, idx) => {
+                      const isLast = idx === paginatedInvitations.length - 1;
+                      return (
+                        <div key={invitation.id} className={`grid grid-cols-5 items-center hover:bg-purple-50/20 transition ${rowBorderClass(isLast)}`}>
+                          <div className="px-2 py-3">
+                            <p className="text-[11px] font-semibold text-gray-800 truncate">{invitation.client_name || "—"}</p>
+                          </div>
+                          <div className="px-2 py-3">
+                            <p className="text-[10px] text-gray-600 truncate">{invitation.project_name || "—"}</p>
+                          </div>
+                          <div className="px-2 py-3">
+                            <p className="text-[10px] text-gray-500">{formatDate(invitation.date)}</p>
+                          </div>
+                          <div className="px-2 py-3">
+                            <p className="text-[10px] font-semibold text-emerald-600">{getInvitationRevenue(invitation)}</p>
+                          </div>
+                          <div className="px-2 py-3 flex justify-center">
+                            <button
+                              onClick={async () => {
+                                const d = await fetchInvitationDetails(invitation.id);
+                                if (d) setSelectedInvitation(d);
+                              }}
+                              className="px-2.5 py-1 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white text-[9px] font-semibold whitespace-nowrap"
+                            >
+                              View
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {paginatedInvitations.length === 0 && <EmptyState message="No invitations found" />}
+                  </div>
+                </div>
                 {renderPagination(invitationsPage, getTotalPages(invitations.length), setInvitationsPage)}
               </>
             )}
@@ -4984,8 +4984,8 @@ const Allcontacts = () => {
       </section>
 
       <div className="-mx-4 mt-auto">
-  <Footer />
-</div>
+        <Footer />
+      </div>
 
       <MilestoneDetailsModal />
 
@@ -4995,9 +4995,9 @@ const Allcontacts = () => {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div
             ref={popupRef}
-            className="relative bg-white w-full max-w-[500px] rounded-2xl shadow-2xl overflow-y-auto max-h-[90vh] scrollbar-hide animate-fadeIn"
+            className="relative bg-white w-full max-w-[500px] rounded-2xl shadow-2xl overflow-visible max-h-[90vh] scrollbar-hide animate-fadeIn"
           >
-            <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] px-5 py-4 sticky top-0 z-10">
+            <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] px-5 py-4 sticky top-0 z-10 rounded-t-2xl">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-3">
                   <CreatorAvatar contract={selectedContract} size="w-9 h-9" />
@@ -5023,7 +5023,7 @@ const Allcontacts = () => {
             </div>
 
             <div className="p-5 space-y-4">
-              <div ref={statusDropdownRef} className="relative">
+              <div ref={statusDropdownRef} className="relative z-[9999]">
                 <label className={labelClasses}>Update Contract Status</label>
                 <button
                   type="button"
@@ -5044,7 +5044,7 @@ const Allcontacts = () => {
                   </svg>
                 </button>
                 {isStatusDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-1 bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200">
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[99999] max-h-64 overflow-y-auto">
                     {statusOptions.map((option) => (
                       <button
                         key={option.value}
@@ -5131,7 +5131,7 @@ const Allcontacts = () => {
               )}
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 sticky bottom-0">
+            <div className="px-5 py-4 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 sticky bottom-0 rounded-b-2xl">
               <button
                 onClick={() => {
                   setShowEditCard(false);

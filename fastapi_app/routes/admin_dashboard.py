@@ -1,5 +1,5 @@
 # fastapi_app/routes/admin_dashboard.py
-from fastapi import APIRouter, HTTPException, Depends, Response, Cookie, Header, Query, Form, File, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, Path, Response, Cookie, Header, Query, Form, File, UploadFile
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, date, timezone
@@ -23,6 +23,8 @@ from django.db.models import Count
 from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
 # Add this near the top with other imports
 import logging
+from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 # ✅ DATABASE CONNECTION MANAGEMENT (Import from dbconnection)
@@ -33,7 +35,7 @@ from fastapi_app.services.admin_notification_service import (
     clear_all_notifications  # ✅ ADD THIS
 )
 
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
 
 # ✅ IMPORT YOUR EXISTING MODELS
 from creator_app.models import (
@@ -54,7 +56,20 @@ from creator_app.models import (
     AdminNotification,
     UserLoginActivity
 )
-
+# ============================================================
+# S3 STORAGE IMPORTS - ADD THESE
+# ============================================================
+from fastapi_app.routes.storage import (
+    USE_S3,
+    save_upload_file,
+    build_full_url,
+    delete_file,
+    generate_presigned_url,
+    ExpiryPreset,
+    StoragePath,
+    get_storage_path,
+    get_s3_key_from_path,
+)
 router = APIRouter(prefix="/admin", tags=["Admin Dashboard"])
 
 # ==============================================================================
@@ -151,7 +166,90 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str, 
         max_age=max_age,
         path="/"
     )
+# ==============================================================================
+# S3 HELPER FUNCTIONS FOR ADMIN PROFILE IMAGES - ADD THIS SECTION
+# ==============================================================================
 
+async def save_admin_profile_image_s3(file: UploadFile, admin_id: int) -> str:
+    """
+    Save admin profile image to S3 or local storage
+    S3 Folder Used: admin_profiles/
+    File Type: admin
+    """
+    import time
+    from pathlib import Path
+    
+    # Validate image
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+    file_extension = Path(file.filename).suffix.lower()
+    
+    if file_extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Only image files are allowed"
+        )
+    
+    # Generate unique filename
+    timestamp = int(time.time())
+    filename = f"admin_{admin_id}_{timestamp}{file_extension}"
+    
+    if USE_S3:
+        # S3 path
+        s3_key = f"admin_profiles/{filename}"
+        await save_upload_file(file, s3_key)
+        return s3_key
+    else:
+        # Local storage
+        BASE_DIR = Path(__file__).resolve().parent.parent
+        MEDIA_ROOT = BASE_DIR / "media"
+        ADMIN_PROFILE_DIR = MEDIA_ROOT / "admin_profiles"
+        ADMIN_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+        
+        file_path = ADMIN_PROFILE_DIR / filename
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        return f"admin_profiles/{filename}"
+
+
+async def delete_admin_profile_image_s3(file_path: str) -> bool:
+    """
+    Delete admin profile image from S3 or local storage
+    """
+    if not file_path:
+        return False
+    
+    if USE_S3:
+        s3_key = get_s3_key_from_path(file_path)
+        return delete_file(s3_key)
+    else:
+        BASE_DIR = Path(__file__).resolve().parent.parent
+        MEDIA_ROOT = BASE_DIR / "media"
+        full_path = MEDIA_ROOT / file_path
+        if full_path.exists():
+            full_path.unlink()
+            return True
+        return False
+
+
+def get_admin_profile_image_url(file_path: str, request=None) -> Optional[str]:
+    """
+    Get URL for admin profile image with S3 support
+    """
+    if not file_path:
+        return None
+    
+    if USE_S3:
+        s3_key = get_s3_key_from_path(file_path)
+        return generate_presigned_url(
+            s3_key=s3_key,
+            expires_in=ExpiryPreset.DAILY,  # 24 hours for profile images
+            force_download=False
+        )
+    else:
+        # Local storage URL
+        return f"{BASE_URL}/media/{file_path}"
+    
 def clear_auth_cookies(response: Response):
     """Clear authentication cookies"""
     response.delete_cookie(key="admin_access_token", path="/")  # FIXED: Changed from "access_token"
@@ -1310,52 +1408,52 @@ def delete_user(user_id: int, admin: AdminUser = Depends(get_current_admin)):
 def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
     """Get subscription statistics for dashboard cards - DYNAMIC"""
     ensure_db_connection()
-
+   
     try:
         from django.db.models import Q
         from collections import defaultdict
         now = django_timezone.now()
-
+        
         # Get ALL active subscriptions
         active_subscriptions = UserSubscription.objects.filter(
             status__in=['active', 'trialing'],
             plan_end_date__gt=now
         ).select_related('user')
-
+        
         # Get unique user IDs with active subscriptions
         subscriber_ids = list(active_subscriptions.values_list('user_id', flat=True).distinct())
         total_subscribers = len(subscriber_ids)
-
+        
         # Get all unique plan names from active subscriptions
         plan_stats = defaultdict(lambda: {"creator": 0, "collaborator": 0, "total": 0})
-
+        
         for sub in active_subscriptions:
             # Get plan name (prefer current_plan, fallback to plan_name)
             plan_name = sub.current_plan or sub.plan_name or "Unknown"
-
+            
             # Get user role
             role = sub.user.role.lower() if sub.user and sub.user.role else "unknown"
-
+            
             if role == "creator":
                 plan_stats[plan_name]["creator"] += 1
             elif role == "collaborator":
                 plan_stats[plan_name]["collaborator"] += 1
-
+            
             plan_stats[plan_name]["total"] += 1
-
+        
         # Get ALL active plans from SubscriptionPlan model (including those with 0 subscribers)
         all_plans = SubscriptionPlan.objects.filter(is_active=True)
-
+        
         # Ensure all active plans are included even if they have 0 subscribers
         for plan in all_plans:
             plan_name = plan.name
             if plan_name not in plan_stats:
                 plan_stats[plan_name] = {"creator": 0, "collaborator": 0, "total": 0}
-
+        
         # Users with NO active subscription
         all_user_ids = set(UserData.objects.values_list('id', flat=True))
         users_without_subs = len(all_user_ids - set(subscriber_ids))
-
+        
         # Prepare response with role information
         plans_data = []
         for plan in all_plans:
@@ -1368,20 +1466,20 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
                 "total_count": counts["total"],
                 "role": plan.role  # 'creator', 'collaborator', or 'both'
             })
-
+        
         print(f"📊 Dynamic Stats Summary:")
         print(f"  - Total Subscribers: {total_subscribers}")
         print(f"  - Plans found: {len(plans_data)}")
         for plan in plans_data:
             print(f"    - {plan['name']} (role: {plan['role']}): Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
         print(f"  - Users without subscription: {users_without_subs}")
-
+       
         return {
             "total_subscribers": total_subscribers,
             "users_without_subscription": users_without_subs,
             "plans": plans_data  # Dynamic plans data with role info
         }
-
+        
     except Exception as e:
         print(f"❌ Error in get_subscription_stats: {e}")
         import traceback
@@ -1391,7 +1489,6 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
             "users_without_subscription": 0,
             "plans": []
         }
- 
     
 @router.get("/subscriptions/plans")
 def get_subscription_plans(admin: AdminUser = Depends(get_current_admin)):
@@ -1764,37 +1861,44 @@ def export_users_custom(
 # 👤 14. ADMIN PROFILE MANAGEMENT
 # ==============================================================================
 @router.get("/profile")
-def get_admin_profile(admin: AdminUser = Depends(get_current_admin)):
-    """Get admin profile information"""
-    # Ensure database connection
+async def get_admin_profile(admin: AdminUser = Depends(get_current_admin)):
+    """Get admin profile information with S3 support"""
     ensure_db_connection()
    
     try:
-        # Split name into first and last if possible
-        name_parts = admin.name.split(' ', 1) if admin.name else ["", ""]
+        from asgiref.sync import sync_to_async
+        
+        # ✅ FIX: Use sync_to_async to get admin data
+        admin_data = await sync_to_async(
+            lambda: {
+                "id": admin.id,
+                "name": admin.name,
+                "email": admin.email,
+                "role": admin.role,
+                "profile_image": admin.profile_image,
+                "two_factor_enabled": getattr(admin, 'two_factor_enabled', False)
+            }
+        )()
+        
+        name_parts = admin_data['name'].split(' ', 1) if admin_data['name'] else ["", ""]
         first_name = name_parts[0] if len(name_parts) > 0 else ""
         last_name = name_parts[1] if len(name_parts) > 1 else ""
        
-        # In get_admin_profile endpoint, replace the profile_image block:
+        # Get profile image URL with S3 support
         profile_image = None
-        if admin.profile_image:
-            img_path = str(admin.profile_image)
-            # Avoid double /media/media/
-            if img_path.startswith(('http://', 'https://')):
-                profile_image = img_path
-            elif img_path.startswith('media/'):
-                profile_image = f"{BASE_URL}/{img_path}"
-            else:
-                profile_image = f"{BASE_URL}/media/{img_path}"
+        if admin_data['profile_image']:
+            profile_image = get_admin_profile_image_url(str(admin_data['profile_image']))
+       
         return {
-            "id": admin.id,
+            "id": admin_data['id'],
             "first_name": first_name,
             "last_name": last_name,
-            "full_name": admin.name,
-            "email": admin.email,
-            "role": admin.role,
-            "two_factor_enabled": getattr(admin, 'two_factor_enabled', False),
-            "profile_image": profile_image
+            "full_name": admin_data['name'],
+            "email": admin_data['email'],
+            "role": admin_data['role'],
+            "two_factor_enabled": admin_data['two_factor_enabled'],
+            "profile_image": profile_image,
+            "storage_mode": "s3" if USE_S3 else "local"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1943,168 +2047,92 @@ def toggle_two_factor(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/profile/upload-image")
-def upload_admin_profile_image(
+async def upload_admin_profile_image(
     file: UploadFile = File(...),
     admin: AdminUser = Depends(get_current_admin)
 ):
-    """Upload admin profile image"""
-
+    """
+    Upload admin profile image with S3 support
+    S3 Folder Used: admin_profiles/
+    """
     ensure_db_connection()
 
     try:
-        from pathlib import Path
-        import shutil
-        import time
-
-        # =====================================================
-        # FASTAPI ROOT
-        # fastapi_app/
-        # =====================================================
-        BASE_DIR = Path(__file__).resolve().parent.parent
-
-        # =====================================================
-        # MEDIA ROOT
-        # fastapi_app/media/
-        # =====================================================
-        MEDIA_ROOT = BASE_DIR / "media"
-
-        # =====================================================
-        # ADMIN PROFILE DIRECTORY
-        # fastapi_app/media/admin_profiles/
-        # =====================================================
-        ADMIN_PROFILE_DIR = MEDIA_ROOT / "admin_profiles"
-
-        # Create folder if not exists
-        ADMIN_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
-        # =====================================================
-        # VALIDATE IMAGE
-        # =====================================================
-        allowed_extensions = [
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".gif",
-            ".webp"
-        ]
-
-        file_extension = Path(file.filename).suffix.lower()
-
-        if file_extension not in allowed_extensions:
-            raise HTTPException(
-                status_code=400,
-                detail="Only image files are allowed"
-            )
-
-        # =====================================================
-        # GENERATE FILE NAME
-        # =====================================================
-        filename = (
-            f"admin_{admin.id}_{int(time.time())}"
-            f"{file_extension}"
-        )
-
-        # =====================================================
-        # FINAL FILE PATH
-        # =====================================================
-        file_path = ADMIN_PROFILE_DIR / filename
-
-        # =====================================================
-        # SAVE FILE
-        # =====================================================
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        print("FILE SAVED TO:", file_path)
-        print("FILE EXISTS:", file_path.exists())
-
-        # =====================================================
-        # DELETE OLD IMAGE
-        # =====================================================
+        from asgiref.sync import sync_to_async
+        
+        # Save image using S3-aware function (this is async, so it's fine)
+        saved_path = await save_admin_profile_image_s3(file, admin.id)
+        
+        # Delete old image if exists (async function)
         if admin.profile_image:
-
-            old_relative_path = str(admin.profile_image).replace(
-                "/media/",
-                ""
-            )
-
-            old_file_path = MEDIA_ROOT / old_relative_path
-
-            print("OLD FILE PATH:", old_file_path)
-
-            if old_file_path.exists():
-                try:
-                    old_file_path.unlink()
-                    print("OLD IMAGE DELETED")
-                except Exception as e:
-                    print("OLD IMAGE DELETE ERROR:", e)
-
-        # =====================================================
-        # SAVE RELATIVE PATH ONLY
-        # =====================================================
-        admin.profile_image = f"admin_profiles/{filename}"
-
-        admin.save()
-
-        print("DB VALUE:", admin.profile_image)
-
-        # =====================================================
-        # RETURN FULL IMAGE URL
-        # =====================================================
-        image_url = (
-            f"{BASE_URL}/media/admin_profiles/{filename}"
+            await delete_admin_profile_image_s3(str(admin.profile_image))
+        
+        # ✅ FIX: Use sync_to_async for Django ORM operations
+        await sync_to_async(
+            lambda: setattr(admin, 'profile_image', saved_path)
+        )()
+        await sync_to_async(admin.save)()
+        
+        # Get the URL (synchronous function)
+        image_url = get_admin_profile_image_url(saved_path)
+        
+        # ✅ FIX: Use sync_to_async for notification
+        await sync_to_async(create_notification_for_all_admins)(
+            notification_type="admin_image_uploaded",
+            title="Admin Profile Image Updated",
+            subtitle=f"Admin {admin.name or admin.email} updated their profile image",
+            exclude_admin=None
         )
-
-        print("RETURN IMAGE URL:", image_url)
-
+        
         return {
             "status": "success",
             "message": "Profile image uploaded successfully",
-            "image_url": image_url
+            "image_url": image_url,
+            "storage_mode": "s3" if USE_S3 else "local"
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
-
         print("UPLOAD ERROR:", str(e))
-
         raise HTTPException(
             status_code=500,
             detail=f"Image upload failed: {str(e)}"
         )
         
 @router.delete("/profile/remove-image")
-def remove_admin_profile_image(
+async def remove_admin_profile_image(
     admin: AdminUser = Depends(get_current_admin)
 ):
-    """Remove admin profile image"""
-    # Ensure database connection
+    """Remove admin profile image with S3 support"""
     ensure_db_connection()
    
     try:
-        BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-       
-        # Delete the file if it exists
-        if hasattr(admin, 'profile_image') and admin.profile_image:
-            file_path = os.path.join(BASE_DIR, admin.profile_image.lstrip('/'))
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except:
-                    pass
-           
-            # Clear the field in database
-            admin.profile_image = None
-            admin.save()
+        from asgiref.sync import sync_to_async
         
-        # 🔔 NOTIFICATION: Admin removed profile image
-        create_notification_for_all_admins(
+        if admin.profile_image:
+            # Delete from S3 or local (async function)
+            await delete_admin_profile_image_s3(str(admin.profile_image))
+            
+            # ✅ FIX: Use sync_to_async for Django ORM operations
+            await sync_to_async(
+                lambda: setattr(admin, 'profile_image', None)
+            )()
+            await sync_to_async(admin.save)()
+        
+        # ✅ FIX: Use sync_to_async for notification
+        await sync_to_async(create_notification_for_all_admins)(
             notification_type="admin_image_removed",
             title="Admin Profile Image Removed",
             subtitle=f"Admin {admin.name or admin.email} removed their profile image",
             exclude_admin=None
         )
        
-        return {"status": "success", "message": "Profile image removed successfully"}
+        return {
+            "status": "success",
+            "message": "Profile image removed successfully",
+            "storage_mode": "s3" if USE_S3 else "local"
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

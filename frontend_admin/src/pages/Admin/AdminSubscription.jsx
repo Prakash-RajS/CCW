@@ -250,7 +250,7 @@ const SubscriptionPage = () => {
     name: false,
     price: false,
     description: false,
-    discount_code: false,
+    discount_percentage: false,
     discount_description: false,
     features: false,
   });
@@ -263,7 +263,7 @@ const SubscriptionPage = () => {
     name: "",
     price: "",
     description: "",
-    discount_code: "",
+    discount_percentage: "",
     discount_description: "",
     features: "",
   });
@@ -288,7 +288,6 @@ const SubscriptionPage = () => {
     role: "creator",
     description: "",
     features: [""],
-    discount_code: "",
     discount_percentage: "",
     discount_description: "",
     is_popular: false,
@@ -338,23 +337,35 @@ const SubscriptionPage = () => {
   // ======================================================
   // UPDATED: Check for duplicate plan (same name OR same price for same role)
   // ======================================================
-  const checkDuplicatePlan = (planName, planPrice, planRole, excludePlanId = null) => {
-    // Check for duplicate name
-    const duplicateByName = pricingPlans.find(
-      plan => plan.name.toLowerCase() === planName.toLowerCase() &&
-              plan.role.toLowerCase() === planRole.toLowerCase() &&
-              (excludePlanId === null || plan.id !== excludePlanId)
-    );
-    
-    // Check for duplicate price
-    const duplicateByPrice = pricingPlans.find(
-      plan => Math.abs(parseFloat(plan.price_value) - parseFloat(planPrice)) < 0.01 &&
-              plan.role.toLowerCase() === planRole.toLowerCase() &&
-              (excludePlanId === null || plan.id !== excludePlanId)
-    );
-    
-    return { duplicateByName: !!duplicateByName, duplicateByPrice: !!duplicateByPrice };
+  const checkDuplicatePlan = (
+  planName,
+  planPrice,
+  planRole,
+  planDuration,
+  excludePlanId = null
+) => {
+
+  const duplicateByName = pricingPlans.find(
+    plan =>
+      plan.name.toLowerCase().trim() === planName.toLowerCase().trim() &&
+      plan.role.toLowerCase() === planRole.toLowerCase() &&
+      plan.duration === planDuration &&
+      (excludePlanId === null || plan.id !== excludePlanId)
+  );
+
+  const duplicateByPrice = pricingPlans.find(
+    plan =>
+      Number(plan.price_value) === Number(planPrice) &&
+      plan.role.toLowerCase() === planRole.toLowerCase() &&
+      plan.duration === planDuration &&
+      (excludePlanId === null || plan.id !== excludePlanId)
+  );
+
+  return {
+    duplicateByName: !!duplicateByName,
+    duplicateByPrice: !!duplicateByPrice,
   };
+};
 
   // ======================================================
   // Validate that Basic/Free plans are MONTHLY only
@@ -413,6 +424,29 @@ const SubscriptionPage = () => {
     return "";
   };
 
+  const validateDiscountPercentage = (value) => {
+  if (value === "" || value === null) {
+    return "";
+  }
+
+  // numbers only
+  if (!/^\d+$/.test(value)) {
+    return "Only numbers are allowed";
+  }
+
+  const num = parseInt(value, 10);
+
+  if (num < 0) {
+    return "Discount percentage cannot be negative";
+  }
+
+  if (num > 100) {
+    return "Discount percentage cannot exceed 100";
+  }
+
+  return "";
+};
+
   const validateDiscountDescription = (description) => {
     if (!description || description.trim() === "") {
       return "";
@@ -442,13 +476,7 @@ const SubscriptionPage = () => {
     return "";
   };
 
-  const validateDiscountCode = (code) => {
-    if (!code || code.trim() === "") return "";
-    const regex = /^[A-Za-z0-9]+$/;
-    if (!regex.test(code))
-      return "Only alphabets and numbers allowed (no special characters like @, #, $, %, etc.)";
-    return "";
-  };
+  
 
   const validateFeatures = (features) => {
     const nonEmptyFeatures = features.filter((f) => f && f.trim() !== "");
@@ -476,24 +504,9 @@ const SubscriptionPage = () => {
     return String(parseInt(sanitized, 10));
   };
 
-  const handleDiscountCodeChange = (e) => {
-    const rawValue = e.target.value;
-    setPlanForm({ ...planForm, discount_code: rawValue });
-    if (touchedFields.discount_code) {
-      setValidationErrors({
-        ...validationErrors,
-        discount_code: validateDiscountCode(rawValue),
-      });
-    }
-  };
+  
 
-  const handleDiscountCodeBlur = () => {
-    setTouchedFields((prev) => ({ ...prev, discount_code: true }));
-    setValidationErrors({
-      ...validationErrors,
-      discount_code: validateDiscountCode(planForm.discount_code),
-    });
-  };
+  
 
   const handleFieldBlur = (field) => {
     setTouchedFields((prev) => ({ ...prev, [field]: true }));
@@ -629,7 +642,6 @@ const SubscriptionPage = () => {
           features: plan.features.map((f) => typeof f === "string" ? f : f.title || f.description || ""),
           duration: plan.billing_cycle,
           role: plan.role || "creator",
-          discount_code: plan.discount_code,
           discount_percentage: plan.discount_percentage,
           discount_description: plan.discount_description,
           original_price: plan.price,
@@ -729,97 +741,75 @@ const SubscriptionPage = () => {
     }
   };
 
-  const downloadInvoice = async (row) => {
-    try {
-      setIsLoading((prev) => ({ ...prev, action: true }));
-      setSelectedRow(row);
+const downloadInvoice = async (row) => {
+  try {
+    setIsLoading((prev) => ({ ...prev, action: true }));
+    setSelectedRow(row);
 
-      const identifier = row.subscription_id || row.id;
-      const invoiceNumber = row.invoice_number || row.last_invoice_number;
-      const subscriptionId = row.subscription_id;
+    const invoiceNumber = row.invoice_number || row.last_invoice_number;
+    const subscriptionId = row.stripe_subscription_id || row.subscription_id;
 
-      if (row.is_basic ||
-        row.plan?.toLowerCase() === "basic" ||
-        row.plan?.toLowerCase() === "free") {
-        toast.info("Basic/Free plans do not have invoices");
-        setIsLoading((prev) => ({ ...prev, action: false }));
-        setSelectedRow(null);
-        return;
-      }
-
-      if (!identifier) {
-        toast.warning("No subscription identifier available for this record");
-        setIsLoading((prev) => ({ ...prev, action: false }));
-        setSelectedRow(null);
-        return;
-      }
-
-      let url = `${PAYMENT_API_URL}/invoice/${identifier}`;
-      const params = new URLSearchParams();
-      if (invoiceNumber) params.append("invoice_number", invoiceNumber);
-      if (subscriptionId) params.append("subscription_id", subscriptionId);
-      if (params.toString()) url += `?${params.toString()}`;
-
-      const response = await api.get(url, {
-        responseType: "blob",
-        timeout: 30000,
-      });
-
-      if (response.data && response.data.size > 0) {
-        const contentType = response.headers["content-type"];
-        if (contentType && contentType.includes("application/pdf")) {
-          const blob = new Blob([response.data], { type: "application/pdf" });
-          const downloadUrl = window.URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = downloadUrl;
-          const date = new Date().toISOString().split("T")[0];
-          const userName = (row.full_name || "user").replace(/[^a-zA-Z0-9]/g, "_");
-          const planName = (row.plan || "subscription").replace(/[^a-zA-Z0-9]/g, "_");
-          link.setAttribute("download", `invoice_${userName}_${planName}_${date}.pdf`);
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          window.URL.revokeObjectURL(downloadUrl);
-          toast.success("Invoice downloaded successfully!");
-        } else {
-          const text = await response.data.text();
-          try {
-            const errorData = JSON.parse(text);
-            toast.error(errorData.detail || "Failed to download invoice");
-          } catch {
-            toast.error("Invalid response format from server");
-          }
-        }
-      } else {
-        toast.warning("Invoice file is empty or not available");
-      }
-    } catch (error) {
-      console.error("Error downloading invoice:", error);
-      if (error.response) {
-        const status = error.response.status;
-        if (status === 404) {
-          toast.warning("No invoice available for this subscription.");
-        } else if (status === 422) {
-          toast.warning("Cannot process this subscription's invoice.");
-        } else if (status === 401) {
-          toast.error("Unauthorized. Please log in again.");
-        } else if (status >= 500) {
-          toast.error("Server error. Please try again later.");
-        } else {
-          toast.error(`Error ${status}: Failed to download invoice`);
-        }
-      } else if (error.code === "ECONNABORTED") {
-        toast.error("Request timed out. Please try again.");
-      } else if (error.message === "Network Error") {
-        toast.error("Network error. Please check your internet connection.");
-      } else {
-        toast.error("Failed to download invoice. Please try again.");
-      }
-    } finally {
+    if (row.is_basic ||
+      row.plan?.toLowerCase() === "basic" ||
+      row.plan?.toLowerCase() === "free") {
+      toast.info("Basic/Free plans do not have invoices");
       setIsLoading((prev) => ({ ...prev, action: false }));
       setSelectedRow(null);
+      return;
     }
-  };
+
+    const identifier = invoiceNumber || subscriptionId;
+
+    if (!identifier) {
+      toast.error("No invoice number or subscription ID available");
+      setIsLoading((prev) => ({ ...prev, action: false }));
+      setSelectedRow(null);
+      return;
+    }
+
+    const url = `${PAYMENT_API_URL}/invoice/${encodeURIComponent(identifier)}`;
+    
+    // ✅ Use fetch to handle both S3 and local modes
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    // Check if it's a redirect (S3 mode) or file (local mode)
+    if (response.redirected) {
+      // S3 mode - redirect to presigned URL
+      window.open(response.url, '_blank');
+      toast.success("Invoice download started!");
+    } else {
+      // Local mode - download the file
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      const date = new Date().toISOString().split("T")[0];
+      const userName = (row.full_name || "user").replace(/[^a-zA-Z0-9]/g, "_");
+      link.setAttribute("download", `invoice_${userName}_${date}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success("Invoice downloaded successfully!");
+    }
+    
+  } catch (error) {
+    console.error("Error downloading invoice:", error);
+    toast.error(error.message || "Failed to download invoice");
+  } finally {
+    setIsLoading((prev) => ({ ...prev, action: false }));
+    setSelectedRow(null);
+  }
+};
 
   const openCreateModal = () => {
     setModalMode("create");
@@ -839,7 +829,6 @@ const SubscriptionPage = () => {
       role: plan.role || "creator",
       description: plan.description || "",
       features: plan.features.length > 0 ? plan.features : [""],
-      discount_code: plan.discount_code || "",
       discount_percentage: plan.discount_percentage || "",
       discount_description: plan.discount_description || "",
       is_popular: plan.is_popular || false,
@@ -854,47 +843,63 @@ const SubscriptionPage = () => {
       name: "",
       price: "",
       description: "",
-      discount_code: "",
       features: "",
     });
     setTouchedFields({
       name: false,
       price: false,
       description: false,
-      discount_code: false,
+      discount_percentage: false,
       features: false,
     });
     setIsPlanModalOpen(true);
   };
 
   const validateAllFields = () => {
-    const nameError = validateName(planForm.name);
-    const priceError = validatePrice(planForm.price);
-    const descriptionError = validateDescription(planForm.description);
-    const discountCodeError = validateDiscountCode(planForm.discount_code);
-    const discountDescriptionError = validateDiscountDescription(planForm.discount_description);
-    const featuresError = validateFeatures(planForm.features);
+  const nameError = validateName(planForm.name);
+  const priceError = validatePrice(planForm.price);
+  const descriptionError = validateDescription(planForm.description);
 
-    setValidationErrors({
-      name: nameError,
-      price: priceError,
-      description: descriptionError,
-      discount_code: discountCodeError,
-      discount_description: discountDescriptionError,
-      features: featuresError,
-    });
+  const discountPercentageError =
+    validateDiscountPercentage(
+      planForm.discount_percentage
+    );
 
-    setTouchedFields({
-      name: true,
-      price: true,
-      description: true,
-      discount_code: true,
-      discount_description: true,
-      features: true,
-    });
+  const discountDescriptionError =
+    validateDiscountDescription(
+      planForm.discount_description
+    );
 
-    return !(nameError || priceError || descriptionError || discountCodeError || discountDescriptionError || featuresError);
-  };
+  const featuresError =
+    validateFeatures(planForm.features);
+
+  setValidationErrors({
+    name: nameError,
+    price: priceError,
+    description: descriptionError,
+    discount_percentage: discountPercentageError,
+    discount_description: discountDescriptionError,
+    features: featuresError,
+  });
+
+  setTouchedFields({
+    name: true,
+    price: true,
+    description: true,
+    discount_percentage: true,
+    discount_description: true,
+    features: true,
+  });
+
+  return !(
+    nameError ||
+    priceError ||
+    descriptionError ||
+    discountPercentageError ||
+    discountDescriptionError ||
+    featuresError
+  );
+};
 
   const createPlan = async () => {
     if (!validateAllFields()) {
@@ -907,8 +912,13 @@ const SubscriptionPage = () => {
       return;
     }
 
-    const { duplicateByName, duplicateByPrice } = checkDuplicatePlan(planForm.name, planForm.price, planForm.role);
-    
+const { duplicateByName, duplicateByPrice } =
+  checkDuplicatePlan(
+    planForm.name,
+    planForm.price,
+    planForm.role,
+    planForm.duration
+  );    
     if (duplicateByName) {
       const roleText = planForm.role === "creator" ? "Creator" : "Collaborator";
       toast.error(`A plan named "${planForm.name}" for ${roleText} already exists! Please choose a different name.`);
@@ -946,7 +956,6 @@ const SubscriptionPage = () => {
         is_popular: planForm.is_popular,
         status: "active",
         features: formattedFeatures,
-        discount_code: planForm.discount_code || null,
         discount_percentage: planForm.discount_percentage ? parseInt(planForm.discount_percentage) : 0,
         discount_description: planForm.discount_description || null,
       };
@@ -976,9 +985,16 @@ const SubscriptionPage = () => {
       toast.error("Basic and Free plans can only be monthly (not yearly). Please change the billing cycle to Monthly.");
       return;
     }
-
-    const { duplicateByName, duplicateByPrice } = checkDuplicatePlan(planForm.name, planForm.price, planForm.role, selectedPlan?.id);
     
+
+const { duplicateByName, duplicateByPrice } =
+  checkDuplicatePlan(
+    planForm.name,
+    planForm.price,
+    planForm.role,
+    planForm.duration,
+    selectedPlan?.id
+  );    
     if (duplicateByName) {
       const roleText = planForm.role === "creator" ? "Creator" : "Collaborator";
       toast.error(`A plan named "${planForm.name}" for ${roleText} already exists! Please choose a different name.`);
@@ -1016,7 +1032,6 @@ const SubscriptionPage = () => {
         is_popular: planForm.is_popular,
         status: "active",
         features: formattedFeatures,
-        discount_code: planForm.discount_code || null,
         discount_percentage: planForm.discount_percentage ? parseInt(planForm.discount_percentage) : 0,
         discount_description: planForm.discount_description || null,
       };
@@ -1074,7 +1089,6 @@ const SubscriptionPage = () => {
       role: "creator",
       description: "",
       features: [""],
-      discount_code: "",
       discount_percentage: "",
       discount_description: "",
       is_popular: false,
@@ -1089,14 +1103,13 @@ const SubscriptionPage = () => {
       name: "",
       price: "",
       description: "",
-      discount_code: "",
       features: "",
     });
     setTouchedFields({
       name: false,
       price: false,
       description: false,
-      discount_code: false,
+      discount_percentage: false,
       features: false,
     });
   };
@@ -1827,6 +1840,49 @@ const SubscriptionPage = () => {
                     </div>
                   </div>
                 </div>
+
+                <div>
+  <label className="block text-sm font-medium mb-2">
+    Discount Percentage (%)
+  </label>
+
+  <input
+    type="text"
+    min="0"
+    max="100"
+    value={planForm.discount_percentage}
+    onChange={(e) => {
+      let value = e.target.value;
+
+      if (
+        value === "" ||
+        (Number(value) >= 0 && Number(value) <= 100)
+      ) {
+        setPlanForm({
+          ...planForm,
+          discount_percentage: value,
+        });
+
+        if (touchedFields.discount_percentage) {
+          setValidationErrors({
+            ...validationErrors,
+            discount_percentage:
+              validateDiscountPercentage(value),
+          });
+        }
+      }
+    }}
+    className="w-full"
+    style={getInputStyle(isDarkMode)}
+    placeholder="0 - 100"
+  />
+
+  {validationErrors.discount_percentage && (
+    <p className="text-red-500 text-xs mt-1">
+      {validationErrors.discount_percentage}
+    </p>
+  )}
+</div>
 
                 {/* Discount Description */}
                 <div className="mt-4 flex flex-col gap-1.5">
