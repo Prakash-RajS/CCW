@@ -71,7 +71,8 @@ def get_or_create_basic_plan(role: str):
         }
     )
     if created:
-        print(f"✅ Created new Basic plan for {role}")
+        pass
+        # print(f"✅ Created new Basic plan for {role}")
     return plan
 
 # fastapi_app/routes/creator.py - Update build_full_url function
@@ -230,9 +231,9 @@ async def save_creator_profile(
             try:
                 s3_key = await save_profile_pic(profile_picture, str(user_id))
                 user.profile_picture = s3_key
-                print(f"✅ Profile picture saved to S3: {s3_key}")
+                # print(f"✅ Profile picture saved to S3: {s3_key}")
             except Exception as e:
-                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # print(f"⚠️ S3 upload failed, using local storage: {e}")
                 # Fallback to local storage
                 ext = PathLib(profile_picture.filename).suffix
                 filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
@@ -252,7 +253,7 @@ async def save_creator_profile(
                 ContentFile(content),
                 save=True
             )
-            print(f"✅ Profile picture saved locally: {filename}")
+            # print(f"✅ Profile picture saved locally: {filename}")
 
     # ---------------- Save / Update Creator Profile ----------------
     defaults = {
@@ -301,7 +302,7 @@ async def save_creator_profile(
                 # Update the portfolio item with S3 key
                 portfolio_item.file.name = s3_key
                 await sync_to_async(portfolio_item.save)()
-                print(f"✅ Portfolio saved to S3: {s3_key}")
+                # print(f"✅ Portfolio saved to S3: {s3_key}")
             else:
                 # Use local storage
                 ext = PathLib(portfolio_uploads.filename).suffix
@@ -311,10 +312,11 @@ async def save_creator_profile(
                     ContentFile(content),
                     save=True,
                 )
-                print(f"✅ Portfolio saved locally: {filename}")
+                # print(f"✅ Portfolio saved locally: {filename}")
 
         except Exception as e:
-            print(f"❌ Error saving portfolio: {e}")
+            pass
+            # print(f"❌ Error saving portfolio: {e}")
             # If portfolio fails, still continue with profile creation
 
     elif portfolio_link and portfolio_link.strip():
@@ -352,7 +354,7 @@ async def save_creator_profile(
     status="active",
     is_trial=False,
 )
-        print(f"✅ Created Basic subscription for creator {user.email}")
+        # print(f"✅ Created Basic subscription for creator {user.email}")
 
         # ─── CREATE SUBSCRIPTION HISTORY ────────────────────────────────
         await sync_to_async(SubscriptionHistory.objects.create)(
@@ -368,7 +370,7 @@ async def save_creator_profile(
             plan_id=basic_plan.id,
             stripe_subscription_id=subscription.stripe_subscription_id,
         )
-        print(f"✅ Subscription history created for creator {user.email}")
+        # print(f"✅ Subscription history created for creator {user.email}")
 
     return {
         "message": "Creator profile saved successfully"
@@ -557,16 +559,17 @@ async def edit_creator_profile(
                         from fastapi_app.routes.storage import delete_file
                         s3_key = old_picture_name.lstrip('/')
                         delete_file(s3_key)
-                        print(f"✅ Deleted old profile picture from S3: {s3_key}")
+                        # print(f"✅ Deleted old profile picture from S3: {s3_key}")
                     else:
                         # Delete local file
                         from pathlib import Path
                         local_path = Path(f"fastapi_app/local_storage/{old_picture_name}")
                         if local_path.exists():
                             local_path.unlink()
-                            print(f"✅ Deleted old profile picture from local: {old_picture_name}")
+                            # print(f"✅ Deleted old profile picture from local: {old_picture_name}")
                 except Exception as e:
-                    print(f"Warning: Could not delete old profile picture: {e}")
+                    pass
+                    # print(f"Warning: Could not delete old profile picture: {e}")
 
         # Save new profile picture
         if use_s3:
@@ -575,9 +578,9 @@ async def edit_creator_profile(
                 from fastapi_app.routes.storage import save_profile_pic
                 s3_key = await save_profile_pic(profile_picture, str(user_id))
                 user.profile_picture = s3_key
-                print(f"✅ Profile picture saved to S3: {s3_key}")
+                # print(f"✅ Profile picture saved to S3: {s3_key}")
             except Exception as e:
-                print(f"❌ Error saving profile picture to S3: {e}")
+                # print(f"❌ Error saving profile picture to S3: {e}")
                 # Fallback to local storage if S3 fails
                 ext = PathLib(profile_picture.filename).suffix
                 filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
@@ -587,7 +590,7 @@ async def edit_creator_profile(
                     ContentFile(content),
                     save=False
                 )
-                print(f"✅ Profile picture saved locally (fallback): {filename}")
+                # print(f"✅ Profile picture saved locally (fallback): {filename}")
         else:
             # Use local storage
             ext = PathLib(profile_picture.filename).suffix
@@ -598,7 +601,7 @@ async def edit_creator_profile(
                 ContentFile(content),
                 save=False
             )
-            print(f"✅ Profile picture saved locally: {filename}")
+            # print(f"✅ Profile picture saved locally: {filename}")
 
     # ---------------- SAVE USER ----------------
     await sync_to_async(user.save)()
@@ -910,7 +913,8 @@ def get_best_match_collaborators(user_id: int, request: Request):
                         if result['id'] in user_pic_map:
                             result['profile_picture'] = user_pic_map[result['id']]
             except Exception as e:
-                print(f"❌ Batch profile picture error: {e}")
+                pass
+                # print(f"❌ Batch profile picture error: {e}")
 
         # Sort by score descending
         scored_results.sort(key=lambda x: x["match_score"], reverse=True)
@@ -920,7 +924,7 @@ def get_best_match_collaborators(user_id: int, request: Request):
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
-        print(f"Error in get_best_match_collaborators: {e}")
+        # print(f"Error in get_best_match_collaborators: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1119,7 +1123,7 @@ async def update_creator_skills(
             id=user_id
         )
 
-        print(f"✅ User found: {user.email}")
+        # print(f"✅ User found: {user.email}")
 
         # GET OR CREATE PROFILE
         try:
@@ -1127,7 +1131,7 @@ async def update_creator_skills(
                 CreatorProfile.objects.get
             )(user=user)
 
-            print("✅ Existing creator profile found")
+            # print("✅ Existing creator profile found")
 
         except CreatorProfile.DoesNotExist:
 
@@ -1145,7 +1149,7 @@ async def update_creator_skills(
                 skills_required=request.skills_required
             )
 
-            print("✅ New creator profile created")
+            # print("✅ New creator profile created")
 
             # CREATE NOTIFICATION
             try:
@@ -1157,15 +1161,16 @@ async def update_creator_skills(
                     url="/creator-edit-profile"
                 )
 
-                print(
-                    f"✅ Skills notification created for {user.email}"
-                )
+                # print(
+                #     f"✅ Skills notification created for {user.email}"
+                # )
 
             except Exception as notification_error:
+                pass
 
-                print(
-                    f"❌ Skills notification error: {notification_error}"
-                )
+                # print(
+                #     f"❌ Skills notification error: {notification_error}"
+                # )
 
             return {
                 "status": "success",
@@ -1178,7 +1183,7 @@ async def update_creator_skills(
 
         await sync_to_async(profile.save)()
 
-        print(f"✅ Skills updated for {user.email}")
+        # print(f"✅ Skills updated for {user.email}")
 
         # CREATE NOTIFICATION
         try:
@@ -1190,15 +1195,16 @@ async def update_creator_skills(
                 url="/creator-edit-profile"
             )
 
-            print(
-                f"✅ Skills notification created for {user.email}"
-            )
+            # print(
+            #     f"✅ Skills notification created for {user.email}"
+            # )
 
         except Exception as notification_error:
+            pass
 
-            print(
-                f"❌ Skills notification error: {notification_error}"
-            )
+            # print(
+            #     f"❌ Skills notification error: {notification_error}"
+            # )
 
         return {
             "status": "success",
@@ -1208,7 +1214,7 @@ async def update_creator_skills(
 
     except UserData.DoesNotExist:
 
-        print(f"❌ User not found: {user_id}")
+        # print(f"❌ User not found: {user_id}")
 
         raise HTTPException(
             status_code=404,
@@ -1217,7 +1223,7 @@ async def update_creator_skills(
 
     except Exception as e:
 
-        print(f"❌ UPDATE SKILLS ERROR: {str(e)}")
+        # print(f"❌ UPDATE SKILLS ERROR: {str(e)}")
 
         raise HTTPException(
             status_code=500,
@@ -1325,7 +1331,7 @@ def batch_get_profile_pictures(
             for user_id, pic_path in user_pic_map.items():
                 result[user_id] = url_map.get(pic_path)
         except Exception as e:
-            print(f"❌ Error generating batch URLs: {e}")
+            # print(f"❌ Error generating batch URLs: {e}")
             # Fallback to local URLs
             for user_id, pic_path in user_pic_map.items():
                 result[user_id] = f"{base_url}/media/{pic_path}"

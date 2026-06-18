@@ -67,7 +67,7 @@
 #             "transactions": txn_data
 #         }
 #     except Exception as e:
-#         print(f"Financials Error: {str(e)}")
+#         # print(f"Financials Error: {str(e)}")
 #         raise HTTPException(status_code=500, detail=f"Financial Data Error: {str(e)}")
 
 
@@ -148,8 +148,8 @@
 #             if primary_niche:
 #                 user_skills.append(primary_niche)
 
-#             # ✅ DEBUG PRINT: Check what skills the system sees
-#             print(f"DEBUG: User {user.id} Skills for Matching: {user_skills}")
+#             # ✅ DEBUG # print: Check what skills the system sees
+#             # print(f"DEBUG: User {user.id} Skills for Matching: {user_skills}")
 
 #             if user_skills:
 #                 # 3. Create Complex Query (OR Logic)
@@ -162,7 +162,7 @@
 #                 jobs_query = jobs_query.filter(q_object).distinct()
 #             else:
 #                 # Fallback: If user has no skills, show recent
-#                 print("DEBUG: No skills found. Falling back to Recent Jobs.")
+#                 # print("DEBUG: No skills found. Falling back to Recent Jobs.")
 #                 jobs_query = jobs_query.order_by('-created_at')
 
 #         else:
@@ -223,7 +223,7 @@
 #         }
 
 #     except Exception as e:
-#         print(f"Dashboard Error: {str(e)}")
+#         # print(f"Dashboard Error: {str(e)}")
 #         raise HTTPException(status_code=500, detail=f"Dashboard Error: {str(e)}")
 
 import fastapi_app.django_setup
@@ -304,7 +304,7 @@ def get_collaborator_financials(user: UserData = Depends(verify_collaborator)):
             "transactions": txn_data
         }
     except Exception as e:
-        print(f"Financials Error: {str(e)}")
+        # print(f"Financials Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Financial Data Error: {str(e)}")
 
 
@@ -388,8 +388,8 @@ def get_dashboard_home(
             if primary_niche:
                 user_skills.append(primary_niche)
 
-            # ✅ DEBUG PRINT: Check what skills the system sees
-            print(f"DEBUG: User {user.id} Skills for Matching: {user_skills}")
+            # ✅ DEBUG # print: Check what skills the system sees
+            # print(f"DEBUG: User {user.id} Skills for Matching: {user_skills}")
 
             if user_skills:
                 # 3. Create Complex Query (OR Logic)
@@ -402,7 +402,7 @@ def get_dashboard_home(
                 jobs_query = jobs_query.filter(q_object).distinct()
             else:
                 # Fallback: If user has no skills, show recent
-                print("DEBUG: No skills found. Falling back to Recent Jobs.")
+                # print("DEBUG: No skills found. Falling back to Recent Jobs.")
                 jobs_query = jobs_query.order_by('-created_at')
 
         else:
@@ -463,5 +463,5 @@ def get_dashboard_home(
         }
 
     except Exception as e:
-        print(f"Dashboard Error: {str(e)}")
+        # print(f"Dashboard Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Dashboard Error: {str(e)}")

@@ -215,7 +215,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str):
         **cookie_base
     )
 
-    print(f"✅ Cookies set - access_token expires in {ACCESS_TOKEN_EXPIRE_MINUTES} minutes, refresh_token expires in {REFRESH_TOKEN_EXPIRE_DAYS} days")
+    # print(f"✅ Cookies set - access_token expires in {ACCESS_TOKEN_EXPIRE_MINUTES} minutes, refresh_token expires in {REFRESH_TOKEN_EXPIRE_DAYS} days")
 
 
 def get_current_user(request: Request):
@@ -224,8 +224,8 @@ def get_current_user(request: Request):
     """
     ensure_db_connection()
 
-    print(f"\n🔍 Getting current user - Request path: {request.url.path}")
-    print(f"🍪 All cookies received: {dict(request.cookies)}")
+    # print(f"\n🔍 Getting current user - Request path: {request.url.path}")
+    # print(f"🍪 All cookies received: {dict(request.cookies)}")
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -233,17 +233,17 @@ def get_current_user(request: Request):
     )
 
     token = request.cookies.get("access_token")
-    print(f"📦 Access token from cookie: {'Present' if token else 'Not found'}")
+    # print(f"📦 Access token from cookie: {'Present' if token else 'Not found'}")
 
     if not token:
         auth_header = request.headers.get("Authorization")
 
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
-            print("📦 Using token from Authorization header")
+            # print("📦 Using token from Authorization header")
 
     if not token:
-        print("❌ No token found")
+        # print("❌ No token found")
         raise credentials_exception
 
     try:
@@ -256,8 +256,8 @@ def get_current_user(request: Request):
         user_id = payload.get("sub")
         token_type = payload.get("type")
 
-        print(f"👤 User ID from token: {user_id}")
-        print(f"📝 Token type: {token_type}")
+        # print(f"👤 User ID from token: {user_id}")
+        # print(f"📝 Token type: {token_type}")
 
         if not user_id:
             raise credentials_exception
@@ -266,20 +266,20 @@ def get_current_user(request: Request):
             raise credentials_exception
 
     except jwt.ExpiredSignatureError:
-        print("❌ Token expired")
+        # print("❌ Token expired")
         raise credentials_exception
 
     except jwt.PyJWTError as e:
-        print(f"❌ JWT error: {e}")
+        # print(f"❌ JWT error: {e}")
         raise credentials_exception
 
     try:
         user = UserData.objects.get(id=int(user_id))
-        print(f"✅ User found: ID={user.id}")
+        # print(f"✅ User found: ID={user.id}")
         return user
 
     except UserData.DoesNotExist:
-        print(f"❌ User not found: {user_id}")
+        # print(f"❌ User not found: {user_id}")
         raise credentials_exception
 
 
@@ -367,7 +367,8 @@ def signup(
             phone_number=phone
         )
     except Exception as e:
-        print(f"Warning: Could not create verification record: {e}")
+        # print(f"Warning: Could not create verification record: {e}")
+        pass
 
     # Set JWT cookies
     access_token = create_token(
@@ -380,7 +381,7 @@ def signup(
     )
     set_auth_cookies(response, access_token, refresh_token)
 
-    print(f"✅ Signup complete and cookies set for: {email}")
+    # print(f"✅ Signup complete and cookies set for: {email}")
 
     return {
         "message": "Signup successful",
@@ -403,13 +404,13 @@ def login(request: Request, response: Response, email: str, password: str):
     """
     ensure_db_connection()
 
-    print(f"\n🔐 Login attempt for: {email}")
+    # print(f"\n🔐 Login attempt for: {email}")
 
     try:
         user = UserData.objects.get(email=email)
-        print(f"✅ User found in DB")
+        # print(f"✅ User found in DB")
     except UserData.DoesNotExist:
-        print(f"❌ User not found")
+        # print(f"❌ User not found")
         raise HTTPException(
             status_code=401, 
             detail="email_not_found"
@@ -417,14 +418,14 @@ def login(request: Request, response: Response, email: str, password: str):
 
     # ✅ CHECK IF USER IS BANNED
     if user.status and user.status.lower() == "banned":
-        print(f"❌ Banned user attempted login: {email}")
+        # print(f"❌ Banned user attempted login: {email}")
         raise HTTPException(
             status_code=403,
             detail="Your account has been banned by admin. Kindly contact admin@gmail.com"
         )
 
     if not user.check_password(password):
-        print(f"❌ Invalid password")
+        # print(f"❌ Invalid password")
         raise HTTPException(
             status_code=401, 
             detail="invalid_password"
@@ -435,11 +436,11 @@ def login(request: Request, response: Response, email: str, password: str):
         user.status = "Active"
         user.last_active = datetime.now()
         user.save(update_fields=['status', 'last_active'])
-        print(f"✅ User status updated from Inactive to Active: {email}")
+        # print(f"✅ User status updated from Inactive to Active: {email}")
     else:
         user.last_active = datetime.now()
         user.save(update_fields=['last_active'])
-        print(f"✅ User last_active updated: {email}")
+        # print(f"✅ User last_active updated: {email}")
 
     # =========================================================
     # 🔥 LOGIN ACTIVITY TRACKING
@@ -457,10 +458,11 @@ def login(request: Request, response: Response, email: str, password: str):
             user_agent=user_agent
         )
 
-        print(f"📊 Login activity saved: {device}")
+        # print(f"📊 Login activity saved: {device}")
 
     except Exception as e:
-        print("❌ Login tracking error:", e)
+        # print("❌ Login tracking error:", e)
+        pass
     # =========================================================
 
     # ✅ TOKEN CREATION
@@ -582,7 +584,7 @@ def logout(request: Request, response: Response):
     """
     ensure_db_connection()
     
-    print(f"\n🚪 Logout attempt")
+    # print(f"\n🚪 Logout attempt")
     
     # ✅ Get the refresh token BEFORE clearing cookies
     refresh_token = request.cookies.get("refresh_token")
@@ -616,18 +618,22 @@ def logout(request: Request, response: Response):
                     if user.status and user.status.lower() == "active":
                         user.status = "Inactive"
                         user.save(update_fields=['status'])
-                        print(f"✅ User status set to Inactive: {user.id}")                  
+                        # print(f"✅ User status set to Inactive: {user.id}")                  
                     else:
-                        print(f"ℹ️ User status unchanged (was '{user.status}'): {user.id}")
+                        # print(f"ℹ️ User status unchanged (was '{user.status}'): {user.id}")
+                        pass
                         
             except jwt.PyJWTError as e:
-                print(f"⚠️ JWT error during logout status update: {e}")
+                pass
+                # print(f"⚠️ JWT error during logout status update: {e}")
             except UserData.DoesNotExist:
-                print(f"⚠️ User not found for status update")
+                # print(f"⚠️ User not found for status update")
+                pass
                 
     except Exception as e:
-        print(f"⚠️ Error updating user status on logout: {e}")
+        # print(f"⚠️ Error updating user status on logout: {e}")
         # Continue with cookie clearing even if status update fails
+        pass
     
     # ✅ BLACKLIST THE REFRESH TOKEN (prevent reuse)
     if refresh_token:
@@ -641,7 +647,7 @@ def logout(request: Request, response: Response):
                         REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60, 
                         "1"
                     )
-                    print("✅ Refresh token blacklisted in Redis")
+                    # print("✅ Refresh token blacklisted in Redis")
             except ImportError:
                 pass
             
@@ -653,12 +659,13 @@ def logout(request: Request, response: Response):
                     "1", 
                     REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
                 )
-                print("✅ Refresh token blacklisted in Django cache")
+                # print("✅ Refresh token blacklisted in Django cache")
             except:
                 pass
                 
         except Exception as e:
-            print(f"⚠️ Could not blacklist token: {e}")
+            pass
+            # print(f"⚠️ Could not blacklist token: {e}")
     
     # ✅ Clear ALL cookies aggressively
     cookie_settings = {
@@ -701,7 +708,7 @@ def logout(request: Request, response: Response):
         **cookie_settings
     )
     
-    print("✅ All cookies cleared, logout complete")
+    # print("✅ All cookies cleared, logout complete")
     
     return {"message": "Logged out successfully"}
 
@@ -745,7 +752,8 @@ def read_users_me(request: Request, current_user: UserData = Depends(get_current
         # Models not available yet
         pass
     except Exception as e:
-        print(f"Warning: Could not fetch profile data for user {current_user.email}: {e}")
+        pass
+        # print(f"Warning: Could not fetch profile data for user {current_user.email}: {e}")
 
     return {
         "id": current_user.id,
@@ -1022,7 +1030,7 @@ def auth0_login(provider: str = None):
     Initiates Auth0 login.
     Usage: /auth/auth0/login?provider=google
     """
-    print(f"\n🔐 Auth0 login initiated with provider: {provider}")
+    # print(f"\n🔐 Auth0 login initiated with provider: {provider}")
 
     if not AUTH0_DOMAIN or not AUTH0_CLIENT_ID:
         raise HTTPException(500, "Auth0 environment variables are missing.")
@@ -1044,7 +1052,7 @@ def auth0_login(provider: str = None):
 
     query_string = urllib.parse.urlencode(params)
     auth0_url = f"https://{AUTH0_DOMAIN}/authorize?{query_string}"
-    print(f"➡ Redirecting to Auth0: {auth0_url}")
+    # print(f"➡ Redirecting to Auth0: {auth0_url}")
     return RedirectResponse(auth0_url)
 
 
@@ -1061,10 +1069,10 @@ def auth0_callback(
     with a short-lived handshake token.
     """
 
-    print(f"\n🔄 Auth0 callback received")
+    # print(f"\n🔄 Auth0 callback received")
 
     if error:
-        print(f"❌ Auth0 error: {error}")
+        # print(f"❌ Auth0 error: {error}")
 
         FRONTEND_BASE_URL = os.getenv(
         "FRONTEND_BASE_URL",
@@ -1084,7 +1092,7 @@ def auth0_callback(
         )
 
     if not code:
-        print("❌ Missing authentication code")
+        # print("❌ Missing authentication code")
         raise HTTPException(
             status_code=400,
             detail="Missing authentication code"
@@ -1111,10 +1119,10 @@ def auth0_callback(
     token_data = token_res.json()
 
     if "error" in token_data:
-        print(
-            f"❌ Token exchange error: "
-            f"{token_data.get('error_description')}"
-        )
+        # # print(
+        #     f"❌ Token exchange error: "
+        #     f"{token_data.get('error_description')}"
+        # )
 
         raise HTTPException(
             status_code=400,
@@ -1135,7 +1143,7 @@ def auth0_callback(
 
     user_info = user_info_res.json()
 
-    print("USER INFO:", user_info)
+    # print("USER INFO:", user_info)
 
     auth0_user_id = user_info.get("sub")
     email = user_info.get("email")
@@ -1179,14 +1187,14 @@ def auth0_callback(
     if "google-oauth2" in user_info.get("sub", ""):
         is_google_auth = True
 
-    print(
-        f"🔍 Google Auth Detection: "
-        f"{is_google_auth}"
-    )
+    # # print(
+    #     f"🔍 Google Auth Detection: "
+    #     f"{is_google_auth}"
+    # )
 
-    print(
-        f"📧 Email: {email}"
-    )
+    # # print(
+    #     f"📧 Email: {email}"
+    # )
 
     if is_google_auth:
 
@@ -1221,10 +1229,10 @@ def auth0_callback(
                 status_code=302
             )
 
-    print(
-        f"✅ Auth0 user info retrieved "
-        f"for provider={provider}"
-    )
+    # # print(
+    #     f"✅ Auth0 user info retrieved "
+    #     f"for provider={provider}"
+    # )
 
     # =====================================================
     # Find / Create User
@@ -1241,10 +1249,10 @@ def auth0_callback(
             userid=auth0_user_id
         )
 
-        print(
-            f"✅ Existing social user found "
-            f"ID={user.id}"
-        )
+        # # print(
+        #     f"✅ Existing social user found "
+        #     f"ID={user.id}"
+        # )
 
     except UserData.DoesNotExist:
         pass
@@ -1271,10 +1279,10 @@ def auth0_callback(
                 ]
             )
 
-            print(
-                f"✅ Linked existing account "
-                f"ID={user.id}"
-            )
+            # # print(
+            #     f"✅ Linked existing account "
+            #     f"ID={user.id}"
+            # )
 
         except UserData.DoesNotExist:
             pass
@@ -1284,10 +1292,10 @@ def auth0_callback(
     # -----------------------------------------
     if not user:
 
-        print(
-            f"✨ Creating new social user "
-            f"(email={email})"
-        )
+        # # print(
+        #     f"✨ Creating new social user "
+        #     f"(email={email})"
+        # )
 
         random_password = make_password(
             f"social_login_{randint(1000,99999)}_{time.time()}"
@@ -1308,10 +1316,10 @@ def auth0_callback(
             provider=provider,
         )
 
-        print(
-            f"✅ New user created "
-            f"ID={user.id}"
-        )
+        # # print(
+        #     f"✅ New user created "
+        #     f"ID={user.id}"
+        # )
 
     # =====================================================
     # Create JWT Tokens
@@ -1337,7 +1345,7 @@ def auth0_callback(
         )
     )
 
-    print("✅ JWT tokens created")
+    # print("✅ JWT tokens created")
 
     # =====================================================
     # Handshake Token
@@ -1348,10 +1356,10 @@ def auth0_callback(
         user.role or ""
     )
 
-    print(
-        f"✅ Handshake token created "
-        f"expires in {HANDSHAKE_EXPIRY_SECONDS}s"
-    )
+    # print(
+    #     f"✅ Handshake token created "
+    #     f"expires in {HANDSHAKE_EXPIRY_SECONDS}s"
+    # )
 
     # =====================================================
     # Redirect To Frontend
@@ -1366,10 +1374,10 @@ def auth0_callback(
         f"/auth-callback?token={handshake_token}"
     )
 
-    print(
-        f"➡ Redirecting to frontend: "
-        f"{redirect_url}"
-    )
+    # print(
+    #     f"➡ Redirecting to frontend: "
+    #     f"{redirect_url}"
+    # )
 
     return RedirectResponse(
         url=redirect_url,
@@ -1410,7 +1418,7 @@ def session_handshake(response: Response, token: str):
     role = payload.get("role", "")
 
     set_auth_cookies(response, access_token, refresh_token_val)
-    print(f"✅ Session handshake complete — cookies set, role: '{role}'")
+    # print(f"✅ Session handshake complete — cookies set, role: '{role}'")
 
     return {"message": "Session established", "role": role}
 

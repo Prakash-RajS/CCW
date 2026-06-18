@@ -190,13 +190,13 @@ def update_job_contract_status(job_id: int, has_contract: bool):
         job = JobPost.objects.get(id=job_id)
         job.has_contract = has_contract
         job.save()
-        print(f"✅ Job {job_id} has_contract updated to {has_contract}")
+        ##print(f"✅ Job {job_id} has_contract updated to {has_contract}")
         return True
     except JobPost.DoesNotExist:
-        print(f"❌ Job {job_id} not found")
+        ##print(f"❌ Job {job_id} not found")
         return False
     except Exception as e:
-        print(f"❌ Error updating job contract status: {str(e)}")
+        ##print(f"❌ Error updating job contract status: {str(e)}")
         return False
     
 
@@ -380,7 +380,7 @@ async def create_proposal(
         
         proposal = await sync_to_async(create_proposal_sync)()
 
-        print(f"✅ Created proposal {proposal.id} with {len(milestones_list)} milestones")
+        ##print(f"✅ Created proposal {proposal.id} with {len(milestones_list)} milestones")
 
         # Save attachments using S3
         uploaded_files = []
@@ -425,7 +425,7 @@ async def create_proposal(
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Error in create_proposal: {str(e)}")
+        ##print(f"❌ Error in create_proposal: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
@@ -711,7 +711,7 @@ async def edit_proposal(
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ EditProposal ERROR: {str(e)}")
+        ##print(f"❌ EditProposal ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -872,7 +872,7 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
                     })
 
                 except Exception as inner_e:
-                    print(f"❌ Error processing proposal {p.id}: {str(inner_e)}")
+                    ##print(f"❌ Error processing proposal {p.id}: {str(inner_e)}")
                     import traceback
                     traceback.print_exc()
                     continue
@@ -895,7 +895,7 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
         return {"proposals": proposals_data}
 
     except Exception as e:
-        print("❌ GetProposalsForCreator ERROR:", e)
+        ##print("❌ GetProposalsForCreator ERROR:", e)
         import traceback
         traceback.print_exc()
         return {"proposals": [], "error": str(e)}
@@ -1028,7 +1028,7 @@ async def accept_proposal(proposal_id: int, creator_id: int):
                     "review": None,
                     "payment": None
                 })
-            print(f"✅ Created {len(contract_milestones)} milestones for contract")
+            ##print(f"✅ Created {len(contract_milestones)} milestones for contract")
 
         # ✅ Use transaction.atomic() inside sync function
         def create_contract_sync():
@@ -1055,13 +1055,13 @@ async def accept_proposal(proposal_id: int, creator_id: int):
                     job=job, 
                     status="submitted"
                 ).exclude(id=proposal.id).update(status="rejected")
-                print(f"✅ Rejected {other_proposals_updated} other proposals")
+                ##print(f"✅ Rejected {other_proposals_updated} other proposals")
 
                 invitations_updated = Invitation.objects.filter(
                     job=job, 
                     status="Pending"
                 ).update(status="Rejected")
-                print(f"✅ Cancelled {invitations_updated} pending invitations")
+                ##print(f"✅ Cancelled {invitations_updated} pending invitations")
 
                 Proposal.objects.filter(id=proposal.id, status="submitted").update(status="accepted")
                 
@@ -1087,7 +1087,7 @@ async def accept_proposal(proposal_id: int, creator_id: int):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ AcceptProposal ERROR: {str(e)}")
+        ##print(f"❌ AcceptProposal ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1186,14 +1186,14 @@ async def revoke_acceptance(proposal_id: int, creator_id: int):
                 if contract:
                     deleted_contract_id = contract.id
                     contract.delete()
-                    print(f"✅ Contract {deleted_contract_id} deleted successfully")
+                    ##print(f"✅ Contract {deleted_contract_id} deleted successfully")
                 
                 other_contracts = Contract.objects.filter(job=job).exists()
                 
                 if not other_contracts:
                     job.has_contract = False
                     job.save(update_fields=['has_contract'])
-                    print(f"✅ Job {job.id} has_contract set to False")
+                    ##print(f"✅ Job {job.id} has_contract set to False")
                 
                 proposal.status = "submitted"
                 proposal.save(update_fields=['status'])
@@ -1215,7 +1215,7 @@ async def revoke_acceptance(proposal_id: int, creator_id: int):
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="Creator not found")
     except Exception as e:
-        print(f"❌ Error in revoke_acceptance: {str(e)}")
+        #print(f"❌ Error in revoke_acceptance: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1292,7 +1292,7 @@ async def get_proposal(request: Request, proposal_id: int):
 @router.get("/download-attachment/{proposal_id}/{filename}")
 async def download_proposal_attachment(proposal_id: int, filename: str):
     """
-    Download proposal attachment with S3 support
+    Download proposal attachment with S3 support - Direct Download
     S3 Folder Used: proposal_attachments/
     File Type: proposal
     """
@@ -1321,16 +1321,19 @@ async def download_proposal_attachment(proposal_id: int, filename: str):
             raise HTTPException(status_code=404, detail=f"Attachment '{filename}' not found")
 
         if USE_S3:
-            # For S3, generate a presigned download URL
             s3_key = get_s3_key_from_path(attachment_path)
+            
+            # ✅ FORCE DOWNLOAD for all files
             download_url = generate_presigned_url(
                 s3_key=s3_key,
                 expires_in=ExpiryPreset.WEEKLY,
-                force_download=True
+                force_download=True  # ✅ Force download for all files
             )
             
             if download_url:
+                # ✅ Return the download URL for frontend to trigger download
                 return {
+                    "success": True,
                     "download_url": download_url,
                     "filename": filename,
                     "storage_mode": "s3"
@@ -1338,7 +1341,7 @@ async def download_proposal_attachment(proposal_id: int, filename: str):
             else:
                 raise HTTPException(status_code=404, detail="File not found in S3")
         else:
-            # Local storage download
+            # Local storage - Return FileResponse with download headers
             full_path = os.path.join(BASE_DIR, "fastapi_app", attachment_path)
 
             if not os.path.exists(full_path):
@@ -1348,21 +1351,18 @@ async def download_proposal_attachment(proposal_id: int, filename: str):
                 else:
                     raise HTTPException(status_code=404, detail="File not found on server")
 
-            original_filename = os.path.basename(attachment_path)
-            parts = original_filename.split('_', 2)
-            if len(parts) >= 3 and parts[0].isdigit():
-                original_filename = parts[2]
-
-            mime_type, _ = mimetypes.guess_type(original_filename)
+            mime_type, _ = mimetypes.guess_type(full_path)
             if not mime_type:
                 mime_type = 'application/octet-stream'
 
+            # ✅ Force download for local files too
             return FileResponse(
                 full_path,
                 media_type=mime_type,
-                filename=original_filename,
+                filename=filename,
                 headers={
-                    "Content-Disposition": f"attachment; filename*=UTF-8''{original_filename}"
+                    "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+                    "Content-Type": mime_type,
                 }
             )
 
@@ -1371,7 +1371,8 @@ async def download_proposal_attachment(proposal_id: int, filename: str):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Download attachment error: {str(e)}")
+        #print(f"❌ Download attachment error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+

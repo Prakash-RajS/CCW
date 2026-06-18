@@ -1901,10 +1901,10 @@ export default function Created() {
     handleFiles(e.dataTransfer.files);
   };
 
-  const removeExistingFile = (indexToRemove) => {
-    setExistingFiles(existingFiles.filter((_, index) => index !== indexToRemove));
-    toast.success("File removed", "File has been removed");
-  };
+ const removeExistingFile = (indexToRemove) => {
+  setExistingFiles(existingFiles.filter((_, index) => index !== indexToRemove));
+  toast.success("File removed", "File has been removed");
+};
 
   const removeNewFile = (indexToRemove) => {
     setFiles(files.filter((_, index) => index !== indexToRemove));
@@ -2339,24 +2339,59 @@ export default function Created() {
                 <p className="text-xs text-gray-500 -mt-2">Max file size: 25MB per file</p>
 
                 {/* Existing files display */}
-                {existingFiles.length > 0 && (
-                  <div className="mb-2">
-                    <p className="text-sm text-gray-500 mb-1">Existing files:</p>
-                    <ul className="flex flex-col gap-1">
-                      {existingFiles.map((file, index) => (
-                        <li key={`existing-${index}`} className="flex items-center justify-between text-[14px] font-['Montserrat'] text-gray-600 bg-gray-50 p-2 rounded">
-                          <span>• {typeof file === 'string' ? file : file.name || 'Attachment'}</span>
-                          <button
-                            onClick={() => removeExistingFile(index)}
-                            className="text-red-500 hover:text-red-700 ml-2"
-                          >
-                            ✕
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {/* Existing files display - FIXED to show clean filenames */}
+{existingFiles.length > 0 && (
+  <div className="mb-2">
+    <p className="text-sm text-gray-500 mb-1">Existing files:</p>
+    <ul className="flex flex-col gap-1">
+      {existingFiles.map((file, index) => {
+        // ✅ Extract clean filename from URL or path
+        let displayName = file;
+        if (typeof file === 'string') {
+          // Remove query parameters
+          let clean = file.split('?')[0];
+          // Get the last part after slash
+          const parts = clean.split('/');
+          displayName = parts[parts.length - 1] || file;
+          
+          // Clean up filename: remove ID prefixes like "123_456_filename.pdf" -> "filename.pdf"
+          const nameParts = displayName.split('_');
+          if (nameParts.length >= 3 && /^\d+$/.test(nameParts[0]) && /^\d+$/.test(nameParts[1])) {
+            displayName = nameParts.slice(2).join('_');
+          } else if (nameParts.length >= 2 && /^\d+$/.test(nameParts[0])) {
+            displayName = nameParts.slice(1).join('_');
+          }
+          
+          // Decode URL encoded characters (e.g., %20 -> space)
+          try {
+            displayName = decodeURIComponent(displayName);
+          } catch (e) {
+            // If decoding fails, keep as is
+          }
+        }
+        
+        return (
+          <li key={`existing-${index}`} className="flex items-center justify-between text-[14px] font-['Montserrat'] text-gray-600 bg-gray-50 p-2 rounded">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              <span className="truncate" title={displayName}>
+                {displayName.length > 40 ? displayName.substring(0, 40) + '...' : displayName}
+              </span>
+            </div>
+            <button
+              onClick={() => removeExistingFile(index)}
+              className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+            >
+              ✕
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+)}
 
                 {/* New files display */}
                 {files.length > 0 && (

@@ -221,9 +221,9 @@ async def add_portfolio_item(
                         # Store the S3 key in the file field
                         item.file.name = s3_key
                         await sync_to_async(item.save)()
-                        print(f"✅ Portfolio saved to S3: {s3_key}")
+                        # print(f"✅ Portfolio saved to S3: {s3_key}")
                     except Exception as e:
-                        print(f"⚠️ S3 upload failed, using local storage: {e}")
+                        # print(f"⚠️ S3 upload failed, using local storage: {e}")
                         # Fallback to local storage
                         random_digits = ''.join(random.choices(string.digits, k=4))
                         ext = Path(file.filename).suffix
@@ -262,9 +262,10 @@ async def add_portfolio_item(
                 message=f"New portfolio '{title}' added successfully.",
                 url="/creator-edit-profile"
             )
-            print(f"✅ Portfolio notification created for {user.email}")
+            # print(f"✅ Portfolio notification created for {user.email}")
         except Exception as e:
-            print(f"❌ Portfolio notification error: {e}")
+            pass
+            # print(f"❌ Portfolio notification error: {e}")
 
         # Generate file URL
         file_url = None
@@ -279,7 +280,7 @@ async def add_portfolio_item(
         }
 
     except Exception as e:
-        print("ADD PORTFOLIO ERROR:", str(e))
+        # print("ADD PORTFOLIO ERROR:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -430,13 +431,13 @@ async def edit_portfolio_item(
                             # Delete from S3
                             s3_key = old_file_name.lstrip('/')
                             delete_file(s3_key)
-                            print(f"✅ Deleted old portfolio from S3: {s3_key}")
+                            # print(f"✅ Deleted old portfolio from S3: {s3_key}")
                         else:
                             # Delete from local
                             await sync_to_async(
                                 item.file.delete
                             )(save=False)
-                            print(f"✅ Deleted old portfolio locally: {old_file_name}")
+                            # print(f"✅ Deleted old portfolio locally: {old_file_name}")
 
                         # Track deletion
                         if old_file_size > 0:
@@ -448,7 +449,8 @@ async def edit_portfolio_item(
                             )
 
                     except Exception as delete_error:
-                        print(f"Old file delete error: {delete_error}")
+                        pass
+                        # print(f"Old file delete error: {delete_error}")
 
                 # ==========================================
                 # SAVE NEW FILE (S3 or Local)
@@ -462,9 +464,9 @@ async def edit_portfolio_item(
                             str(item.id)
                         )
                         item.file.name = s3_key
-                        print(f"✅ Portfolio updated in S3: {s3_key}")
+                        # print(f"✅ Portfolio updated in S3: {s3_key}")
                     except Exception as e:
-                        print(f"⚠️ S3 upload failed, using local storage: {e}")
+                        # print(f"⚠️ S3 upload failed, using local storage: {e}")
                         # Fallback to local storage
                         random_digits = ''.join(random.choices(string.digits, k=4))
                         ext = Path(file.filename).suffix
@@ -484,7 +486,7 @@ async def edit_portfolio_item(
                         ContentFile(content),
                         save=False
                     )
-                    print(f"✅ Portfolio updated locally: {filename}")
+                    # print(f"✅ Portfolio updated locally: {filename}")
 
                 # ==========================================
                 # TRACK FILE UPLOAD
@@ -497,9 +499,10 @@ async def edit_portfolio_item(
                         str(item.file.name) if item.file else "",
                         new_file_size
                     )
-                    print("✅ Updated file storage tracked")
+                    # print("✅ Updated file storage tracked")
                 except Exception as storage_error:
-                    print(f"Storage tracking error: {storage_error}")
+                    pass
+                    # print(f"Storage tracking error: {storage_error}")
 
         # ==========================================
         # SAVE ITEM
@@ -524,9 +527,10 @@ async def edit_portfolio_item(
                 create_notification_sync,
                 thread_sensitive=False
             )()
-            print("✅ Portfolio notification created")
+            # print("✅ Portfolio notification created")
         except Exception as notification_error:
-            print(f"❌ Notification error: {notification_error}")
+            pass
+            # print(f"❌ Notification error: {notification_error}")
             import traceback
             traceback.print_exc()
 
@@ -555,7 +559,8 @@ async def edit_portfolio_item(
     except HTTPException:
         raise
     except Exception as e:
-        print("EDIT PORTFOLIO ERROR:", str(e))
+        pass
+        # print("EDIT PORTFOLIO ERROR:", str(e))
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -597,11 +602,11 @@ async def delete_portfolio_item(item_id: int):
                         # Delete from S3
                         s3_key = file_name.lstrip('/')
                         delete_file(s3_key)
-                        print(f"✅ Deleted portfolio from S3: {s3_key}")
+                        # print(f"✅ Deleted portfolio from S3: {s3_key}")
                     else:
                         # Delete from local
                         item.file.delete(save=False)
-                        print(f"✅ Deleted portfolio locally: {file_name}")
+                        # print(f"✅ Deleted portfolio locally: {file_name}")
                 
                 # Delete the portfolio item
                 item.delete()
@@ -619,9 +624,10 @@ async def delete_portfolio_item(item_id: int):
                         message=f"Portfolio '{item_title}' has been deleted.",
                         url="/creator-edit-profile"
                     )
-                    print(f"✅ Portfolio deletion notification created for {file_owner.email}")
+                    # print(f"✅ Portfolio deletion notification created for {file_owner.email}")
                 except Exception as e:
-                    print(f"❌ Portfolio deletion notification error: {e}")
+                    pass
+                    # print(f"❌ Portfolio deletion notification error: {e}")
                 
                 return {"status": "success", "message": "Item deleted"}
                 
@@ -637,7 +643,7 @@ async def delete_portfolio_item(item_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        print("DELETE PORTFOLIO ERROR:", str(e))
+        # print("DELETE PORTFOLIO ERROR:", str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -672,5 +678,5 @@ async def get_portfolio_item(item_id: int, request: Request):
     except PortfolioItem.DoesNotExist:
         raise HTTPException(status_code=404, detail="Portfolio item not found")
     except Exception as e:
-        print("GET PORTFOLIO ITEM ERROR:", str(e))
+        # print("GET PORTFOLIO ITEM ERROR:", str(e))
         raise HTTPException(status_code=500, detail=str(e))

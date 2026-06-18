@@ -86,11 +86,6 @@ CF_HEADERS = {
 INVOICE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), "invoices")
 os.makedirs(INVOICE_FOLDER, exist_ok=True)
 
-if CASHFREE_APP_ID:
-    print(f"✅ Cashfree App ID loaded: {CASHFREE_APP_ID[:6]}...")
-else:
-    print("❌ CRITICAL: CASHFREE_APP_ID not found in .env!")
-
 
 # ==============================================================================
 # 2. PYDANTIC SCHEMAS
@@ -202,7 +197,8 @@ def get_or_create_basic_plan(role: str):
         }
     )
     if created:
-        print(f"✅ Created new Basic plan for {role}")
+        pass
+        # print(f"✅ Created new Basic plan for {role}")
     return plan
 
 def make_order_id(user_id: int, plan_name: str) -> str:
@@ -251,11 +247,11 @@ async def check_subscription_expiry():
                 lambda: sub.user
             )()
 
-            print(
-                f"🔔 Subscription check: "
-                f"{user.email} | "
-                f"Days Remaining = {remaining_days}"
-            )
+            # print(
+            #     f"🔔 Subscription check: "
+            #     f"{user.email} | "
+            #     f"Days Remaining = {remaining_days}"
+            # )
 
             # =========================================
             # EXPIRED
@@ -298,10 +294,10 @@ async def check_subscription_expiry():
                     # Email
                     try:
 
-                        print(
-                            f"📨 Sending expired email "
-                            f"to {user.email}"
-                        )
+                        # print(
+                        #     f"📨 Sending expired email "
+                        #     f"to {user.email}"
+                        # )
 
                         await sync_to_async(send_mail)(
                             subject="Subscription Expired",
@@ -319,23 +315,24 @@ Renew your subscription to continue premium features.
                             fail_silently=False
                         )
 
-                        print(
-                            f"📧 Expired email sent to "
-                            f"{user.email}"
-                        )
+                        # print(
+                        #     f"📧 Expired email sent to "
+                        #     f"{user.email}"
+                        # )
 
                     except Exception as mail_error:
+                        pass
 
-                        print(
-                            f"❌ Failed expired email "
-                            f"for {user.email}: "
-                            f"{mail_error}"
-                        )
+                        # print(
+                        #     f"❌ Failed expired email "
+                        #     f"for {user.email}: "
+                        #     f"{mail_error}"
+                        # )
 
-                    print(
-                        f"✅ Downgraded "
-                        f"{user.email} to Basic Plan"
-                    )
+                    # print(
+                    #     f"✅ Downgraded "
+                    #     f"{user.email} to Basic Plan"
+                    # )
 
             # =========================================
             # REMINDER EMAILS
@@ -382,10 +379,10 @@ Renew your subscription to continue premium features.
                     # Email
                     try:
 
-                        print(
-                            f"📨 Sending reminder email "
-                            f"to {user.email}"
-                        )
+                        # print(
+                        #     f"📨 Sending reminder email "
+                        #     f"to {user.email}"
+                        # )
 
                         await sync_to_async(send_mail)(
                             subject=(
@@ -404,18 +401,19 @@ Renew now to continue premium access.
                             fail_silently=False
                         )
 
-                        print(
-                            f"📧 Reminder email sent to "
-                            f"{user.email}"
-                        )
+                        # print(
+                        #     f"📧 Reminder email sent to "
+                        #     f"{user.email}"
+                        # )
 
                     except Exception as mail_error:
+                        pass
 
-                        print(
-                            f"❌ Failed reminder email "
-                            f"for {user.email}: "
-                            f"{mail_error}"
-                        )
+                        # print(
+                        #     f"❌ Failed reminder email "
+                        #     f"for {user.email}: "
+                        #     f"{mail_error}"
+                        # )
 
                     # Save reminder history ONLY if metadata exists
                     if hasattr(sub, "metadata"):
@@ -430,17 +428,18 @@ Renew now to continue premium access.
 
                         await sync_to_async(sub.save)()
 
-                    print(
-                        f"✅ Reminder processed for "
-                        f"{user.email}"
-                    )
+                    # print(
+                    #     f"✅ Reminder processed for "
+                    #     f"{user.email}"
+                    # )
 
         except Exception as e:
+            pass
 
-            print(
-                f"❌ Expiry checker error "
-                f"for subscription {sub.id}: {e}"
-            )
+            # print(
+            #     f"❌ Expiry checker error "
+            #     f"for subscription {sub.id}: {e}"
+            # )
 
 
 # ==============================================================================
@@ -490,7 +489,7 @@ def get_plan_by_name(
 
     except Exception as e:
 
-        print(f"❌ Error getting plan: {e}")
+        # print(f"❌ Error getting plan: {e}")
 
         return None
 
@@ -514,7 +513,7 @@ def create_subscription_history_sync(
         if cf_order_id:
             existing = SubscriptionHistory.objects.filter(stripe_event_id=cf_order_id).first()
             if existing:
-                print(f"⚠️ Duplicate CF order skipped: {cf_order_id}")
+                # print(f"⚠️ Duplicate CF order skipped: {cf_order_id}")
                 return existing
 
         if action in ("created", "renewed"):
@@ -525,7 +524,7 @@ def create_subscription_history_sync(
                 invoice_number=invoice_number,
             ).first()
             if existing:
-                print(f"⚠️ Duplicate history skipped: {user.email} - {action}")
+                # print(f"⚠️ Duplicate history skipped: {user.email} - {action}")
                 return existing
 
         if action == "created":
@@ -548,11 +547,11 @@ def create_subscription_history_sync(
             action=action,
             **({"plan_id": plan_id} if plan_id is not None else {}),
         )
-        print(f"✅ History: {user.email} - {plan_name} - {action}")
+        # print(f"✅ History: {user.email} - {plan_name} - {action}")
         return history
     except Exception as e:
         import traceback; traceback.print_exc()
-        print(f"❌ Error creating subscription history: {e}")
+        # print(f"❌ Error creating subscription history: {e}")
         return None
 
 
@@ -596,10 +595,10 @@ def create_user_subscription_db(
                 else float(plan.price)
             )
 
-            print(
-                f"📦 create_user_subscription_db: "
-                f"{user.email} -> {plan.name}"
-            )
+            # print(
+            #     f"📦 create_user_subscription_db: "
+            #     f"{user.email} -> {plan.name}"
+            # )
 
             # =====================================================
             # DUPLICATE CHECK
@@ -685,10 +684,10 @@ def create_user_subscription_db(
                 invoice_number=invoice_number,
             )
 
-            print(
-                f"✅ Subscription created: "
-                f"{user.email} -> {plan.name}"
-            )
+            # print(
+            #     f"✅ Subscription created: "
+            #     f"{user.email} -> {plan.name}"
+            # )
 
             return subscription, duration_display, True
 
@@ -724,7 +723,7 @@ def check_and_downgrade_expired_subscriptions(user=None):
         for sub in qs:
             user = sub.user
             if not user or not user.role:
-                print(f"⚠️ Cannot downgrade subscription {sub.id}: user {user.email if user else 'None'} has no role")
+                # print(f"⚠️ Cannot downgrade subscription {sub.id}: user {user.email if user else 'None'} has no role")
                 continue
             
             # Get role‑specific Basic plan (creator or collaborator)
@@ -754,7 +753,7 @@ def check_and_downgrade_expired_subscriptions(user=None):
 
         return count
     except Exception as e:
-        print(f"❌ Error checking expired subscriptions: {e}")
+        # print(f"❌ Error checking expired subscriptions: {e}")
         return 0
 
 
@@ -770,9 +769,10 @@ def handle_wallet_topup(user_id: int, amount: float):
             wallet=wallet, amount=Decimal(str(amount)),
             transaction_type="Deposit", user=user,
         )
-        print(f"✅ Wallet updated: {user.email} +₹{amount}")
+        # print(f"✅ Wallet updated: {user.email} +₹{amount}")
     except Exception as e:
-        print(f"❌ Wallet update failed: {e}")
+        pass
+        # print(f"❌ Wallet update failed: {e}")
 
 
 def send_welcome_email_sync(user, plan, amount_paid, duration_display):
@@ -807,10 +807,10 @@ The Talenta Team
             from_email=settings.DEFAULT_FROM_EMAIL,
             to=[user.email],
         ).send(fail_silently=False)
-        print(f"✅ Welcome email sent to {user.email}")
+        # print(f"✅ Welcome email sent to {user.email}")
         return True
     except Exception as e:
-        print(f"❌ Failed to send welcome email: {e}")
+        # print(f"❌ Failed to send welcome email: {e}")
         return False
 
 
@@ -943,11 +943,11 @@ def send_invoice_email_wrapper(
     """
     import asyncio
     try:
-        print(f"📧 [WRAPPER] Starting invoice email for {getattr(user, 'email', 'unknown')}")
-        print(f"   Invoice: {invoice_number}")
-        print(f"   Plan: {getattr(plan, 'name', 'unknown')}")
-        print(f"   Amount: {amount_paid}")
-        print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
+        # print(f"📧 [WRAPPER] Starting invoice email for {getattr(user, 'email', 'unknown')}")
+        # print(f"   Invoice: {invoice_number}")
+        # print(f"   Plan: {getattr(plan, 'name', 'unknown')}")
+        # print(f"   Amount: {amount_paid}")
+        # print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
         
         # Create a new event loop for this task
         loop = asyncio.new_event_loop()
@@ -967,17 +967,19 @@ def send_invoice_email_wrapper(
                 )
             )
             if result:
-                print(f"✅ [WRAPPER] Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
+                pass
+                # print(f"✅ [WRAPPER] Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
             else:
-                print(f"❌ [WRAPPER] Invoice email returned False for {getattr(user, 'email', 'unknown')}")
+                pass
+                # print(f"❌ [WRAPPER] Invoice email returned False for {getattr(user, 'email', 'unknown')}")
         except Exception as e:
-            print(f"❌ [WRAPPER] Error in invoice email async execution: {e}")
+            # print(f"❌ [WRAPPER] Error in invoice email async execution: {e}")
             import traceback
             traceback.print_exc()
         finally:
             loop.close()
     except Exception as e:
-        print(f"❌ [WRAPPER] Failed to send invoice email: {e}")
+        # print(f"❌ [WRAPPER] Failed to send invoice email: {e}")
         import traceback
         traceback.print_exc()
 
@@ -1187,7 +1189,8 @@ async def verify_payment(
                 icon="subscription",
             )
         except Exception as e:
-            print(f"Notification error: {e}")
+            pass
+            # print(f"Notification error: {e}")
 
         # ── Send PDF invoice using BackgroundTasks ──
         try:
@@ -1203,9 +1206,9 @@ async def verify_payment(
                 request=request,
             )
             email_sent = True
-            print(f"📧 Invoice email queued for {user.email}")
+            # print(f"📧 Invoice email queued for {user.email}")
         except Exception as e:
-            print(f"Invoice email error: {e}")
+            # print(f"Invoice email error: {e}")
             import traceback
             traceback.print_exc()
 
@@ -1263,7 +1266,7 @@ async def cashfree_webhook(
     order_status = order_data.get("order_status", "")
     order_tags = order_data.get("order_tags", {})
 
-    print(f"🔄 CF Webhook: {event_type} | order={order_id} | status={order_status}")
+    # print(f"🔄 CF Webhook: {event_type} | order={order_id} | status={order_status}")
 
     # ------------------------------------------------------------------
     # PAYMENT SUCCESS
@@ -1277,20 +1280,20 @@ async def cashfree_webhook(
         plan_duration = order_tags.get("plan_duration", "monthly")
 
         if not user_email or not plan_name:
-            print(f"⚠️ Missing metadata | email={user_email} | plan={plan_name}")
+            # print(f"⚠️ Missing metadata | email={user_email} | plan={plan_name}")
             return {"success": True, "message": "Ignored webhook"}
 
         user = await get_user_by_email(user_email)
 
         if not user:
-            print(f"⚠️ User not found: {user_email}")
+            # print(f"⚠️ User not found: {user_email}")
             return {"success": True, "message": "User not found"}
 
         role = order_tags.get("role")
         plan = await get_plan_by_name(plan_name, plan_duration, role)
 
         if not plan:
-            print(f"⚠️ Plan not found: {plan_name}")
+            # print(f"⚠️ Plan not found: {plan_name}")
             return {"success": True, "message": "Plan not found"}
 
         amount_paid = float(order_data.get("order_amount", 0))
@@ -1304,7 +1307,7 @@ async def cashfree_webhook(
             )()
 
             if already_processed:
-                print(f"⚠️ Duplicate webhook skipped: {order_id}")
+                # print(f"⚠️ Duplicate webhook skipped: {order_id}")
                 return {"success": True, "message": "Already processed"}
 
             subscription, duration_display, is_new = await create_user_subscription_db(
@@ -1315,7 +1318,7 @@ async def cashfree_webhook(
                 amount_paid=amount_paid,
             )
 
-            print(f"✅ Webhook subscription processed: {user.email}")
+            # print(f"✅ Webhook subscription processed: {user.email}")
 
             # Send invoice in background for webhook too
             if is_new:
@@ -1331,12 +1334,14 @@ async def cashfree_webhook(
                         subscription=subscription,
                         request=request,
                     )
-                    print(f"📧 Invoice email queued from webhook for {user.email}")
+                    # print(f"📧 Invoice email queued from webhook for {user.email}")
                 except Exception as e:
-                    print(f"Invoice email error in webhook: {e}")
+                    pass
+                    # print(f"Invoice email error in webhook: {e}")
 
         except Exception as e:
-            print(f"❌ Webhook subscription error: {e}")
+            pass
+            # print(f"❌ Webhook subscription error: {e}")
             import traceback
             traceback.print_exc()
 
@@ -1344,7 +1349,8 @@ async def cashfree_webhook(
     # PAYMENT FAILURE
     # ------------------------------------------------------------------
     elif event_type_lower in ("payment_failed_webhook", "payment_user_dropped_webhook"):
-        print(f"⚠️ Payment not completed: {order_id} | type={event_type}")
+        pass
+        # print(f"⚠️ Payment not completed: {order_id} | type={event_type}")
 
     return {"success": True, "event": event_type}
 
@@ -1717,7 +1723,7 @@ async def download_invoice(
         else:
             pdf_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
 
-            print(f"📄 Invoice path: {pdf_path}")
+            # print(f"📄 Invoice path: {pdf_path}")
 
             if not pdf_path.exists():
                 raise HTTPException(
@@ -1734,7 +1740,7 @@ async def download_invoice(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Invoice download error: {e}")
+        # print(f"❌ Invoice download error: {e}")
         raise HTTPException(
             status_code=500,
             detail=str(e)
@@ -1885,7 +1891,7 @@ async def get_invoice_url_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Get invoice URL error: {e}")
+        # print(f"❌ Get invoice URL error: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1947,7 +1953,7 @@ async def delete_invoice(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Delete invoice error: {e}")
+        # print(f"❌ Delete invoice error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2008,7 +2014,7 @@ async def test_invoice_email(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Test invoice email error: {e}")
+        # print(f"❌ Test invoice email error: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2051,11 +2057,11 @@ async def test_invoice_upload(
         invoice_number = f"TEST_INV_{int(datetime.now().timestamp())}"
         amount_paid = float(plan.price) if plan.price else 99.00
 
-        print(f"📧 Testing invoice upload for {user_email}")
-        print(f"   Plan: {plan.name}")
-        print(f"   Invoice: {invoice_number}")
-        print(f"   Amount: {amount_paid}")
-        print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
+        # print(f"📧 Testing invoice upload for {user_email}")
+        # print(f"   Plan: {plan.name}")
+        # print(f"   Invoice: {invoice_number}")
+        # print(f"   Amount: {amount_paid}")
+        # print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
 
         context = build_invoice_context(
             user=user,
@@ -2068,12 +2074,12 @@ async def test_invoice_upload(
         )
 
         pdf_bytes = generate_invoice_pdf(context)
-        print(f"✅ PDF generated: {len(pdf_bytes)} bytes")
+        # print(f"✅ PDF generated: {len(pdf_bytes)} bytes")
 
         save_result = save_invoice_pdf(pdf_bytes, invoice_number)
         
-        print(f"✅ PDF saved to: {save_result['path']}")
-        print(f"   Storage Mode: {save_result['storage_mode']}")
+        # print(f"✅ PDF saved to: {save_result['path']}")
+        # print(f"   Storage Mode: {save_result['storage_mode']}")
 
         from fastapi_app.services.invoice_service import create_invoice_record
         
@@ -2099,7 +2105,7 @@ async def test_invoice_upload(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Test invoice upload error: {e}")
+        # print(f"❌ Test invoice upload error: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

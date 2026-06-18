@@ -3139,6 +3139,7 @@ const Allcontacts = () => {
   const [completedContractsPage, setCompletedContractsPage] = useState(1);
   const itemsPerPage = 5;
 
+  const [pageLoading, setPageLoading] = useState(true);
   // Review modal states
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewRating, setReviewRating] = useState(5);
@@ -3614,13 +3615,27 @@ const Allcontacts = () => {
   };
 
   useEffect(() => {
-    if (userData?.id) {
-      fetchProposals();
-      fetchInvitations();
-      fetchAllContracts();
-      fetchReviewedContracts();
+  if (!userData?.id) return;
+
+  const loadPageData = async () => {
+    try {
+      setPageLoading(true);
+
+      await Promise.all([
+        fetchProposals(),
+        fetchInvitations(),
+        fetchAllContracts(),
+        fetchReviewedContracts(),
+      ]);
+    } catch (error) {
+      console.error("Error loading page data:", error);
+    } finally {
+      setPageLoading(false);
     }
-  }, [userData?.id]);
+  };
+
+  loadPageData();
+}, [userData?.id]);
 
   const getContractsByStatus = (status) =>
     allContracts.filter((contract) => {
@@ -4177,6 +4192,19 @@ const Allcontacts = () => {
     { key: "current", label: "Current Contracts", count: currentCount },
     { key: "completed", label: "Completed Contracts", count: completedCount },
   ];
+
+  if (pageLoading) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-14 h-14 border-4 border-purple-200 border-t-[#51218F] rounded-full animate-spin" />
+        <p className="text-[#51218F] font-medium">
+          Loading contracts...
+        </p>
+      </div>
+    </div>
+  );
+}
 
   // ---------- Main render ----------
   return (

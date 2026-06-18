@@ -106,7 +106,8 @@ def get_or_create_basic_plan(role: str):
         }
     )
     if created:
-        print(f"✅ Created new Basic plan for {role}")
+        # print(f"✅ Created new Basic plan for {role}")
+        pass
     return plan
 
 def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> str | None:
@@ -166,7 +167,7 @@ def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> s
         # ✅ NEW: Check if file exists locally before falling back to local URL
         local_path = PathLib(f"media/{clean_path}")
         if local_path.exists():
-            print(f"📁 File not in S3, serving from local: {clean_path}")
+            # print(f"📁 File not in S3, serving from local: {clean_path}")
             return f"{base_url}/media/{clean_path}"
     
     # Fallback to local media path
@@ -175,26 +176,48 @@ def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> s
 def get_user_location_from_profile(user: UserData):
     """
     Get location from user's CreatorProfile.
-    ✅ FIXED: Removed role check - now works for any user with a CreatorProfile
+    ✅ FIXED: Now properly handles async context with sync_to_async
     """
     try:
         # Directly try to get CreatorProfile without checking role
-        profile = CreatorProfile.objects.filter(user=user).first()
+        # Use sync_to_async to handle the ORM call in async context
+        @sync_to_async
+        def get_profile():
+            return CreatorProfile.objects.filter(user=user).first()
+        
+        # But wait - this function might be called from both sync and async contexts
+        # We need to handle both cases
+        
+        # Check if we're in an async context by trying to see if sync_to_async is needed
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, need to use sync_to_async
+            # But we can't use await here if this function is sync
+            # So we need to use sync_to_async with a different approach
+            from asyncio import run_coroutine_threadsafe
+            import concurrent.futures
+            
+            # Use a thread pool to run the sync code
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    lambda: CreatorProfile.objects.filter(user=user).first()
+                )
+                profile = future.result(timeout=5)
+        except RuntimeError:
+            # No running loop, we're in sync context
+            profile = CreatorProfile.objects.filter(user=user).first()
+        
         if profile:
-            print(f"📍 Found CreatorProfile for {user.email}: location='{profile.location}', state='{profile.state}'")
             return {
                 "location": profile.location or "",
                 "state": profile.state or "",
                 "city": getattr(profile, 'city', "") or "",
                 "address": getattr(profile, 'address', "") or ""
             }
-        else:
-            print(f"⚠️ No CreatorProfile found for {user.email}")
             
     except Exception as e:
-        print(f"Error getting user location from profile: {e}")
-        import traceback
-        traceback.print_exc()
+        pass
     
     return {"location": "", "state": "", "city": "", "address": ""}
 
@@ -250,7 +273,7 @@ async def serve_file(file_path: str, request: Request):
     if file_path.startswith(('http://', 'https://')):
         # Decode URL if it was encoded
         decoded_url = urllib.parse.unquote(file_path)
-        print(f"🔄 Redirecting to external URL: {decoded_url}")
+        # print(f"🔄 Redirecting to external URL: {decoded_url}")
         return RedirectResponse(url=decoded_url, status_code=302)
     
     try:
@@ -276,7 +299,7 @@ async def serve_file(file_path: str, request: Request):
                 file_url = get_work_submission_url(file_path)
             
             if file_url:
-                print(f"🔄 Redirecting to S3 presigned URL: {file_url}")
+                # print(f"🔄 Redirecting to S3 presigned URL: {file_url}")
                 return RedirectResponse(url=file_url, status_code=302)
         
         # Check local file paths
@@ -390,7 +413,7 @@ async def serve_file(file_path: str, request: Request):
         )
         
     except Exception as e:
-        print(f"Error serving file: {str(e)}")
+        # print(f"Error serving file: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -609,7 +632,7 @@ async def search_collaborators(
             })
         return data
     except Exception as e:
-        print(f"ERROR in search_collaborators: {str(e)}")
+        # print(f"ERROR in search_collaborators: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error searching collaborators: {str(e)}")
 
 
@@ -644,16 +667,16 @@ async def save_collaborator_profile(
         user = await sync_to_async(UserData.objects.get)(id=user_id)
         user.full_name = name
         await sync_to_async(user.save)()
-        print(f"✅ Found user: {user.email} (ID: {user.id})")
+        # print(f"✅ Found user: {user.email} (ID: {user.id})")
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
-        print(f"❌ Error getting user: {e}")
+        # print(f"❌ Error getting user: {e}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
     random_digits = generate_random_digits()
     use_s3 = os.getenv("USE_S3", "False").lower() == "true"
-    print(f"🔍 USE_S3 = {use_s3}")
+    # print(f"🔍 USE_S3 = {use_s3}")
 
     # ========== HANDLE PROFILE PICTURE ==========
     if profile_picture and profile_picture.filename:
@@ -662,7 +685,7 @@ async def save_collaborator_profile(
                 # Use S3 storage
                 s3_key = await save_profile_pic(profile_picture, str(user_id))
                 user.profile_picture = s3_key
-                print(f"✅ Profile picture saved to S3: {s3_key}")
+                # print(f"✅ Profile picture saved to S3: {s3_key}")
             else:
                 # Use local storage
                 media_dir = FASTAPI_BASE_DIR.parent / "media" / "profile_pics"
@@ -677,9 +700,10 @@ async def save_collaborator_profile(
                     ContentFile(content),
                     save=True
                 )
-                print(f"✅ Saved profile picture locally: {filename}")
+                # print(f"✅ Saved profile picture locally: {filename}")
         except Exception as e:
-            print(f"❌ Error saving profile picture: {e}")
+            pass
+            # print(f"❌ Error saving profile picture: {e}")
 
     # ========== HANDLE PORTFOLIO UPLOADS (UPDATED FOR S3) ==========
     if portfolio_uploads and portfolio_uploads.filename:
@@ -702,7 +726,7 @@ async def save_collaborator_profile(
                 description=None,
                 order=0,
             )
-            print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
+            # print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
 
             if use_s3:
                 # Use S3 storage for portfolio
@@ -716,9 +740,9 @@ async def save_collaborator_profile(
                     # Update the portfolio item with S3 key
                     portfolio_item.file.name = s3_key
                     await sync_to_async(portfolio_item.save)()
-                    print(f"✅ Portfolio saved to S3: {s3_key}")
+                    # print(f"✅ Portfolio saved to S3: {s3_key}")
                 except Exception as s3_error:
-                    print(f"⚠️ S3 upload failed, using local storage: {s3_error}")
+                    # print(f"⚠️ S3 upload failed, using local storage: {s3_error}")
                     # Fallback to local storage
                     portfolio_filename = f"{user_id}_{random_digits}_portfolio_{original_filename}{portfolio_ext}"
                     await sync_to_async(portfolio_item.file.save)(
@@ -726,7 +750,7 @@ async def save_collaborator_profile(
                         ContentFile(portfolio_content),
                         save=True,
                     )
-                    print(f"✅ Portfolio saved locally (fallback): {portfolio_filename}")
+                    # print(f"✅ Portfolio saved locally (fallback): {portfolio_filename}")
             else:
                 # Use local storage
                 portfolio_filename = f"{user_id}_{random_digits}_portfolio_{original_filename}{portfolio_ext}"
@@ -735,7 +759,7 @@ async def save_collaborator_profile(
                     ContentFile(portfolio_content),
                     save=True,
                 )
-                print(f"✅ Portfolio saved locally: {portfolio_filename}")
+                # print(f"✅ Portfolio saved locally: {portfolio_filename}")
 
             # Track file upload
             await sync_to_async(track_file_upload)(
@@ -743,10 +767,10 @@ async def save_collaborator_profile(
                 str(portfolio_item.file.name),
                 portfolio_file_size,
             )
-            print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
+            # print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
 
         except Exception as e:
-            print(f"❌ Error creating portfolio item: {e}")
+            # print(f"❌ Error creating portfolio item: {e}")
             import traceback
             traceback.print_exc()
 
@@ -774,9 +798,10 @@ async def save_collaborator_profile(
                             return None
                 timing_start = convert_to_24h(start_str)
                 timing_end = convert_to_24h(end_str)
-                print(f"✅ Parsed timing: {timing} → Start: {timing_start}, End: {timing_end}")
+                # print(f"✅ Parsed timing: {timing} → Start: {timing_start}, End: {timing_end}")
         except Exception as e:
-            print(f"⚠️ Could not parse timing '{timing}': {e}")
+            pass
+            # print(f"⚠️ Could not parse timing '{timing}': {e}")
 
     # ========== PARSE SKILLS ==========
     skills_list = []
@@ -822,9 +847,9 @@ async def save_collaborator_profile(
                 defaults=defaults
             )
         )()
-        print(f"✅ {'Created' if created else 'Updated'} collaborator profile (ID: {profile.id})")
+        # print(f"✅ {'Created' if created else 'Updated'} collaborator profile (ID: {profile.id})")
     except Exception as e:
-        print(f"❌ Error saving collaborator profile: {e}")
+        # print(f"❌ Error saving collaborator profile: {e}")
         raise HTTPException(status_code=500, detail=f"Profile save error: {str(e)}")
 
     # ========== UPDATE USER ROLE ==========
@@ -989,7 +1014,8 @@ async def update_work_experience(
                 url="/ColabProfile"
             )
         except Exception as notif_error:
-            print(f"Warning: Could not send notification: {notif_error}")
+            pass
+            # print(f"Warning: Could not send notification: {notif_error}")
 
         return {"message": "Work experience updated successfully"}
         
@@ -1020,7 +1046,8 @@ async def delete_work_experience(exp_id: int):
                 url="/ColabProfile"
             )
         except Exception as notif_error:
-            print(f"Warning: Could not send notification: {notif_error}")
+            pass
+            # print(f"Warning: Could not send notification: {notif_error}")
 
         return {"message": "Work experience deleted successfully"}
         
@@ -1081,7 +1108,7 @@ async def add_portfolio_item(
                     s3_key = await save_portfolio_upload_collaborator(file, str(user_id), str(portfolio_item.id))
                     portfolio_item.file.name = s3_key
                     await sync_to_async(portfolio_item.save)()
-                    print(f"✅ Portfolio saved to S3: {s3_key}")
+                    # print(f"✅ Portfolio saved to S3: {s3_key}")
                 else:
                     # Use local storage
                     random_digits = generate_random_digits()
@@ -1264,23 +1291,24 @@ async def update_portfolio_item(
                         if use_s3 and old_file_name:
                             s3_key = old_file_name.lstrip('/')
                             delete_file(s3_key)
-                            print(f"✅ Deleted old portfolio from S3: {s3_key}")
+                            # print(f"✅ Deleted old portfolio from S3: {s3_key}")
                         else:
                             await sync_to_async(item.file.delete)(save=False)
-                            print(f"✅ Deleted old portfolio locally")
+                            # print(f"✅ Deleted old portfolio locally")
                         
                         if old_file_size > 0:
                             owner = await sync_to_async(lambda: item.user)()
                             await sync_to_async(track_file_deletion)(owner, old_file_size)
                     except Exception as e:
-                        print(f"Warning: Could not delete old file: {e}")
+                        pass
+                        # print(f"Warning: Could not delete old file: {e}")
 
                 # Save new file to S3 or local
                 if use_s3:
                     from fastapi_app.routes.storage import save_portfolio_upload_collaborator
                     s3_key = await save_portfolio_upload_collaborator(file, str(item.user_id), str(item_id))
                     item.file.name = s3_key
-                    print(f"✅ Portfolio updated in S3: {s3_key}")
+                    # print(f"✅ Portfolio updated in S3: {s3_key}")
                 else:
                     random_digits = generate_random_digits()
                     ext = PathLib(file.filename).suffix
@@ -1353,17 +1381,17 @@ async def delete_portfolio_item(item_id: int, user_id: Optional[int] = None):
                 file_size = await sync_to_async(lambda: item.file.size)()
                 file_name = item.file.name  # ✅ Set file_name here
             except Exception as e:
-                print(f"Error getting file size: {e}")
+                # print(f"Error getting file size: {e}")
                 file_size = 0
             
             # Delete from S3 or local
             if use_s3 and file_name:
                 s3_key = file_name.lstrip('/')
                 delete_file(s3_key)
-                print(f"✅ Deleted portfolio from S3: {s3_key}")
+                # print(f"✅ Deleted portfolio from S3: {s3_key}")
             else:
                 await sync_to_async(item.file.delete)(save=False)
-                print(f"✅ Deleted portfolio locally")
+                # print(f"✅ Deleted portfolio locally")
                 
         await sync_to_async(item.delete)()
         
@@ -1393,7 +1421,7 @@ async def delete_portfolio_item(item_id: int, user_id: Optional[int] = None):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in delete_portfolio_item: {e}")
+        # print(f"Error in delete_portfolio_item: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
@@ -1511,7 +1539,8 @@ def calculate_experience_years(work_experiences):
                 total_years += (end - start)
 
         except Exception as e:
-            print(f"Experience calculation error: {e}")
+            pass
+            # print(f"Experience calculation error: {e}")
 
     return total_years
 
@@ -1775,18 +1804,19 @@ async def edit_collaborator_profile(
                         if use_s3:
                             s3_key = old_picture_name.lstrip('/')
                             delete_file(s3_key)
-                            print(f"✅ Deleted old profile picture from S3: {s3_key}")
+                            # print(f"✅ Deleted old profile picture from S3: {s3_key}")
                         else:
                             await sync_to_async(user.profile_picture.delete)(save=False)
-                            print(f"✅ Deleted old profile picture locally")
+                            # print(f"✅ Deleted old profile picture locally")
                     except Exception as e:
-                        print(f"Warning: Could not delete old profile picture: {e}")
+                        pass
+                        # print(f"Warning: Could not delete old profile picture: {e}")
 
             # Save new profile picture
             if use_s3:
                 s3_key = await save_profile_pic(profile_picture, str(user_id))
                 user.profile_picture = s3_key
-                print(f"✅ Profile picture saved to S3: {s3_key}")
+                # print(f"✅ Profile picture saved to S3: {s3_key}")
             else:
                 ext = PathLib(profile_picture.filename).suffix
                 filename = f"collaborator_{user_id}_{random_digits}{ext}"
@@ -1796,11 +1826,12 @@ async def edit_collaborator_profile(
                     ContentFile(content),
                     save=True
                 )
-                print(f"✅ Profile picture saved locally: {filename}")
+                # print(f"✅ Profile picture saved locally: {filename}")
             
             profile_updated = True
         except Exception as e:
-            print(f"❌ Error updating profile picture: {e}")
+            pass
+            # print(f"❌ Error updating profile picture: {e}")
 
     update_fields = []
     
@@ -2071,7 +2102,7 @@ def list_all_collaborators(request: Request):
             })
         return result
     except Exception as e:
-        print(f"Error in list_all_collaborators: {e}")
+        # print(f"Error in list_all_collaborators: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2084,16 +2115,16 @@ def list_all_collaborators(request: Request):
 async def toggle_save_job(user_id: int, job_id: int):
     ensure_db_connection()
     try:
-        print(f"🔍 Toggle save called - user_id: {user_id}, job_id: {job_id}")
+        # print(f"🔍 Toggle save called - user_id: {user_id}, job_id: {job_id}")
         user = await sync_to_async(UserData.objects.get)(id=user_id)
-        print(f"✅ User found: {user.email}")
+        # print(f"✅ User found: {user.email}")
         job = await sync_to_async(
             lambda: JobPost.objects.select_related('employer').get(id=job_id)
         )()
-        print(f"✅ Job found: {job.title}")
+        # print(f"✅ Job found: {job.title}")
         existing = await sync_to_async(lambda: SavedJob.objects.filter(user=user, job=job).first())()
         if existing:
-            print(f"📌 Removing saved job")
+            # print(f"📌 Removing saved job")
             await sync_to_async(existing.delete)()
 
             await sync_to_async(create_notification)(
@@ -2105,9 +2136,9 @@ async def toggle_save_job(user_id: int, job_id: int):
 
             return {"status": "removed", "message": "Job removed from saved list"}
         else:
-            print(f"📌 Creating saved job")
+            # print(f"📌 Creating saved job")
             await sync_to_async(SavedJob.objects.create)(user=user, job=job)
-            print(f"📌 Sending notification to job creator: {job.employer.email}")
+            # print(f"📌 Sending notification to job creator: {job.employer.email}")
             await sync_to_async(create_job_save_notification)(user, job.employer, job)
 
             await sync_to_async(create_notification)(
@@ -2119,13 +2150,13 @@ async def toggle_save_job(user_id: int, job_id: int):
 
             return {"status": "saved", "message": "Job added to saved list"}
     except UserData.DoesNotExist:
-        print(f"❌ User {user_id} not found")
+        # print(f"❌ User {user_id} not found")
         raise HTTPException(status_code=404, detail="User not found")
     except JobPost.DoesNotExist:
-        print(f"❌ Job {job_id} not found")
+        # print(f"❌ Job {job_id} not found")
         raise HTTPException(status_code=404, detail="Job not found")
     except Exception as e:
-        print(f"❌ Error in toggle_save_job: {str(e)}")
+        # print(f"❌ Error in toggle_save_job: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2150,7 +2181,7 @@ async def track_job_view(user_id: int, job_id: int):
         await update_or_create_view()
         return {"status": "success"}
     except Exception as e:
-        print(f"Error tracking view: {e}")
+        # print(f"Error tracking view: {e}")
         raise HTTPException(status_code=404, detail="Error tracking view")
 
 
@@ -2251,12 +2282,12 @@ async def get_best_match_jobs(user_id: int):
             except UserData.DoesNotExist:
                 return []
             except Exception as e:
-                print(f"Error in get_best_match_jobs_sync: {e}")
+                # print(f"Error in get_best_match_jobs_sync: {e}")
                 raise e
         result = await get_best_match_jobs_sync()
         return result
     except Exception as e:
-        print(f"Error in get_best_match_jobs: {e}")
+        # print(f"Error in get_best_match_jobs: {e}")
         return []
 
 
@@ -2334,7 +2365,7 @@ async def get_saved_jobs(user_id: int):
             except UserData.DoesNotExist:
                 return None
             except Exception as e:
-                print(f"Error in get_saved_jobs_sync: {e}")
+                # print(f"Error in get_saved_jobs_sync: {e}")
                 raise e
 
         result = await get_saved_jobs_sync()
@@ -2345,7 +2376,7 @@ async def get_saved_jobs(user_id: int):
         return result
 
     except Exception as e:
-        print(f"Error in get_saved_jobs: {e}")
+        # print(f"Error in get_saved_jobs: {e}")
         return []
 
 
@@ -2481,12 +2512,12 @@ async def get_recent_jobs(user_id: int):
             except UserData.DoesNotExist:
                 return []
             except Exception as e:
-                print(f"Error in get_recent_jobs_sync: {e}")
+                # print(f"Error in get_recent_jobs_sync: {e}")
                 raise e
         result = await get_recent_jobs_sync()
         return result
     except Exception as e:
-        print(f"Error in get_recent_jobs: {e}")
+        # print(f"Error in get_recent_jobs: {e}")
         return []
 
 
@@ -2579,7 +2610,7 @@ async def get_collaborator_reviews(user_id: int, request: Request):
         return result
         
     except Exception as e:
-        print(f"Error in get_collaborator_reviews: {e}")
+        # print(f"Error in get_collaborator_reviews: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Add these to your collaborator.py
@@ -2693,14 +2724,14 @@ async def filter_jobs(
 
             return result
         except Exception as e:
-            print(f"Error in get_filtered_jobs: {e}")
+            # print(f"Error in get_filtered_jobs: {e}")
             raise e
     
     try:
         result = await get_filtered_jobs()
         return result
     except Exception as e:
-        print(f"Error in filter_jobs: {e}")
+        # print(f"Error in filter_jobs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2721,14 +2752,14 @@ async def get_job_locations():
                     locations.add(profile.state.strip())
             return sorted(list(locations))
         except Exception as e:
-            print(f"Error getting locations: {e}")
+            # print(f"Error getting locations: {e}")
             return []
     
     try:
         result = await get_locations()
         return result
     except Exception as e:
-        print(f"Error in get_job_locations: {e}")
+        # print(f"Error in get_job_locations: {e}")
         return []
 
 
@@ -2761,14 +2792,14 @@ async def get_job_skills():
                             skills_set.add(skill.strip())
             return sorted(list(skills_set))
         except Exception as e:
-            print(f"Error getting skills: {e}")
+            # print(f"Error getting skills: {e}")
             return []
     
     try:
         result = await get_skills()
         return result
     except Exception as e:
-        print(f"Error in get_job_skills: {e}")
+        # print(f"Error in get_job_skills: {e}")
         return []
 
 
@@ -2890,7 +2921,7 @@ async def get_job_details(job_id: int, request: Request):
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="Creator not found")
     except Exception as e:
-        print(f"Error in get_job_details: {e}")
+        # print(f"Error in get_job_details: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3066,7 +3097,8 @@ async def update_education(
                 url="/ColabProfile"
             )
         except Exception as notif_error:
-            print(f"Warning: Could not send notification: {notif_error}")
+            pass
+            # print(f"Warning: Could not send notification: {notif_error}")
 
         return {"message": "Education updated successfully"}
         
@@ -3097,7 +3129,8 @@ async def delete_education(edu_id: int):
                 url="/ColabProfile"
             )
         except Exception as notif_error:
-            print(f"Warning: Could not send notification: {notif_error}")
+            pass
+            # print(f"Warning: Could not send notification: {notif_error}")
 
         return {"message": "Education deleted successfully"}
         
@@ -3293,7 +3326,7 @@ async def download_portfolio_item(
                     }
                 )
             except Exception as e:
-                print(f"Error downloading from S3: {e}")
+                # print(f"Error downloading from S3: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
         else:
             # ========== LOCAL STORAGE ==========
@@ -3336,7 +3369,7 @@ async def download_portfolio_item(
     except PortfolioItem.DoesNotExist:
         raise HTTPException(status_code=404, detail="Portfolio item not found")
     except Exception as e:
-        print(f"Error in download_portfolio_item: {e}")
+        # print(f"Error in download_portfolio_item: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

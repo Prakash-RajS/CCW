@@ -22,7 +22,7 @@ const CompleteProject = () => {
         {/* HERO */}
         <div
           className="relative w-full h-[260px] bg-cover bg-center"
-          style={{ backgroundImage: `url(${BannerImg})` }}
+          style={{ backgroundImage: `url(₹{BannerImg})` }}
         >
           <div className="absolute top-0 w-full z-20 flex justify-between items-center px-4 py-3">
            <h1 className="font-bold text-[28px] leading-[100%] trochut-font cursor-pointer bg-gradient-to-r from-[#B77BFF] to-[#E0B0FF] text-transparent bg-clip-text">
@@ -169,8 +169,8 @@ const CompleteProject = () => {
                 Invite
               </button>
             </div>
-            <p className="font-semibold text-sm mb-1">$50.00 /hr</p>
-            <p className="text-xs text-gray-500 mb-3">Total earnings $76k on web and mobile design</p>
+            <p className="font-semibold text-sm mb-1">₹50.00 /hr</p>
+            <p className="text-xs text-gray-500 mb-3">Total earnings ₹76k on web and mobile design</p>
             <div className="flex flex-wrap gap-2 mb-3">
               <span className="bg-[#5A2EA6] text-white text-xs px-3 py-1 rounded-full">Poster design</span>
               <span className="bg-[#5A2EA6] text-white text-xs px-3 py-1 rounded-full">Mobile design</span>
@@ -198,8 +198,8 @@ const CompleteProject = () => {
                 Invite
               </button>
             </div>
-            <p className="font-semibold text-sm mb-1">$10.00 /hr</p>
-            <p className="text-xs text-gray-500 mb-3">Total earnings $36k on web and mobile design</p>
+            <p className="font-semibold text-sm mb-1">₹10.00 /hr</p>
+            <p className="text-xs text-gray-500 mb-3">Total earnings ₹36k on web and mobile design</p>
             <div className="flex flex-wrap gap-2 mb-3">
               <span className="bg-[#5A2EA6] text-white text-xs px-3 py-1 rounded-full">Web design</span>
               <span className="bg-[#5A2EA6] text-white text-xs px-3 py-1 rounded-full">Wire Frame</span>
@@ -245,7 +245,7 @@ const CompleteProject = () => {
                 <span className="font-medium">Client name:</span> Anisur Rahman
               </p>
               <p className="text-sm text-gray-700 mt-1">
-                Budget: <span className="font-medium">$400</span> | 2 contracts
+                Budget: <span className="font-medium">₹400</span> | 2 contracts
               </p>
             </div>
             <div className="mb-4">
@@ -306,7 +306,7 @@ const CompleteProject = () => {
             <div className="bg-[#D3D3D3] !border border-gray-300 rounded-xl p-4 mb-4">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs text-gray-600">Amount</span>
-                <span className="font-semibold text-sm">$500.00</span>
+                <span className="font-semibold text-sm">₹500.00</span>
               </div>
               <hr className="mb-3 border-gray-200" />
               <div className="space-y-2 text-xs">
@@ -447,7 +447,7 @@ const CompleteProject = () => {
                 <span className="font-medium">Client name:</span> Anisur Rahman
               </p>
               <p className="text-sm text-gray-700 mt-1">
-                Budget: <span className="font-medium">$400</span> | 2 contracts
+                Budget: <span className="font-medium">₹400</span> | 2 contracts
               </p>
             </div>
             <div className="mb-4">
@@ -478,7 +478,7 @@ const CompleteProject = () => {
         {/* HERO SECTION */}
         <div
           className="relative w-full h-[420px] bg-cover bg-center"
-          style={{ backgroundImage: `url(${BannerImg})` }}
+          style={{ backgroundImage: `url(₹{BannerImg})` }}
         >
           {/* HEADER OVER BANNER */}
           <div className="absolute top-0 w-full z-20 flex justify-between items-center px-6 py-4">
@@ -619,8 +619,8 @@ const CompleteProject = () => {
                     Invite
                   </button>
                 </div>
-                <p className="font-semibold text-lg mb-1">$10.00 /hr</p>
-                <p className="text-gray-500 text-base mb-4">Total earnings $36k on web and mobile design</p>
+                <p className="font-semibold text-lg mb-1">₹10.00 /hr</p>
+                <p className="text-gray-500 text-base mb-4">Total earnings ₹36k on web and mobile design</p>
                 <div className="flex flex-wrap gap-2 mb-4">
                   <span className="bg-[#5A2EA6] text-white text-sm px-4 py-1.5 rounded-full">Web design</span>
                   <span className="bg-[#5A2EA6] text-white text-sm px-4 py-1.5 rounded-full">Wire Frame</span>
@@ -647,8 +647,8 @@ const CompleteProject = () => {
                     Invite
                   </button>
                 </div>
-                <p className="font-semibold text-lg mb-1">$50.00 /hr</p>
-                <p className="text-gray-500 text-base mb-4">Total earnings $76k on web and mobile design</p>
+                <p className="font-semibold text-lg mb-1">₹50.00 /hr</p>
+                <p className="text-gray-500 text-base mb-4">Total earnings ₹76k on web and mobile design</p>
                 <div className="flex flex-wrap gap-2 mb-4">
                   <span className="bg-[#5A2EA6] text-white text-sm px-4 py-1.5 rounded-full">Poster design</span>
                   <span className="bg-[#5A2EA6] text-white text-sm px-4 py-1.5 rounded-full">Mobile design</span>
@@ -724,7 +724,7 @@ const CompleteProject = () => {
                   <span className="bg-[#5A2EA6] text-white text-sm px-3 py-1 rounded-full">Fixed rate</span>
                 </div>
                 <p className="text-gray-700 text-lg"><span className="font-semibold">Client name:</span> Anisur Rahman</p>
-                <p className="text-gray-700 text-lg mt-2">Budget: <span className="font-semibold">$400</span> | 2 contracts</p>
+                <p className="text-gray-700 text-lg mt-2">Budget: <span className="font-semibold">₹400</span> | 2 contracts</p>
               </div>
               <div className="mb-8">
                 <label className="block font-semibold text-lg mb-3">Describe about the project</label>
@@ -757,7 +757,7 @@ const CompleteProject = () => {
               <div className="bg-[#F5F5F7] border border-gray-300 rounded-2xl p-6 mb-6 shadow-sm">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-gray-600 text-base">Amount</span>
-                  <span className="font-semibold text-lg text-gray-900">$300.00</span>
+                  <span className="font-semibold text-lg text-gray-900">₹300.00</span>
                 </div>
                 <hr className="mb-4 border-gray-200" />
                 <div className="space-y-3">
@@ -908,7 +908,7 @@ const CompleteProject = () => {
                   <span className="bg-[#5A2EA6] text-white text-sm px-3 py-1 rounded-full">Fixed rate</span>
                 </div>
                 <p className="text-gray-700 text-lg"><span className="font-semibold">Client name:</span> Anisur Rahman</p>
-                <p className="text-gray-700 text-lg mt-2">Budget: <span className="font-semibold">$400</span> | 2 contracts</p>
+                <p className="text-gray-700 text-lg mt-2">Budget: <span className="font-semibold">₹400</span> | 2 contracts</p>
               </div>
               <div className="mb-8">
                 <label className="block font-semibold text-lg mb-3">Describe about the project</label>

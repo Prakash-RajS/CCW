@@ -188,19 +188,20 @@ def bulk_import(file: UploadFile = File(...)):
             fixed_header = first_line.strip('"')
             lines[0] = fixed_header
             text = '\n'.join(lines)
-            print(f"✓ Fixed CSV format. New header: {fixed_header}")
+            # print(f"✓ Fixed CSV format. New header: {fixed_header}")
     
     # Parse CSV with strict settings
     try:
         reader = csv.DictReader(io.StringIO(text))
         headers = reader.fieldnames
-        print(f"CSV Headers: {headers}")
+        # print(f"CSV Headers: {headers}")
         
-        # Debug: print first few rows raw
+        # Debug: # print first few rows raw
         rows_list = list(reader)
-        print(f"Total rows found: {len(rows_list)}")
+        # print(f"Total rows found: {len(rows_list)}")
         if rows_list:
-            print(f"First row raw: {rows_list[0]}")
+            pass
+            # print(f"First row raw: {rows_list[0]}")
     except Exception as e:
         raise HTTPException(400, f"Error parsing CSV: {str(e)}")
     
@@ -223,9 +224,10 @@ def bulk_import(file: UploadFile = File(...)):
             label = row.get("label")
             value_raw = row.get("value")
             
-            # Debug print for first few rows
+            # Debug # print for first few rows
             if i <= 5:
-                print(f"Row {i}: cat={repr(cat)}, label={repr(label)}, value={repr(value_raw)}")
+                pass
+                # print(f"Row {i}: cat={repr(cat)}, label={repr(label)}, value={repr(value_raw)}")
             
             # Handle None or empty values
             cat = cat.strip() if cat else ""
@@ -270,7 +272,7 @@ def bulk_import(file: UploadFile = File(...)):
                     created += 1
                 else:
                     updated += 1
-                print(f"✓ Row {i}: {cat} - {label} ({'created' if was_created else 'updated'})")
+                # print(f"✓ Row {i}: {cat} - {label} ({'created' if was_created else 'updated'})")
             except Exception as e:
                 errors.append(f"Row {i}: Database error - {str(e)}")
                 skipped += 1
@@ -287,9 +289,10 @@ def bulk_import(file: UploadFile = File(...)):
         "errors": errors[:20],  # Limit errors to first 20
     }
     
-    print(f"Import completed: {created} created, {updated} updated, {skipped} skipped")
+    # print(f"Import completed: {created} created, {updated} updated, {skipped} skipped")
     if errors:
-        print(f"First 3 errors: {errors[:3]}")
+        pass
+        # print(f"First 3 errors: {errors[:3]}")
     
     return response
 

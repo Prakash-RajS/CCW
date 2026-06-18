@@ -243,7 +243,8 @@ async def start_subscription_checker():
             try:
                 await check_subscription_expiry()
             except Exception as e:
-                print("Subscription checker error:", e)
+                pass
+                # print("Subscription checker error:", e)
 
             # Every 12 hours
             await asyncio.sleep(43200)

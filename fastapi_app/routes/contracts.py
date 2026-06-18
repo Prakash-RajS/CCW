@@ -42,13 +42,13 @@ def update_job_contract_status(job_id: int, has_contract: bool):
         job = JobPost.objects.get(id=job_id)
         job.has_contract = has_contract
         job.save()
-        print(f"✅ Job {job_id} has_contract updated to {has_contract}")
+        # print(f"✅ Job {job_id} has_contract updated to {has_contract}")
         return True
     except JobPost.DoesNotExist:
-        print(f"❌ Job {job_id} not found")
+        # print(f"❌ Job {job_id} not found")
         return False
     except Exception as e:
-        print(f"❌ Error updating job contract status: {str(e)}")
+        # print(f"❌ Error updating job contract status: {str(e)}")
         return False
 
 
@@ -105,7 +105,8 @@ def get_creator_location(creator: UserData):
                 "address": getattr(profile, 'address', "") or ""
             }
     except Exception as e:
-        print(f"Error getting creator location: {e}")
+        pass
+        # print(f"Error getting creator location: {e}")
     return {"country": "", "state": "", "city": "", "address": ""}
 
 
@@ -121,7 +122,8 @@ def get_collaborator_location(collaborator: UserData):
                 "address": getattr(profile, 'address', "") or ""
             }
     except Exception as e:
-        print(f"Error getting collaborator location: {e}")
+        pass
+        # print(f"Error getting collaborator location: {e}")
     return {"country": "", "state": "", "city": "", "address": ""}
 
 
@@ -408,7 +410,7 @@ def download_work_attachment(id: int, user_id: int):
                 }
             )
         except Exception as e:
-            print(f"Error downloading from S3: {e}")
+            # print(f"Error downloading from S3: {e}")
             raise HTTPException(status_code=404, detail=f"Failed to download file: {str(e)}")
     else:
         # ========== LOCAL STORAGE ==========
@@ -538,9 +540,9 @@ async def submit_work(
                     str(contract.collaborator.id)
                 )
                 contract.work_attachment.name = s3_key
-                print(f"✅ Work submission saved to S3: {s3_key}")
+                # print(f"✅ Work submission saved to S3: {s3_key}")
             except Exception as e:
-                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # print(f"⚠️ S3 upload failed, using local storage: {e}")
                 # Fallback to local storage
                 file_content = await attachment.read()
                 max_size = 25 * 1024 * 1024
@@ -674,12 +676,12 @@ async def submit_milestone_work(
             if use_s3:
                 s3_key = old_path.lstrip('/')
                 await sync_to_async(delete_file)(s3_key)
-                print(f"✅ Deleted old attachment from S3: {s3_key}")
+                # print(f"✅ Deleted old attachment from S3: {s3_key}")
             else:
                 old_full_path = os.path.join(settings.MEDIA_ROOT, old_path)
                 if os.path.exists(old_full_path):
                     os.remove(old_full_path)
-                    print(f"✅ Deleted old attachment: {old_full_path}")
+                    # print(f"✅ Deleted old attachment: {old_full_path}")
         
         if use_s3:
             # ========== S3 STORAGE ==========
@@ -691,9 +693,9 @@ async def submit_milestone_work(
                 )
                 submission_data["attachment"] = s3_key
                 submission_data["attachment_name"] = attachment.filename
-                print(f"✅ Milestone submission saved to S3: {s3_key}")
+                # print(f"✅ Milestone submission saved to S3: {s3_key}")
             except Exception as e:
-                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # print(f"⚠️ S3 upload failed, using local storage: {e}")
                 # Fallback to local storage
                 file_content = await attachment.read()
                 max_size = 25 * 1024 * 1024
@@ -770,7 +772,8 @@ async def submit_milestone_work(
         )
 
     except Exception as e:
-        print(f"Milestone notification error: {e}")
+        pass
+        # print(f"Milestone notification error: {e}")
 
     return {
         "success": True,
@@ -897,7 +900,8 @@ def approve_milestone_work(
                     icon="payment"
                 )
             except Exception as e:
-                print(f"Notification error: {e}")
+                pass
+                # print(f"Notification error: {e}")
             
             return {
                 "success": True,
@@ -912,7 +916,7 @@ def approve_milestone_work(
             }
             
     except Exception as e:
-        print(f"❌ Payment error: {str(e)}")
+        # print(f"❌ Payment error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Payment failed: {str(e)}")
 
 
@@ -975,7 +979,8 @@ def request_milestone_revision(
             icon="revision"
         )
     except Exception as e:
-        print(f"Notification error: {e}")
+        pass
+        # print(f"Notification error: {e}")
 
     return {
         "success": True,
@@ -1308,7 +1313,7 @@ def get_collaborator_contracts(
         return result or []
 
     except Exception as e:
-        print(f"Error in get_collaborator_contracts: {e}")
+        # print(f"Error in get_collaborator_contracts: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1355,9 +1360,9 @@ async def assign_work(
                 )
                 assignment.attachment.name = s3_key
                 await sync_to_async(assignment.save)()
-                print(f"✅ Work assignment saved to S3: {s3_key}")
+                # print(f"✅ Work assignment saved to S3: {s3_key}")
             except Exception as e:
-                print(f"⚠️ S3 upload failed, using local storage: {e}")
+                # print(f"⚠️ S3 upload failed, using local storage: {e}")
                 # Fallback to local storage
                 file_content = await attachment.read()
                 upload_folder = os.path.join(settings.MEDIA_ROOT, "work_assignments")
@@ -1643,7 +1648,8 @@ def update_contract_status(
         )
 
     except Exception as notification_error:
-        print(f"Notification Error: {notification_error}")
+        pass
+        # print(f"Notification Error: {notification_error}")
 
     return {
         "message": status_message,
@@ -1789,10 +1795,10 @@ def repost_job_after_cancellation(contract_id: int, user_id: int):
 
     if rejected_proposals_count > 0:
         rejected_proposals.update(status="rejected")
-        print(
-            f"✅ Rejected {rejected_proposals_count} proposal(s) "
-            f"for collaborator {collaborator.id}"
-        )
+        # # print(
+        #     f"✅ Rejected {rejected_proposals_count} proposal(s) "
+        #     f"for collaborator {collaborator.id}"
+        # )
 
     # Reject all invitations for the cancelled collaborator
     invitations = Invitation.objects.filter(
@@ -1805,7 +1811,7 @@ def repost_job_after_cancellation(contract_id: int, user_id: int):
 
     if invitations_count > 0:
         invitations.update(status="Rejected")
-        print(f"✅ Rejected {invitations_count} invitation(s)")
+        # print(f"✅ Rejected {invitations_count} invitation(s)")
 
     # Delete cancelled contract
     contract.delete()
@@ -1833,15 +1839,15 @@ def repost_job_after_cancellation(contract_id: int, user_id: int):
 
         if other_proposals_count > 0:
             other_proposals.update(status="rejected")
-            print(
-                f"✅ Rejected {other_proposals_count} other proposal(s)"
-            )
+            # print(
+            #     f"✅ Rejected {other_proposals_count} other proposal(s)"
+            # )
 
         job.has_contract = False
         job.status = "posted"
         job.save(update_fields=["has_contract", "status"])
 
-        print(f"✅ Job {job.id} re-posted")
+        # print(f"✅ Job {job.id} re-posted")
 
     return {
         "message": "Job re-posted successfully",
@@ -1903,7 +1909,7 @@ def download_milestone_attachment(
                 }
             )
         except Exception as e:
-            print(f"Error downloading from S3: {e}")
+            # print(f"Error downloading from S3: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
     else:
         # ========== LOCAL STORAGE ==========

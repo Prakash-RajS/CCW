@@ -1046,3 +1046,4 @@ def generate_presigned_url_with_cache(
             return None
         logger.error(f"Failed to generate presigned URL for '{s3_key}': {str(e)}")
         return None
+    

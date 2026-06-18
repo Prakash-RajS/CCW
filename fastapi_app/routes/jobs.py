@@ -1,762 +1,3 @@
-
-# import fastapi_app.django_setup
-
-# from fastapi import APIRouter, Form, UploadFile, File, HTTPException
-# import os
-# import re
-# import pycountry
-
-# from django.conf import settings
-# from creator_app.models import CollaboratorProfile, JobPost, UserData, Contract
-
-# # ✅ DATABASE CONNECTION MANAGEMENT (Import from dbconnection)
-# from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
-
-# # 🔒 PLAN GUARD
-# from fastapi_app.routes.plan_guard import check_job_limit
-
-
-# router = APIRouter(prefix="/jobs", tags=["Jobs"])
-# BASE_DIR = settings.BASE_DIR
-
-
-# # =========================================================
-# # HELPER – AUTO CALCULATE TIMELINE
-# # =========================================================
-# def calculate_timeline(duration: str) -> str:
-#     text = duration.lower()
-
-#     if "year" in text:
-#         return "large"
-
-#     numbers = [int(n) for n in re.findall(r'\d+', text)]
-
-#     if not numbers:
-#         if "less" in text or "short" in text:
-#             return "small"
-#         return "medium"
-
-#     max_val = max(numbers)
-
-#     if max_val <= 3:
-#         return "small"
-#     elif max_val <= 6:
-#         return "medium"
-#     else:
-#         return "large"
-
-
-# def get_country_code(country_name):
-#     try:
-#         return pycountry.countries.search_fuzzy(country_name)[0].alpha_2
-#     except:
-#         return None
-
-
-# # =========================================================
-# # CREATE JOB (DRAFT / POSTED)
-# # =========================================================
-# @router.post("/create/{employer_id}")
-# def create_job(
-#     employer_id: int,
-#     title: str = Form(...),
-#     description: str = Form(...),
-#     skills: str = Form(...),
-#     duration: str = Form(...),
-#     expertise_level: str = Form(...),
-#     budget_type: str = Form(...),
-#     budget_from: float | None = Form(None),
-#     budget_to: float | None = Form(None),
-#     attachments: list[UploadFile] = File(None),
-#     status: str = Form(...),
-# ):
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         employer = UserData.objects.get(id=employer_id)
-
-#         # 🔒 PLAN LIMIT CHECK
-#         check_job_limit(employer)
-
-#         # Parse skills
-#         skills_list = [s.strip() for s in skills.split(",") if s.strip()]
-
-#         # Auto timeline
-#         auto_timeline = calculate_timeline(duration)
-
-#         # Create job (has_contract defaults to False)
-#         job = JobPost.objects.create(
-#             employer=employer,
-#             title=title,
-#             description=description,
-#             skills=skills_list,
-#             timeline=auto_timeline,
-#             duration=duration,
-#             expertise_level=expertise_level,
-#             budget_type=budget_type,
-#             budget_from=budget_from,
-#             budget_to=budget_to,
-#             status=status.lower(),
-#         )
-
-#         # Save attachments
-#         if attachments:
-#             upload_dir = os.path.join(BASE_DIR, "fastapi_app", "job_attachments")
-#             os.makedirs(upload_dir, exist_ok=True)
-
-#             uploaded_files = []
-
-#             for file in attachments:
-#                 save_path = os.path.join(upload_dir, file.filename)
-#                 with open(save_path, "wb") as f:
-#                     f.write(file.file.read())
-#                 uploaded_files.append(f"job_attachments/{file.filename}")
-
-#             job.attachments = uploaded_files
-#             job.save()
-
-#         return {"message": "Job created successfully", "job_id": job.id, "has_contract": job.has_contract}
-
-#     except UserData.DoesNotExist:
-#         raise HTTPException(status_code=404, detail="User not found")
-#     except Exception as e:
-#         print("JOB CREATE ERROR:", e)
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# # =========================================================
-# # GET JOBS BY EMPLOYER WITH STATUS FILTER
-# # =========================================================
-# @router.get("/my-jobs/{employer_id}")
-# def get_my_jobs(employer_id: int, status: str = "posted"):
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         UserData.objects.get(id=employer_id)
-
-#         status = status.lower()
-#         if status not in ["draft", "posted"]:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Invalid status. Allowed values: draft, posted"
-#             )
-
-#         jobs = JobPost.objects.filter(
-#             employer_id=employer_id,
-#             status__iexact=status
-#         ).order_by("-id")
-
-#         data = []
-#         for job in jobs:
-#             employer = job.employer
-
-#             country = employer.location or ""
-#             state = employer.state or ""
-
-#             country_code = get_country_code(country)
-
-#             data.append({
-#                 "id": job.id,
-#                 "title": job.title,
-#                 "description": job.description,
-#                 "skills": job.skills,
-#                 "timeline": job.timeline,
-#                 "duration": job.duration,
-#                 "expertise_level": job.expertise_level,
-#                 "budget_type": job.budget_type,
-#                 "budget_from": float(job.budget_from) if job.budget_from else None,
-#                 "budget_to": float(job.budget_to) if job.budget_to else None,
-#                 "status": job.status,
-#                 "attachments": job.attachments,
-#                 "created_at": job.created_at.isoformat() if job.created_at else None,
-#                 "has_contract": job.has_contract,  # ✅ ADDED
-#                 "country": country,
-#                 "state": state,
-#                 "country_code": country_code,
-#             })
-
-#         return {
-#             "employer_id": employer_id,
-#             "status": status,
-#             "count": len(data),
-#             "jobs": data
-#         }
-
-#     except UserData.DoesNotExist:
-#         raise HTTPException(status_code=404, detail="Employer not found")
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# # =========================================================
-# # EDIT JOB
-# # =========================================================
-# @router.put("/edit/{job_id}")
-# def edit_job(
-#     job_id: int,
-#     title: str | None = Form(None),
-#     description: str | None = Form(None),
-#     skills: str | None = Form(None),
-#     duration: str | None = Form(None),
-#     expertise_level: str | None = Form(None),
-#     budget_type: str | None = Form(None),
-#     budget_from: float | None = Form(None),
-#     budget_to: float | None = Form(None),
-#     status: str | None = Form(None),
-#     attachments: list[UploadFile] | None = File(None),
-# ):
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         job = JobPost.objects.get(id=job_id)
-#     except JobPost.DoesNotExist:
-#         raise HTTPException(status_code=404, detail="Job not found")
-
-#     if title is not None:
-#         job.title = title
-
-#     if description is not None:
-#         job.description = description
-
-#     if skills is not None:
-#         job.skills = [s.strip() for s in skills.split(",") if s.strip()]
-
-#     if duration is not None:
-#         job.duration = duration
-#         job.timeline = calculate_timeline(duration)
-
-#     if expertise_level is not None:
-#         job.expertise_level = expertise_level
-
-#     if budget_type is not None:
-#         job.budget_type = budget_type
-
-#     if budget_from is not None:
-#         job.budget_from = budget_from
-
-#     if budget_to is not None:
-#         job.budget_to = budget_to
-
-#     if status is not None:
-#         status = status.lower()
-#         if status not in ["draft", "posted"]:
-#             raise HTTPException(
-#                 status_code=400,
-#                 detail="Invalid status. Allowed values: draft, posted"
-#             )
-#         job.status = status
-
-#     if attachments:
-#         upload_dir = os.path.join(BASE_DIR, "fastapi_app", "job_attachments")
-#         os.makedirs(upload_dir, exist_ok=True)
-
-#         uploaded_files = []
-
-#         for file in attachments:
-#             save_path = os.path.join(upload_dir, file.filename)
-#             with open(save_path, "wb") as f:
-#                 f.write(file.file.read())
-#             uploaded_files.append(f"job_attachments/{file.filename}")
-
-#         job.attachments = uploaded_files
-
-#     job.save()
-#     return {
-#         "message": "Job updated successfully",
-#         "job_id": job.id,
-#         "status": job.status,
-#         "has_contract": job.has_contract  # ✅ ADDED
-#     }
-
-
-# # =========================================================
-# # DELETE JOB
-# # =========================================================
-# @router.delete("/{job_id}/delete")
-# def delete_job(job_id: int):
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         job = JobPost.objects.get(id=job_id)
-#     except JobPost.DoesNotExist:
-#         raise HTTPException(status_code=404, detail="Job not found")
-
-#     job.delete()
-#     return {
-#         "message": "Job deleted successfully",
-#         "job_id": job_id
-#     }
-
-
-# # =========================================================
-# # LIST ALL JOBS (ADMIN / PUBLIC)
-# # =========================================================
-# @router.get("/all")
-# def list_all_jobs(status: str | None = None):
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         jobs = JobPost.objects.all().order_by("-id")
-
-#         if status:
-#             status = status.lower()
-#             if status not in ["draft", "posted"]:
-#                 raise HTTPException(
-#                     status_code=400,
-#                     detail="Invalid status. Allowed values: draft, posted"
-#                 )
-#             jobs = jobs.filter(status__iexact=status)
-
-#         data = []
-#         for job in jobs:
-#             data.append({
-#                 "id": job.id,
-#                 "employer_id": job.employer_id,
-#                 "title": job.title,
-#                 "description": job.description,
-#                 "skills": job.skills,
-#                 "timeline": job.timeline,
-#                 "duration": job.duration,
-#                 "expertise_level": job.expertise_level,
-#                 "budget_type": job.budget_type,
-#                 "budget_from": float(job.budget_from) if job.budget_from else None,
-#                 "budget_to": float(job.budget_to) if job.budget_to else None,
-#                 "status": job.status,
-#                 "attachments": job.attachments,
-#                 "created_at": job.created_at.isoformat() if job.created_at else None,
-#                 "has_contract": job.has_contract,  # ✅ ADDED
-#             })
-
-#         return {
-#             "count": len(data),
-#             "jobs": data
-#         }
-
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# # =========================================================
-# # GET JOBS USER IS WORKING ON (AS COLLABORATOR)
-# # =========================================================
-# @router.get("/working/{user_id}")
-# def get_working_jobs(user_id: int):
-#     """
-#     Get all jobs where the user is working as a collaborator
-#     (through contracts with status = in_progress)
-#     """
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         # Verify user exists
-#         try:
-#             user = UserData.objects.get(id=user_id)
-#         except UserData.DoesNotExist:
-#             return {
-#                 "user_id": user_id,
-#                 "total_working_jobs": 0,
-#                 "contracts": [],
-#                 "error": "User not found"
-#             }
-
-#         # Get all in_progress contracts where user is the collaborator
-#         contracts = Contract.objects.filter(
-#             collaborator_id=user_id,
-#             status="in_progress"
-#         ).select_related('job', 'job__employer', 'creator').order_by('-updated_at')
-        
-#         print(f"Found {contracts.count()} in_progress contracts for user {user_id}")
-        
-#         jobs_data = []
-#         for contract in contracts:
-#             try:
-#                 job = contract.job
-#                 if not job:
-#                     print(f"Contract {contract.id} has no associated job")
-#                     continue
-                
-#                 # Get employer (creator) info
-#                 employer = job.employer or contract.creator
-                
-#                 # Get creator/collaborator names and profile pictures
-#                 creator_name = None
-#                 creator_profile_pic = None
-#                 if contract.creator:
-#                     creator_name = contract.creator.full_name or contract.creator.email
-#                     # Get profile picture for creator
-#                     if hasattr(contract.creator, 'profile_picture') and contract.creator.profile_picture:
-#                         try:
-#                             creator_profile_pic = contract.creator.profile_picture.url if hasattr(contract.creator.profile_picture, 'url') else str(contract.creator.profile_picture)
-#                         except:
-#                             creator_profile_pic = None
-                
-#                 collaborator_name = None
-#                 collaborator_profile_pic = None
-#                 if contract.collaborator:
-#                     collaborator_name = contract.collaborator.full_name or contract.collaborator.email
-#                     # Get profile picture for collaborator
-#                     if hasattr(contract.collaborator, 'profile_picture') and contract.collaborator.profile_picture:
-#                         try:
-#                             collaborator_profile_pic = contract.collaborator.profile_picture.url if hasattr(contract.collaborator.profile_picture, 'url') else str(contract.collaborator.profile_picture)
-#                         except:
-#                             collaborator_profile_pic = None
-                
-#                 # Get employer profile picture
-#                 employer_profile_pic = None
-#                 if employer and hasattr(employer, 'profile_picture') and employer.profile_picture:
-#                     try:
-#                         employer_profile_pic = employer.profile_picture.url if hasattr(employer.profile_picture, 'url') else str(employer.profile_picture)
-#                     except:
-#                         employer_profile_pic = None
-                
-#                 # Build job data
-#                 job_details = {
-#                     "skills": job.skills if hasattr(job, 'skills') else [],
-#                     "duration": job.duration if hasattr(job, 'duration') else '',
-#                     "expertise_level": job.expertise_level if hasattr(job, 'expertise_level') else '',
-#                     "budget_type": job.budget_type if hasattr(job, 'budget_type') else '',
-#                     "budget_from": float(job.budget_from) if job.budget_from else None,
-#                     "budget_to": float(job.budget_to) if job.budget_to else None
-#                 }
-                
-#                 # Format dates
-#                 start_date = None
-#                 if contract.start_date:
-#                     start_date = contract.start_date.isoformat()
-#                 elif hasattr(contract, 'created_at') and contract.created_at:
-#                     start_date = contract.created_at.isoformat()
-                
-#                 # Get budget amount
-#                 budget_amount = float(contract.budget) if contract.budget else None
-#                 if not budget_amount and job.budget_from:
-#                     budget_amount = float(job.budget_from)
-                
-#                 contract_data = {
-#                     "id": job.id,
-#                     "contract_id": contract.id,
-#                     "job_title": job.title if hasattr(job, 'title') else "Untitled Project",
-#                     "title": job.title if hasattr(job, 'title') else "Untitled Project",
-#                     "description": job.description if hasattr(job, 'description') else "",
-#                     "budget": budget_amount,
-#                     "amount": budget_amount,
-#                     "budget_type": job.budget_type if hasattr(job, 'budget_type') else 'hourly',
-#                     "status": contract.status,
-#                     "start_date": start_date,
-#                     "work_description": contract.work_description if hasattr(contract, 'work_description') else "",
-#                     "work_attachment": str(contract.work_attachment) if contract.work_attachment and hasattr(contract, 'work_attachment') else None,
-#                     "has_contract": job.has_contract,  # ✅ ADDED
-#                     "creator": {
-#                         "id": employer.id if employer else None,
-#                         "name": employer.full_name  or employer.email if employer else "Client",
-#                         "email": employer.email if employer else "",
-#                         # "full_name": employer.first_name if employer else "",
-#                         # "first_name": employer.first_name if employer else "",
-#                         # "last_name": employer.last_name if employer else "",
-#                         "location": employer.location if employer and hasattr(employer, 'location') else "",
-#                         "city": employer.city if employer and hasattr(employer, 'city') else "",
-#                         "profile_picture": creator_profile_pic or employer_profile_pic,
-#                     },
-#                     "collaborator": {
-#                         "id": contract.collaborator.id if contract.collaborator else None,
-#                         "name": collaborator_name,
-#                         "email": contract.collaborator.email if contract.collaborator else "",
-#                         "profile_picture": collaborator_profile_pic,
-#                     },
-#                     "job_details": job_details,
-#                     "created_at": contract.created_at.isoformat() if hasattr(contract, 'created_at') and contract.created_at else None,
-#                     "updated_at": contract.updated_at.isoformat() if hasattr(contract, 'updated_at') and contract.updated_at else None
-#                 }
-#                 jobs_data.append(contract_data)
-                
-#             except Exception as e:
-#                 print(f"Error processing contract {contract.id}: {str(e)}")
-#                 import traceback
-#                 traceback.print_exc()
-#                 continue
-        
-#         response = {
-#             "user_id": user_id,
-#             "total_working_jobs": len(jobs_data),
-#             "contracts": jobs_data
-#         }
-        
-#         print(f"Returning {len(jobs_data)} jobs for user {user_id}")
-#         return response
-        
-#     except Exception as e:
-#         print(f"Server error in get_working_jobs: {str(e)}")
-#         import traceback
-#         traceback.print_exc()
-        
-#         # Return a proper response even on error
-#         return {
-#             "user_id": user_id,
-#             "total_working_jobs": 0,
-#             "contracts": [],
-#             "error": str(e)
-#         }
-        
-
-# # =========================================================
-# # GET COLLABORATOR CONTRACT STATISTICS
-# # =========================================================
-# @router.get("/contract-stats/{collaborator_id}")
-# def get_contract_stats(collaborator_id: int):
-#     """
-#     Get statistics for contracts where the user is a collaborator
-#     """
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         # Verify user exists
-#         try:
-#             user = UserData.objects.get(id=collaborator_id)
-#         except UserData.DoesNotExist:
-#             raise HTTPException(status_code=404, detail="User not found")
-        
-#         # Get all contracts where this user is the collaborator
-#         all_contracts = Contract.objects.filter(collaborator_id=collaborator_id)
-        
-#         # Calculate statistics
-#         stats = {
-#             'active': all_contracts.filter(status='in_progress').count(),
-#             'completed': all_contracts.filter(status='completed').count(),
-#             'canceled': all_contracts.filter(status__in=['cancelled', 'canceled']).count(),
-#             'total': all_contracts.count()
-#         }
-        
-#         print(f"Contract stats for user {collaborator_id}: {stats}")
-        
-#         return {
-#             'status': 'success',
-#             'collaborator_id': collaborator_id,
-#             **stats
-#         }
-        
-#     except Exception as e:
-#         print(f"Error getting contract stats: {str(e)}")
-#         import traceback
-#         traceback.print_exc()
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# # =========================================================
-# # JOB LIKE FUNCTIONALITY
-# # =========================================================
-
-# @router.post("/toggle-like/{user_id}/{job_id}")
-# def toggle_job_like(user_id: int, job_id: int):
-#     """
-#     Toggle like on a job for a collaborator
-#     """
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         # Get the collaborator profile
-#         try:
-#             collaborator = CollaboratorProfile.objects.get(user_id=user_id)
-#         except CollaboratorProfile.DoesNotExist:
-#             raise HTTPException(status_code=404, detail="Collaborator profile not found")
-        
-#         # Get current liked jobs (handle both list and None)
-#         liked_jobs = collaborator.liked_jobs
-#         if liked_jobs is None:
-#             liked_jobs = []
-        
-#         # Toggle the like
-#         if job_id in liked_jobs:
-#             liked_jobs.remove(job_id)
-#             action = 'unliked'
-#             message = 'Job unliked successfully'
-#         else:
-#             liked_jobs.append(job_id)
-#             action = 'liked'
-#             message = 'Job liked successfully'
-        
-#         # Save back to database
-#         collaborator.liked_jobs = liked_jobs
-#         collaborator.save()
-        
-#         return {
-#             'status': 'success',
-#             'action': action,
-#             'message': message,
-#             'liked_jobs': liked_jobs,
-#             'user_id': user_id,
-#             'job_id': job_id
-#         }
-        
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         print(f"Error toggling job like: {str(e)}")
-#         import traceback
-#         traceback.print_exc()
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @router.get("/liked-jobs/{collaborator_id}")
-# def get_liked_jobs(collaborator_id: int):
-#     """
-#     Get all jobs liked by a collaborator
-#     """
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         # Get the collaborator profile
-#         try:
-#             collaborator = CollaboratorProfile.objects.get(user_id=collaborator_id)
-#         except CollaboratorProfile.DoesNotExist:
-#             return {
-#                 'status': 'error',
-#                 'message': 'Collaborator profile not found',
-#                 'liked_jobs': []
-#             }
-        
-#         # Get liked jobs
-#         liked_jobs = collaborator.liked_jobs or []
-        
-#         return {
-#             'status': 'success',
-#             'collaborator_id': collaborator_id,
-#             'liked_jobs': liked_jobs,
-#             'total_likes': len(liked_jobs)
-#         }
-        
-#     except Exception as e:
-#         print(f"Error getting liked jobs: {str(e)}")
-#         return {
-#             'status': 'error',
-#             'message': str(e),
-#             'liked_jobs': []
-#         }
-
-
-# # =========================================================
-# # GET JOB BY ID (for invitation details)
-# # =========================================================
-# @router.get("/{job_id}")
-# def get_job_by_id(job_id: int):
-#     """
-#     Get job details by ID
-#     """
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         job = JobPost.objects.get(id=job_id)
-        
-#         # Get employer info
-#         employer = job.employer
-#         employer_name = employer.full_name or employer.email if employer else "Unknown"
-#         employer_profile_pic = None
-        
-#         if employer and hasattr(employer, 'profile_picture') and employer.profile_picture:
-#             try:
-#                 employer_profile_pic = employer.profile_picture.url if hasattr(employer.profile_picture, 'url') else str(employer.profile_picture)
-#             except:
-#                 pass
-        
-#         # Get country code for location
-#         country_code = None
-#         if employer and employer.location:
-#             try:
-#                 country_code = get_country_code(employer.location)
-#             except:
-#                 pass
-        
-#         return {
-#             "id": job.id,
-#             "title": job.title,
-#             "description": job.description,
-#             "skills": job.skills if isinstance(job.skills, list) else (job.skills.split(',') if job.skills else []),
-#             "duration": job.duration,
-#             "timeline": job.timeline,
-#             "expertise_level": job.expertise_level,
-#             "budget_type": job.budget_type,
-#             "budget_from": float(job.budget_from) if job.budget_from else None,
-#             "budget_to": float(job.budget_to) if job.budget_to else None,
-#             "status": job.status,
-#             "attachments": job.attachments,
-#             "created_at": job.created_at.isoformat() if job.created_at else None,
-#             "has_contract": job.has_contract,  # ✅ ADDED
-#             "employer": {
-#                 "id": employer.id if employer else None,
-#                 "name": employer_name,
-#                 "email": employer.email if employer else "",
-#                 "location": employer.location if employer else "",
-#                 "state": employer.state if employer else "",
-#                 "country_code": country_code,
-#                 "profile_picture": employer_profile_pic
-#             }
-#         }
-        
-#     except JobPost.DoesNotExist:
-#         raise HTTPException(status_code=404, detail="Job not found")
-#     except Exception as e:
-#         print(f"Error fetching job: {str(e)}")
-#         import traceback
-#         traceback.print_exc()
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# # =========================================================
-# # ✅ NEW: GET JOBS WITHOUT CONTRACTS (for inviting collaborators)
-# # =========================================================
-# @router.get("/available-for-invite/{employer_id}")
-# def get_available_jobs_for_invite(employer_id: int):
-#     """
-#     Get all posted jobs for an employer that don't have contracts yet.
-#     These are the jobs that can be used to invite collaborators.
-#     """
-#     # Ensure database connection
-#     ensure_db_connection()
-    
-#     try:
-#         employer = UserData.objects.get(id=employer_id)
-#     except UserData.DoesNotExist:
-#         raise HTTPException(status_code=404, detail="Employer not found")
-    
-#     # Get posted/active jobs without contracts
-#     available_jobs = JobPost.objects.filter(
-#         employer=employer,
-#         status__in=["posted", "active"],
-#         has_contract=False  # ✅ Only jobs without contracts
-#     ).order_by("-created_at")
-    
-#     result = []
-#     for job in available_jobs:
-#         result.append({
-#             "id": job.id,
-#             "title": job.title,
-#             "description": job.description,
-#             "skills": job.skills,
-#             "duration": job.duration,
-#             "expertise_level": job.expertise_level,
-#             "budget_type": job.budget_type,
-#             "budget_from": float(job.budget_from) if job.budget_from else None,
-#             "budget_to": float(job.budget_to) if job.budget_to else None,
-#             "created_at": job.created_at.isoformat() if job.created_at else None,
-#             "has_contract": job.has_contract
-#         })
-    
-#     return {
-#         "employer_id": employer_id,
-#         "count": len(result),
-#         "jobs": result
-#     }
-
-
-
 # fastapi_app/routes/jobs.py
 import fastapi_app.django_setup
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException, Request, Query
@@ -917,7 +158,7 @@ async def job_search_suggestions(
     Get job title suggestions based on search query for autocomplete.
     Returns unique job titles that match the search term.
     """
-    print(f"🔍 Search suggestions called with search='{search}', limit={limit}")
+    #print(f"🔍 Search suggestions called with search='{search}', limit={limit}")
     
     await sync_to_async(ensure_db_connection)()
     
@@ -933,7 +174,7 @@ async def job_search_suggestions(
         def get_suggestions():
             from django.db.models import Q
             
-            print(f"🔎 Searching for jobs containing: {search_query}")
+            #print(f"🔎 Searching for jobs containing: {search_query}")
             
             jobs = JobPost.objects.filter(
                 Q(status__in=["posted", "active"]),
@@ -951,14 +192,14 @@ async def job_search_suggestions(
                 if job and job.strip() and job not in suggestions:
                     suggestions.append(job.strip())
             
-            print(f"✅ Found {len(suggestions)} suggestions: {suggestions}")
+            #print(f"✅ Found {len(suggestions)} suggestions: {suggestions}")
             return suggestions
         
         suggestions = await sync_to_async(get_suggestions)()
         return suggestions
         
     except Exception as e:
-        print(f"❌ Error fetching search suggestions: {str(e)}")
+        #print(f"❌ Error fetching search suggestions: {str(e)}")
         import traceback
         traceback.print_exc()
         return []
@@ -1025,7 +266,7 @@ async def create_job(
             url='/job-created'
         )
 
-        print(f"🔔 Job notification created for {employer.email}")
+        #print(f"🔔 Job notification created for {employer.email}")
 
         # Save attachments using S3
         if attachments:
@@ -1073,7 +314,7 @@ async def create_job(
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
-        print("JOB CREATE ERROR:", e)
+        #print("JOB CREATE ERROR:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1193,7 +434,7 @@ async def get_my_jobs(request: Request, employer_id: int, status: str = "posted"
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="Employer not found")
     except Exception as e:
-        print(f"Error in get_my_jobs: {str(e)}")
+        #print(f"Error in get_my_jobs: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1202,6 +443,8 @@ async def get_my_jobs(request: Request, employer_id: int, status: str = "posted"
 # =========================================================
 # EDIT JOB (UPDATED WITH S3)
 # =========================================================
+# fastapi_app/routes/jobs.py - Fix edit_job
+
 @router.put("/edit/{job_id}")
 async def edit_job(
     request: Request,
@@ -1228,6 +471,9 @@ async def edit_job(
         job = await sync_to_async(JobPost.objects.get)(id=job_id)
     except JobPost.DoesNotExist:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    # ✅ FIX: Get employer using sync_to_async
+    employer = await sync_to_async(lambda: job.employer)()
 
     if title is not None:
         job.title = title
@@ -1274,12 +520,13 @@ async def edit_job(
             await file.seek(0)
         
         if total_new_bytes > 0:
-            await sync_to_async(check_storage_limit)(job.employer, total_new_bytes)
+            # ✅ FIX: Use employer variable instead of job.employer
+            await sync_to_async(check_storage_limit)(employer, total_new_bytes)
 
         # Delete old attachments
         if job.attachments:
             for old_path in job.attachments:
-                await delete_job_attachment_s3(old_path, job.employer)
+                await delete_job_attachment_s3(old_path, employer)
 
         # Save new attachments
         uploaded_files = []
@@ -1296,7 +543,7 @@ async def edit_job(
                     full_path = os.path.join(BASE_DIR, "fastapi_app", "media", saved_path)
                     if os.path.exists(full_path):
                         file_size = os.path.getsize(full_path)
-                        await sync_to_async(track_file_upload)(job.employer, full_path, file_size)
+                        await sync_to_async(track_file_upload)(employer, full_path, file_size)
 
         job.attachments = uploaded_files
 
@@ -1452,6 +699,8 @@ async def delete_job(job_id: int):
 # =========================================================
 # LIST ALL JOBS (ADMIN / PUBLIC) - UPDATED WITH S3
 # =========================================================
+# fastapi_app/routes/jobs.py - Fix list_all_jobs
+
 @router.get("/all")
 async def list_all_jobs(request: Request, status: str | None = None):
     """
@@ -1507,14 +756,6 @@ async def list_all_jobs(request: Request, status: str | None = None):
                     elif employer.email:
                         employer_name = employer.email.split('@')[0]
                 
-                # Generate attachment URLs with S3 support
-                attachment_urls = []
-                if job.attachments:
-                    for att in job.attachments:
-                        url = get_job_attachment_url(request, att)
-                        if url:
-                            attachment_urls.append(url)
-                
                 data.append({
                     "id": job.id,
                     "employer_id": job.employer_id,
@@ -1534,24 +775,34 @@ async def list_all_jobs(request: Request, status: str | None = None):
                     "budget_from": float(job.budget_from) if job.budget_from else None,
                     "budget_to": float(job.budget_to) if job.budget_to else None,
                     "status": job.status,
-                    "attachments": attachment_urls,  # Now returns URLs
-                    "attachments_paths": job.attachments,  # Still return paths
+                    "attachments_paths": job.attachments,
                     "created_at": job.created_at.isoformat() if job.created_at else None,
                     "has_contract": job.has_contract,
-                    "storage_mode": "s3" if USE_S3 else "local"
                 })
 
             return data
 
         jobs_data = await sync_to_async(get_jobs)()
+        
+        # ✅ Generate attachment URLs (outside the sync function)
+        for job_data in jobs_data:
+            job = await sync_to_async(JobPost.objects.get)(id=job_data["id"])
+            attachment_urls = []
+            if job.attachments:
+                for att in job.attachments:
+                    url = get_job_attachment_url(request, att)
+                    if url:
+                        attachment_urls.append(url)
+            job_data["attachments"] = attachment_urls
+            job_data["storage_mode"] = "s3" if USE_S3 else "local"
+
         return jobs_data
 
     except Exception as e:
-        print(f"Error in list_all_jobs: {str(e)}")
+        #print(f"Error in list_all_jobs: {str(e)}")
         import traceback
         traceback.print_exc()
         return []
-
 
 # =========================================================
 # LIST ALL JOBS WITH PAGINATION (UPDATED WITH S3)
@@ -1648,7 +899,7 @@ async def list_all_jobs_paginated(
         return result
         
     except Exception as e:
-        print(f"Error: {str(e)}")
+        #print(f"Error: {str(e)}")
         return {
             "total": 0,
             "page": page,
@@ -1722,10 +973,10 @@ async def get_working_jobs(
                 .order_by("-updated_at")
             )
 
-            print(
-                f"Found {contracts.count()} "
-                f"in_progress contracts for user {user_id}"
-            )
+            # print(
+            #     f"Found {contracts.count()} "
+            #     f"in_progress contracts for user {user_id}"
+            # )
 
             jobs_data = []
 
@@ -1735,10 +986,10 @@ async def get_working_jobs(
                     job = contract.job
 
                     if not job:
-                        print(
-                            f"Contract {contract.id} "
-                            f"has no associated job"
-                        )
+                        # #print(
+                        #     f"Contract {contract.id} "
+                        #     f"has no associated job"
+                        # )
                         continue
 
                     employer = job.employer or contract.creator
@@ -2069,10 +1320,10 @@ async def get_working_jobs(
                     jobs_data.append(contract_data)
 
                 except Exception as e:
-                    print(
-                        f"Error processing contract "
-                        f"{contract.id}: {e}"
-                    )
+                    # #print(
+                    #     f"Error processing contract "
+                    #     f"{contract.id}: {e}"
+                    # )
 
                     import traceback
                     traceback.print_exc()
@@ -2088,19 +1339,19 @@ async def get_working_jobs(
             get_contracts
         )()
 
-        print(
-            f"Returning "
-            f"{len(response.get('contracts', []))} "
-            f"jobs for user {user_id}"
-        )
+        # #print(
+        #     f"Returning "
+        #     f"{len(response.get('contracts', []))} "
+        #     f"jobs for user {user_id}"
+        # )
 
         return response
 
     except Exception as e:
-        print(
-            f"Server error in "
-            f"get_working_jobs: {e}"
-        )
+        # #print(
+        #     f"Server error in "
+        #     f"get_working_jobs: {e}"
+        # )
 
         import traceback
         traceback.print_exc()
@@ -2143,7 +1394,7 @@ async def get_contract_stats(collaborator_id: int):
 
         stats = await sync_to_async(get_stats)()
         
-        print(f"Contract stats for user {collaborator_id}: {stats}")
+        #print(f"Contract stats for user {collaborator_id}: {stats}")
         
         return {
             'status': 'success',
@@ -2154,7 +1405,7 @@ async def get_contract_stats(collaborator_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error getting contract stats: {str(e)}")
+        #print(f"Error getting contract stats: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2201,7 +1452,7 @@ async def toggle_job_like(user_id: int, job_id: int):
                 job_creator = job.employer
                
                 create_job_like_notification(collaborator_user, job_creator, job)
-                print(f"✅ Like notification sent for job {job_id} by user {user_id}")
+                #print(f"✅ Like notification sent for job {job_id} by user {user_id}")
            
             collaborator.liked_jobs = liked_jobs
             collaborator.save()
@@ -2221,7 +1472,7 @@ async def toggle_job_like(user_id: int, job_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error toggling job like: {str(e)}")
+        #print(f"Error toggling job like: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2258,7 +1509,7 @@ async def get_liked_jobs(collaborator_id: int):
         return result
         
     except Exception as e:
-        print(f"Error getting liked jobs: {str(e)}")
+        #print(f"Error getting liked jobs: {str(e)}")
         return {
             'status': 'error',
             'message': str(e),
@@ -2344,7 +1595,7 @@ async def get_job_by_id(request: Request, job_id: int):
     except JobPost.DoesNotExist:
         raise HTTPException(status_code=404, detail="Job not found")
     except Exception as e:
-        print(f"Error fetching job: {str(e)}")
+        #print(f"Error fetching job: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2412,9 +1663,9 @@ async def download_job_attachment(job_id: int, filename: str):
     File Type: job
     """
     try:
-        ensure_db_connection()
+        await sync_to_async(ensure_db_connection)()
 
-        job = JobPost.objects.get(id=job_id)
+        job = await sync_to_async(JobPost.objects.get)(id=job_id)
 
         if not job.attachments:
             raise HTTPException(status_code=404, detail="No attachments found for this job")
@@ -2438,8 +1689,10 @@ async def download_job_attachment(job_id: int, filename: str):
         if USE_S3:
             # For S3, generate a presigned download URL
             s3_key = get_s3_key_from_path(attachment_path)
+            
+            # ✅ FIX: Use s3_key parameter instead of file_path
             download_url = generate_presigned_url(
-                file_path=s3_key,
+                s3_key=s3_key,  # <-- FIXED: changed from file_path to s3_key
                 expires_in=ExpiryPreset.DAILY,
                 force_download=True
             )
@@ -2472,12 +1725,16 @@ async def download_job_attachment(job_id: int, filename: str):
             if not mime_type:
                 mime_type = 'application/octet-stream'
 
+            # ✅ For PDFs, set inline so they open in browser
+            disposition = 'inline' if mime_type == 'application/pdf' else 'attachment'
+
             return FileResponse(
                 full_path,
                 media_type=mime_type,
                 filename=original_filename,
                 headers={
-                    "Content-Disposition": f"attachment; filename*=UTF-8''{original_filename}"
+                    "Content-Disposition": f"{disposition}; filename*=UTF-8''{original_filename}",
+                    "Content-Type": mime_type,
                 }
             )
 
@@ -2486,7 +1743,7 @@ async def download_job_attachment(job_id: int, filename: str):
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Download attachment error: {str(e)}")
+        #print(f"❌ Download attachment error: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

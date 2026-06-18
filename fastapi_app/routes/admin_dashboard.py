@@ -1026,7 +1026,7 @@ def get_active_projects_table(
         ~Q(status__iexact="cancelled")
     ).select_related('creator', 'job', 'collaborator').order_by('-updated_at')
 
-    print(f"🟢 Total active contracts found: {base_query.count()}")
+    # print(f"🟢 Total active contracts found: {base_query.count()}")
 
     # Apply search filter if provided
     if search:
@@ -1036,7 +1036,7 @@ def get_active_projects_table(
             Q(description__icontains=search) |
             Q(collaborator__full_name__icontains=search)
         )
-        print(f"🟢 After search filter: {base_query.count()}")
+        # print(f"🟢 After search filter: {base_query.count()}")
 
     projects = base_query[:limit] if limit > 0 else base_query
 
@@ -1055,11 +1055,11 @@ def get_active_projects_table(
 
         # ✅ Skip duplicates
         if unique_key in seen_projects:
-            print(f"⚠️ Skipping duplicate project: {project_title} for client {client_id}")
+            # print(f"⚠️ Skipping duplicate project: {project_title} for client {client_id}")
             continue
         seen_projects.add(unique_key)
 
-        print(f"🟢 Processing contract {p.id}: status={p.status}")
+        # print(f"🟢 Processing contract {p.id}: status={p.status}")
 
         # Get client info
         client_name = "Unknown"
@@ -1199,7 +1199,7 @@ def get_active_projects_table(
             "next_milestone_description": next_milestone_description
         })
 
-    print(f"🟢 Returning {len(data)} unique active projects")
+    # print(f"🟢 Returning {len(data)} unique active projects")
     return data
 
 # ==============================================================================
@@ -1467,12 +1467,12 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
                 "role": plan.role  # 'creator', 'collaborator', or 'both'
             })
         
-        print(f"📊 Dynamic Stats Summary:")
-        print(f"  - Total Subscribers: {total_subscribers}")
-        print(f"  - Plans found: {len(plans_data)}")
-        for plan in plans_data:
-            print(f"    - {plan['name']} (role: {plan['role']}): Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
-        print(f"  - Users without subscription: {users_without_subs}")
+        # print(f"📊 Dynamic Stats Summary:")
+        # print(f"  - Total Subscribers: {total_subscribers}")
+        # print(f"  - Plans found: {len(plans_data)}")
+        # for plan in plans_data:
+        #     print(f"    - {plan['name']} (role: {plan['role']}): Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
+        # print(f"  - Users without subscription: {users_without_subs}")
        
         return {
             "total_subscribers": total_subscribers,
@@ -1481,7 +1481,7 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
         }
         
     except Exception as e:
-        print(f"❌ Error in get_subscription_stats: {e}")
+        # print(f"❌ Error in get_subscription_stats: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -1549,7 +1549,7 @@ def get_subscription_plans(admin: AdminUser = Depends(get_current_admin)):
         return {"plans": result}
        
     except Exception as e:
-        print(f"Error in get_subscription_plans: {e}")
+        # print(f"Error in get_subscription_plans: {e}")
         return {"plans": []}
 
 @router.get("/subscriptions/history")
@@ -1563,12 +1563,12 @@ def get_subscription_history(
     ensure_db_connection()
    
     try:
-        print("🔍 Fetching subscription history from SubscriptionHistory table...")
+        # print("🔍 Fetching subscription history from SubscriptionHistory table...")
        
         # Get from SubscriptionHistory with related user data
         query = SubscriptionHistory.objects.select_related('user').all().order_by('-created_at')
        
-        print(f"📊 Total subscription history records found: {query.count()}")
+        # print(f"📊 Total subscription history records found: {query.count()}")
        
         if search:
             query = query.filter(
@@ -1578,16 +1578,16 @@ def get_subscription_history(
             )
        
         history_records = query[:limit]
-        print(f"📊 Subscription history after filtering: {len(history_records)}")
+        # print(f"📊 Subscription history after filtering: {len(history_records)}")
        
         result = []
        
         for idx, history in enumerate(history_records):
             user = history.user
-            print(f"🔄 Processing history {idx+1} for user: {user.email if user else 'No user'}")
+            # print(f"🔄 Processing history {idx+1} for user: {user.email if user else 'No user'}")
            
             if not user:
-                print(f"⚠️ History record {history.id} has no associated user, skipping")
+                # print(f"⚠️ History record {history.id} has no associated user, skipping")
                 continue
            
             # Get profile image from UserData (works for both creators and collaborators)
@@ -1605,13 +1605,13 @@ def get_subscription_history(
                 try:
                     # Get just the filename
                     profile_pic = str(user.profile_picture)
-                    print(f"📸 User has profile picture: {profile_pic}")
+                    # print(f"📸 User has profile picture: {profile_pic}")
                    
                     # Build the full URL for the profile image
                     profile_image = f"{BASE_URL}/media/{profile_pic}"
-                    print(f"✅ Full profile image URL: {profile_image}")
+                    # print(f"✅ Full profile image URL: {profile_image}")
                 except Exception as e:
-                    print(f"❌ Error building profile image URL: {e}")
+                    pass
            
             # If no profile picture in UserData, try role-specific profiles as fallback
             if not profile_image:
@@ -1621,20 +1621,22 @@ def get_subscription_history(
                         if creator_profile and hasattr(creator_profile, 'profile_picture') and creator_profile.profile_picture:
                             profile_pic = str(creator_profile.profile_picture)
                             profile_image = f"{BASE_URL}/media/{profile_pic}"
-                            print(f"✅ Found creator profile image: {profile_image}")
+                            # print(f"✅ Found creator profile image: {profile_image}")
                     except Exception as e:
-                        print(f"❌ Error fetching creator profile: {e}")
-                       
+                        # print(f"❌ Error fetching creator profile: {e}")
+                        pass
+
                 elif user.role and user.role.lower() == "collaborator":
                     try:
                         collab_profile = CollaboratorProfile.objects.filter(user=user).first()
                         if collab_profile and hasattr(collab_profile, 'profile_picture') and collab_profile.profile_picture:
                             profile_pic = str(collab_profile.profile_picture)
                             profile_image = f"{BASE_URL}/media/{profile_pic}"
-                            print(f"✅ Found collaborator profile image: {profile_image}")
+                            # print(f"✅ Found collaborator profile image: {profile_image}")
                     except Exception as e:
-                        print(f"❌ Error fetching collaborator profile: {e}")
-           
+                        # print(f"❌ Error fetching collaborator profile: {e}")
+                        pass
+
             # Get username from profile or email
             username = user.email.split('@')[0] if user.email else "user"
            
@@ -1643,19 +1645,21 @@ def get_subscription_history(
                     creator_profile = CreatorProfile.objects.filter(user=user).first()
                     if creator_profile and creator_profile.creator_name:
                         username = creator_profile.creator_name
-                        print(f"✅ Found creator username: {username}")
+                        # print(f"✅ Found creator username: {username}")
                 except Exception as e:
-                    print(f"❌ Error fetching creator username: {e}")
-                   
+                    # print(f"❌ Error fetching creator username: {e}")
+                    pass
+
             elif user.role and user.role.lower() == "collaborator":
                 try:
                     collab_profile = CollaboratorProfile.objects.filter(user=user).first()
                     if collab_profile and collab_profile.name:
                         username = collab_profile.name
-                        print(f"✅ Found collaborator username: {username}")
+                        # print(f"✅ Found collaborator username: {username}")
                 except Exception as e:
-                    print(f"❌ Error fetching collaborator username: {e}")
-           
+                    # print(f"❌ Error fetching collaborator username: {e}")
+                    pass
+
             # Construct full name - Now using full_name directly
             full_name = user.full_name or ""
             if not full_name:
@@ -1692,11 +1696,11 @@ def get_subscription_history(
                 "avatar_color": avatar_color
             })
        
-        print(f"✅ Returning {len(result)} subscription history records")
+        # print(f"✅ Returning {len(result)} subscription history records")
         return {"history": result}
        
     except Exception as e:
-        print(f"❌ Error in get_subscription_history: {e}")
+        # print(f"❌ Error in get_subscription_history: {e}")
         import traceback
         traceback.print_exc()
         return {"history": []}
@@ -1912,8 +1916,8 @@ def update_admin_profile(
     ensure_db_connection()
    
     try:
-        print(f"🔔 DEBUG: update_admin_profile called for admin {admin.email}")
-        print(f"🔔 DEBUG: data received - first_name: {data.first_name}, last_name: {data.last_name}, email: {data.email}")
+        # print(f"🔔 DEBUG: update_admin_profile called for admin {admin.email}")
+        # print(f"🔔 DEBUG: data received - first_name: {data.first_name}, last_name: {data.last_name}, email: {data.email}")
         
         old_name = admin.name
         old_email = admin.email
@@ -1936,31 +1940,32 @@ def update_admin_profile(
             admin.role = data.role
        
         admin.save()
-        print(f"✅ DEBUG: Admin saved successfully")
+        # print(f"✅ DEBUG: Admin saved successfully")
         
         # Check for changes
         changes = []
         if admin.name != old_name:
             changes.append(f"name changed to '{admin.name}'")
-            print(f"🔔 DEBUG: Name changed from '{old_name}' to '{admin.name}'")
+            # print(f"🔔 DEBUG: Name changed from '{old_name}' to '{admin.name}'")
         if admin.email != old_email:
             changes.append(f"email changed to '{admin.email}'")
-            print(f"🔔 DEBUG: Email changed from '{old_email}' to '{admin.email}'")
+            # print(f"🔔 DEBUG: Email changed from '{old_email}' to '{admin.email}'")
         if admin.role != old_role:
             changes.append(f"role changed to '{admin.role}'")
-            print(f"🔔 DEBUG: Role changed from '{old_role}' to '{admin.role}'")
+            # print(f"🔔 DEBUG: Role changed from '{old_role}' to '{admin.role}'")
         
         if changes:
-            print(f"🔔 DEBUG: Creating notification with changes: {changes}")
+            # print(f"🔔 DEBUG: Creating notification with changes: {changes}")
             result = create_notification_for_all_admins(
                 notification_type="admin_profile_updated",
                 title="Admin Profile Updated",
                 subtitle=f"Admin {admin.name or admin.email} updated their profile: {', '.join(changes)}",
                 exclude_admin=None
             )
-            print(f"🔔 DEBUG: Notification creation result: {result}")
+            # print(f"🔔 DEBUG: Notification creation result: {result}")
         else:
-            print(f"🔔 DEBUG: No changes detected, skipping notification")
+            # print(f"🔔 DEBUG: No changes detected, skipping notification")
+            pass
        
         return {
             "status": "success",
@@ -1976,7 +1981,7 @@ def update_admin_profile(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ DEBUG: Error in update_admin_profile: {e}")
+        # print(f"❌ DEBUG: Error in update_admin_profile: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -2094,7 +2099,7 @@ async def upload_admin_profile_image(
     except HTTPException:
         raise
     except Exception as e:
-        print("UPLOAD ERROR:", str(e))
+        # print("UPLOAD ERROR:", str(e))
         raise HTTPException(
             status_code=500,
             detail=f"Image upload failed: {str(e)}"

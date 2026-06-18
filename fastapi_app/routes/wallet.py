@@ -81,10 +81,6 @@ CF_HEADERS = {
     "Content-Type": "application/json",
 }
 
-if CASHFREE_APP_ID and CASHFREE_SECRET_KEY:
-    print("✅ Cashfree credentials loaded")
-else:
-    print("❌ Cashfree credentials missing")
 
 
 # =============================================================================
@@ -167,7 +163,7 @@ async def _get_payout_token():
             timeout=20,
         )
     
-    print("AUTH RESPONSE:", response.text)
+    # print("AUTH RESPONSE:", response.text)
     
     if response.status_code != 200:
         raise HTTPException(
@@ -483,11 +479,11 @@ async def verify_payment(data: VerifyPaymentRequest):
             url="/choose-payment"
         )
 
-        print(
-            f"🔔 Wallet deposit "
-            f"notification created "
-            f"for {user.email}"
-        )
+        # print(
+        #     f"🔔 Wallet deposit "
+        #     f"notification created "
+        #     f"for {user.email}"
+        # )
 
     # ============================================================
     # SUCCESS RESPONSE
@@ -531,15 +527,15 @@ class InternalTransferRequest(BaseModel):
 
 @router.post("/internal-transfer")
 async def internal_transfer(data: InternalTransferRequest):
-    print("=" * 60)
-    print("💰 INTERNAL TRANSFER REQUEST")
-    print(f"Creator ID: {data.creator_id}")
-    print(f"Collaborator Email: {data.collaborator_email}")
-    print(f"Amount: {data.amount}")
-    print(f"Contract ID: {data.contract_id}")
-    print(f"Is Milestone Payment: {data.is_milestone_payment}")
-    print(f"Milestone Index: {data.milestone_index}")
-    print("=" * 60)
+    # print("=" * 60)
+    # print("💰 INTERNAL TRANSFER REQUEST")
+    # print(f"Creator ID: {data.creator_id}")
+    # print(f"Collaborator Email: {data.collaborator_email}")
+    # print(f"Amount: {data.amount}")
+    # print(f"Contract ID: {data.contract_id}")
+    # print(f"Is Milestone Payment: {data.is_milestone_payment}")
+    # print(f"Milestone Index: {data.milestone_index}")
+    # print("=" * 60)
     
     await sync_to_async(ensure_db_connection)()
 
@@ -548,18 +544,18 @@ async def internal_transfer(data: InternalTransferRequest):
     # ============================================================
     try:
         creator = await sync_to_async(UserData.objects.get)(id=data.creator_id)
-        print(f"✅ Creator found: {creator.email}")
+        # print(f"✅ Creator found: {creator.email}")
     except UserData.DoesNotExist:
-        print("❌ Creator not found")
+        # print("❌ Creator not found")
         raise HTTPException(404, "Creator not found")
 
     collaborator = await sync_to_async(
         UserData.objects.filter(email__iexact=data.collaborator_email).first
     )()
     if not collaborator:
-        print(f"❌ Collaborator not found: {data.collaborator_email}")
+        # print(f"❌ Collaborator not found: {data.collaborator_email}")
         raise HTTPException(404, "Collaborator not found")
-    print(f"✅ Collaborator found: {collaborator.email}")
+    # print(f"✅ Collaborator found: {collaborator.email}")
 
     amount = Decimal(str(data.amount))
 
@@ -570,11 +566,11 @@ async def internal_transfer(data: InternalTransferRequest):
     if data.contract_id:
         try:
             contract = await sync_to_async(Contract.objects.get)(id=data.contract_id)
-            print(f"✅ Contract found: ID {contract.id}, Status: {contract.status}")
+            # print(f"✅ Contract found: ID {contract.id}, Status: {contract.status}")
             
             # Validate contract ownership
             if contract.creator_id != creator.id or contract.collaborator_id != collaborator.id:
-                print(f"❌ Contract mismatch")
+                # print(f"❌ Contract mismatch")
                 raise HTTPException(403, "Contract does not match the given creator and collaborator")
             
             # ============================================================
@@ -591,19 +587,20 @@ async def internal_transfer(data: InternalTransferRequest):
                     import json
                     try:
                         milestones = json.loads(milestones)
-                        print(f"✅ Parsed milestones from JSON string")
+                        # print(f"✅ Parsed milestones from JSON string")
                     except json.JSONDecodeError:
-                        print(f"❌ Failed to parse milestones JSON")
+                        # print(f"❌ Failed to parse milestones JSON")
                         milestones = []
                 
-                print(f"📊 Milestones loaded: {len(milestones) if milestones else 0} items")
+                # print(f"📊 Milestones loaded: {len(milestones) if milestones else 0} items")
                 if milestones:
                     for i, m in enumerate(milestones):
-                        print(f"   Milestone {i}: {m.get('description', 'N/A')} - status: {m.get('status', 'N/A')}")
+                        pass
+                        # print(f"   Milestone {i}: {m.get('description', 'N/A')} - status: {m.get('status', 'N/A')}")
             
             # If no milestones, treat as regular contract
             if not milestones:
-                print(f"⚠️ No milestones data for contract {contract.id}, treating as regular contract")
+                # print(f"⚠️ No milestones data for contract {contract.id}, treating as regular contract")
                 milestones = []
             
             # ============================================================
@@ -612,44 +609,44 @@ async def internal_transfer(data: InternalTransferRequest):
             if data.is_milestone_payment:
                 # Check if contract is in correct status
                 if contract.status not in ["in_review", "in_progress"]:
-                    print(f"❌ Invalid contract status for milestone payment: {contract.status}")
+                    # print(f"❌ Invalid contract status for milestone payment: {contract.status}")
                     raise HTTPException(400, f"Contract status '{contract.status}' does not allow milestone payment")
                 
                 # Check milestone_index is provided
                 if data.milestone_index is None:
-                    print("❌ Milestone index is required for milestone payment")
+                    # print("❌ Milestone index is required for milestone payment")
                     raise HTTPException(400, "Milestone index is required for milestone payment")
                 
                 # Check if milestones exist
                 if not milestones:
-                    print("❌ No milestones found in contract")
+                    # print("❌ No milestones found in contract")
                     raise HTTPException(400, "No milestones found for this contract")
                 
                 # Check milestone index range
                 if data.milestone_index >= len(milestones):
-                    print(f"❌ Invalid milestone index: {data.milestone_index}, max: {len(milestones)-1}")
+                    # print(f"❌ Invalid milestone index: {data.milestone_index}, max: {len(milestones)-1}")
                     raise HTTPException(400, f"Invalid milestone index. Valid range: 0 to {len(milestones)-1}")
                 
                 # Check milestone status
                 milestone = milestones[data.milestone_index]
                 if milestone.get('status') not in ['submitted', 'in_progress']:
-                    print(f"❌ Milestone {data.milestone_index} status is '{milestone.get('status')}', cannot pay")
+                    # print(f"❌ Milestone {data.milestone_index} status is '{milestone.get('status')}', cannot pay")
                     raise HTTPException(400, f"Cannot pay milestone {data.milestone_index + 1}. Current status: {milestone.get('status')}. Only 'submitted' or 'in_progress' milestones can be paid.")
                 
-                print(f"✅ Milestone validation passed: {milestone.get('description')} - amount: {milestone.get('amount')}")
+                # print(f"✅ Milestone validation passed: {milestone.get('description')} - amount: {milestone.get('amount')}")
                 
             else:
                 # Full contract payment validation
                 if contract.status not in ["in_review", "in_progress", "awaiting"]:
-                    print(f"❌ Invalid contract status for full payment: {contract.status}")
+                    # print(f"❌ Invalid contract status for full payment: {contract.status}")
                     raise HTTPException(400, f"Contract status '{contract.status}' does not allow payment")
                 
                 if contract.is_paid:
-                    print("❌ Contract already fully paid")
+                    # print("❌ Contract already fully paid")
                     raise HTTPException(400, "This contract has already been fully paid")
                     
         except Contract.DoesNotExist:
-            print(f"❌ Contract not found: {data.contract_id}")
+            # print(f"❌ Contract not found: {data.contract_id}")
             raise HTTPException(404, "Contract not found")
 
     # ============================================================
@@ -658,11 +655,11 @@ async def internal_transfer(data: InternalTransferRequest):
     creator_wallet = await sync_to_async(_get_wallet)(creator)
     collaborator_wallet = await sync_to_async(_get_wallet)(collaborator)
 
-    print(f"💰 Creator wallet balance: ${creator_wallet.balance}")
-    print(f"💰 Collaborator wallet balance: ${collaborator_wallet.balance}")
+    # print(f"💰 Creator wallet balance: ${creator_wallet.balance}")
+    # print(f"💰 Collaborator wallet balance: ${collaborator_wallet.balance}")
 
     if creator_wallet.balance < amount:
-        print(f"❌ Insufficient balance: ${creator_wallet.balance} < ${amount}")
+        # print(f"❌ Insufficient balance: ${creator_wallet.balance} < ${amount}")
         raise HTTPException(400, f"Insufficient balance. Available: ${creator_wallet.balance}, Required: ${amount}")
 
     # Perform transfer
@@ -678,7 +675,7 @@ async def internal_transfer(data: InternalTransferRequest):
     await sync_to_async(creator_wallet.save)()
     await sync_to_async(collaborator_wallet.save)()
     
-    print(f"✅ Transfer complete! Creator balance: ${creator_wallet.balance}")
+    # print(f"✅ Transfer complete! Creator balance: ${creator_wallet.balance}")
 
     # ============================================================
     # 6. UPDATE CONTRACT AND MILESTONES
@@ -701,21 +698,21 @@ async def internal_transfer(data: InternalTransferRequest):
             # Update contract status if it was in_review
             if contract.status == "in_review":
                 contract.status = "in_progress"
-                print("📝 Contract status: in_review → in_progress")
+                # print("📝 Contract status: in_review → in_progress")
             
             # Check if all milestones are paid
             all_paid = all(m.get("status") == "paid" for m in milestones)
             if all_paid:
                 contract.status = "completed"
                 contract.completed_at = datetime.now()
-                print("📝 All milestones paid! Contract → completed")
+                # print("📝 All milestones paid! Contract → completed")
             else:
                 # Activate next pending milestone
                 for i, m in enumerate(milestones):
                     if m.get("status") == "pending" and i > data.milestone_index:
                         m["status"] = "in_progress"
                         contract.current_milestone = i
-                        print(f"📝 Activated milestone {i + 1}: {m.get('description')}")
+                        # print(f"📝 Activated milestone {i + 1}: {m.get('description')}")
                         break
             
             # Save milestones back to contract
@@ -723,7 +720,7 @@ async def internal_transfer(data: InternalTransferRequest):
             
             # Save contract
             await sync_to_async(contract.save)()
-            print(f"✅ Contract saved - Status: {contract.status}, current_milestone: {contract.current_milestone}, total_paid: {contract.total_paid}")
+            # print(f"✅ Contract saved - Status: {contract.status}, current_milestone: {contract.current_milestone}, total_paid: {contract.total_paid}")
             
             # Record transactions
             transaction_type = f"Milestone #{milestone_num} Payment for Contract #{contract.id}"
@@ -1250,10 +1247,11 @@ async def withdraw(data: WithdrawRequest):
                 url="/transaction"
             )
     except Exception as notification_error:
-        print(
-            f"Withdrawal Notification Error: "
-            f"{notification_error}"
-        )           
+        pass
+        # print(
+        #     f"Withdrawal Notification Error: "
+        #     f"{notification_error}"
+        # )           
 
  
 
@@ -1376,7 +1374,7 @@ async def cashfree_webhook(request: Request):
         raise HTTPException(400, f"Invalid payload: {e}")
 
     event_type = str(payload.get("type", "")).lower()
-    print(f"🔔 Cashfree webhook: {event_type}")
+    # print(f"🔔 Cashfree webhook: {event_type}")
 
     # SUCCESS PAYMENT
     if event_type in [
@@ -1401,16 +1399,18 @@ async def cashfree_webhook(request: Request):
     and user_id
     and amount > 0
 ):
-        print(
-        f"✅ Payment success webhook received "
-        f"for order {order_id}"
-    )
+        pass
+        # print(
+    #     f"✅ Payment success webhook received "
+    #     f"for order {order_id}"
+    # )
 
     elif event_type in [
         "failed payment",
         "payment_failed_webhook",
     ]:
-        print("❌ Payment failed")
+        pass
+        # print("❌ Payment failed")
 
     return {
         "success": True,
@@ -1429,7 +1429,7 @@ async def payout_webhook(request: Request):
     except Exception as e:
         raise HTTPException(400, f"Invalid payload: {e}")
 
-    print("💸 Payout webhook received")
+    # print("💸 Payout webhook received")
 
     event_type = str(payload.get("event", "")).lower()
     data = payload.get("data", {})
@@ -1445,14 +1445,15 @@ async def payout_webhook(request: Request):
         .lower()
     )
 
-    print(f"💸 Transfer: {transfer_id} | Status: {status}")
+    # print(f"💸 Transfer: {transfer_id} | Status: {status}")
 
     # SUCCESS
     if status in [
         "success",
         "processed",
     ]:
-        print(f"✅ Withdrawal successful: {transfer_id}")
+        pass
+        # print(f"✅ Withdrawal successful: {transfer_id}")
 
     # FAILED
     elif status in [
@@ -1472,9 +1473,10 @@ async def payout_webhook(request: Request):
                 await sync_to_async(wallet.save)()
                 tx.transaction_type = f"Withdrawal Failed [{transfer_id}]"
                 await sync_to_async(tx.save)()
-                print(f"💰 Refunded wallet for failed payout")
+                # print(f"💰 Refunded wallet for failed payout")
         except Exception as e:
-            print(f"❌ Payout webhook error: {e}")
+            pass
+            # print(f"❌ Payout webhook error: {e}")
 
     return {
         "success": True,

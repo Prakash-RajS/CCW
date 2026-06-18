@@ -52,14 +52,14 @@ ALGORITHM = "HS256"
 OTP_EXPIRY = 600  # 10 minutes (same as auth.py)
 RESEND_COOLDOWN = 60  # 60 seconds
 
-# Debugging: Print keys to terminal to verify they are loaded
-print("---------------------------------------------------")
-print(f"DEBUG CHECK: Twilio SID: {TWILIO_SID}")
-print(f"DEBUG CHECK: Twilio Phone: {TWILIO_PHONE}")
-print(f"DEBUG CHECK: Email User: {EMAIL_USER}")
-print(f"DEBUG CHECK: Email Host: {EMAIL_HOST}")
-print(f"DEBUG CHECK: OTP_SECRET configured: {'Yes' if OTP_SECRET else 'No'}")
-print("---------------------------------------------------")
+# Debugging: # print keys to terminal to verify they are loaded
+# print("---------------------------------------------------")
+# print(f"DEBUG CHECK: Twilio SID: {TWILIO_SID}")
+# print(f"DEBUG CHECK: Twilio Phone: {TWILIO_PHONE}")
+# print(f"DEBUG CHECK: Email User: {EMAIL_USER}")
+# print(f"DEBUG CHECK: Email Host: {EMAIL_HOST}")
+# print(f"DEBUG CHECK: OTP_SECRET configured: {'Yes' if OTP_SECRET else 'No'}")
+# print("---------------------------------------------------")
 
 router = APIRouter(prefix="/verification", tags=["Verification"])
 
@@ -215,7 +215,7 @@ async def send_phone_otp(request: PhoneVerificationRequest, cooldown_token: str 
     # Create JWT OTP token (stateless)
     otp_token = create_otp_token(request.email, generated_otp, "phone_verification")
 
-    print(f"✅ OTP generated for {request.email}: {generated_otp}")
+    # print(f"✅ OTP generated for {request.email}: {generated_otp}")
 
     # Send SMS
     sms_sent = False
@@ -228,13 +228,13 @@ async def send_phone_otp(request: PhoneVerificationRequest, cooldown_token: str 
                 from_=TWILIO_PHONE,
                 to=request.phone_number
             )
-            print(f"✅ SMS sent successfully. SID: {message.sid}")
+            # print(f"✅ SMS sent successfully. SID: {message.sid}")
             sms_sent = True
         else:
-            print("⚠️ Twilio credentials not configured. SMS not sent.")
+            # print("⚠️ Twilio credentials not configured. SMS not sent.")
             sms_error = "Twilio not configured"
     except Exception as e:
-        print(f"❌ SMS failed: {str(e)}")
+        # print(f"❌ SMS failed: {str(e)}")
         sms_error = str(e)
 
     response = {
@@ -258,7 +258,7 @@ async def send_phone_otp(request: PhoneVerificationRequest, cooldown_token: str 
 async def verify_phone_otp(request: PhoneOTPVerify, otp_token: str):
     """Verify phone OTP - stateless JWT-based"""
 
-    print(f"🔍 Verifying OTP for email: {request.email}, OTP: {request.otp_code}")
+    # print(f"🔍 Verifying OTP for email: {request.email}, OTP: {request.otp_code}")
 
     # Stateless OTP verification using JWT
     if not verify_otp_token(
@@ -267,7 +267,7 @@ async def verify_phone_otp(request: PhoneOTPVerify, otp_token: str):
         request.email,
         "phone_verification"
     ):
-        print(f"❌ OTP verification failed for {request.email}")
+        # print(f"❌ OTP verification failed for {request.email}")
         raise HTTPException(
             status_code=400,
             detail="Invalid or expired OTP"
@@ -281,7 +281,7 @@ async def verify_phone_otp(request: PhoneOTPVerify, otp_token: str):
             # GET USER
             user = UserData.objects.get(email=request.email)
 
-            print(f"✅ User found: {user.email} (ID: {user.id})")
+            # print(f"✅ User found: {user.email} (ID: {user.id})")
 
             # GET VERIFICATION RECORD
             verification = UserVerification.objects.filter(
@@ -296,7 +296,7 @@ async def verify_phone_otp(request: PhoneOTPVerify, otp_token: str):
 
                 verification.save()
 
-                print("✅ Updated existing verification record")
+                # print("✅ Updated existing verification record")
 
             # CREATE NEW RECORD
             else:
@@ -309,7 +309,7 @@ async def verify_phone_otp(request: PhoneOTPVerify, otp_token: str):
                     updated_at=timezone.now()
                 )
 
-                print("✅ Created new verification record")
+                # print("✅ Created new verification record")
 
             # CREATE NOTIFICATION
             try:
@@ -321,25 +321,26 @@ async def verify_phone_otp(request: PhoneOTPVerify, otp_token: str):
                     # url="/profile"
                 )
 
-                print(
-                    f"✅ Phone verification notification created for {user.email}"
-                )
+                # print(
+                #     f"✅ Phone verification notification created for {user.email}"
+                # )
 
             except Exception as notification_error:
-                print(
-                    f"❌ Failed to create notification: {notification_error}"
-                )
+                pass
+                # print(
+                #     f"❌ Failed to create notification: {notification_error}"
+                # )
 
-            print(f"✅ Phone verified successfully for {request.email}")
+            # print(f"✅ Phone verified successfully for {request.email}")
 
             return True
 
         except UserData.DoesNotExist:
-            print(f"❌ User not found: {request.email}")
+            # print(f"❌ User not found: {request.email}")
             return False
 
         except Exception as e:
-            print(f"❌ Error: {str(e)}")
+            # print(f"❌ Error: {str(e)}")
             return False
 
     if await mark_phone_verified():
@@ -384,7 +385,7 @@ async def send_email_otp(request: EmailVerificationRequest, cooldown_token: str 
     # Create JWT OTP token (stateless)
     otp_token = create_otp_token(request.email, generated_otp, "email_verification")
 
-    print(f"✅ Email OTP generated for {request.email}: {generated_otp}")
+    # print(f"✅ Email OTP generated for {request.email}: {generated_otp}")
 
     # Send Email
     email_sent = False
@@ -416,13 +417,13 @@ async def send_email_otp(request: EmailVerificationRequest, cooldown_token: str 
             server.login(EMAIL_USER, EMAIL_PASSWORD)
             server.sendmail(EMAIL_USER, request.email, msg.as_string())
             server.quit()
-            print(f"✅ Email sent successfully from {EMAIL_USER} to {request.email}")
+            # print(f"✅ Email sent successfully from {EMAIL_USER} to {request.email}")
             email_sent = True
         else:
-            print("⚠️ Email credentials not configured. Email not sent.")
+            # print("⚠️ Email credentials not configured. Email not sent.")
             email_error = "Email not configured"
     except Exception as e:
-        print(f"❌ Email failed: {str(e)}")
+        # print(f"❌ Email failed: {str(e)}")
         email_error = str(e)
 
     response = {
@@ -445,7 +446,7 @@ async def send_email_otp(request: EmailVerificationRequest, cooldown_token: str 
 async def verify_email_otp(request: EmailOTPVerify, otp_token: str):
     """Verify email OTP - stateless JWT-based"""
 
-    print(f"🔍 Verifying email OTP for {request.email}")
+    # print(f"🔍 Verifying email OTP for {request.email}")
 
     # VERIFY JWT OTP
     if not verify_otp_token(
@@ -454,7 +455,7 @@ async def verify_email_otp(request: EmailOTPVerify, otp_token: str):
         request.email,
         "email_verification"
     ):
-        print(f"❌ Email OTP verification failed for {request.email}")
+        # print(f"❌ Email OTP verification failed for {request.email}")
 
         raise HTTPException(
             status_code=400,
@@ -469,7 +470,7 @@ async def verify_email_otp(request: EmailOTPVerify, otp_token: str):
             # GET USER
             user = UserData.objects.get(email=request.email)
 
-            print(f"✅ User found: {user.email} (ID: {user.id})")
+            # print(f"✅ User found: {user.email} (ID: {user.id})")
 
             # GET VERIFICATION RECORD
             verification = UserVerification.objects.filter(
@@ -484,7 +485,7 @@ async def verify_email_otp(request: EmailOTPVerify, otp_token: str):
 
                 verification.save()
 
-                print("✅ Updated email verification")
+                # print("✅ Updated email verification")
 
             # CREATE NEW RECORD
             else:
@@ -497,9 +498,9 @@ async def verify_email_otp(request: EmailOTPVerify, otp_token: str):
                     updated_at=timezone.now()
                 )
 
-                print(
-                    "✅ Created new verification record with email verified"
-                )
+                # print(
+                #     "✅ Created new verification record with email verified"
+                # )
 
             # CREATE NOTIFICATION
             try:
@@ -511,26 +512,27 @@ async def verify_email_otp(request: EmailOTPVerify, otp_token: str):
                     # url="/profile"
                 )
 
-                print(
-                    f"✅ Email verification notification created for {user.email}"
-                )
+                # print(
+                #     f"✅ Email verification notification created for {user.email}"
+                # )
 
             except Exception as notification_error:
-                print(
-                    f"❌ Failed to create email verification notification: {notification_error}"
-                )
+                pass
+                # print(
+                #     f"❌ Failed to create email verification notification: {notification_error}"
+                # )
 
-            print(f"✅ Email verified successfully for {request.email}")
+            # print(f"✅ Email verified successfully for {request.email}")
 
             return True
 
         except UserData.DoesNotExist:
-            print(f"❌ User not found: {request.email}")
+            # print(f"❌ User not found: {request.email}")
 
             return False
 
         except Exception as e:
-            print(f"❌ Error: {str(e)}")
+            # print(f"❌ Error: {str(e)}")
 
             return False
 
@@ -632,7 +634,7 @@ async def send_signup_otp(request: EmailVerificationRequest, cooldown_token: str
     # Create JWT OTP token (stateless)
     otp_token = create_otp_token(request.email, generated_otp, "signup")
 
-    print(f"✅ Signup OTP generated for {request.email}: {generated_otp}")
+    # print(f"✅ Signup OTP generated for {request.email}: {generated_otp}")
 
     # Send Email
     email_sent = False
@@ -664,13 +666,13 @@ async def send_signup_otp(request: EmailVerificationRequest, cooldown_token: str
             server.login(EMAIL_USER, EMAIL_PASSWORD)
             server.sendmail(EMAIL_USER, request.email, msg.as_string())
             server.quit()
-            print(f"✅ Signup email sent successfully to {request.email}")
+            # print(f"✅ Signup email sent successfully to {request.email}")
             email_sent = True
         else:
-            print("⚠️ Email credentials not configured. Email not sent.")
+            # print("⚠️ Email credentials not configured. Email not sent.")
             email_error = "Email not configured"
     except Exception as e:
-        print(f"❌ Email failed: {str(e)}")
+        # print(f"❌ Email failed: {str(e)}")
         email_error = str(e)
 
     response = {
@@ -696,11 +698,11 @@ async def verify_signup_otp(request: EmailOTPVerify, otp_token: str):
     Verify OTP for signup - stateless JWT-based verification
     Returns a signup_token that can be used to complete registration
     """
-    print(f"🔍 Verifying signup OTP for {request.email}")
+    # print(f"🔍 Verifying signup OTP for {request.email}")
 
     # Stateless OTP verification using JWT
     if not verify_otp_token(otp_token, int(request.otp_code), request.email, "signup"):
-        print(f"❌ Signup OTP verification failed for {request.email}")
+        # print(f"❌ Signup OTP verification failed for {request.email}")
         raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
     # Create a signup token (valid for 30 minutes) - same as auth.py

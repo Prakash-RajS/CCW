@@ -44,10 +44,10 @@ CHAT_FILES_DIR = MEDIA_DIR / "chat_files"
 MESSAGE_FILES_DIR.mkdir(parents=True, exist_ok=True)
 CHAT_FILES_DIR.mkdir(parents=True, exist_ok=True)
 
-print(f"📁 Base directory: {BASE_DIR}")
-print(f"📁 Media directory: {MEDIA_DIR}")
-print(f"📁 Message files directory: {MESSAGE_FILES_DIR}")
-print(f"📁 Chat files directory: {CHAT_FILES_DIR}")
+#print(f"📁 Base directory: {BASE_DIR}")
+#print(f"📁 Media directory: {MEDIA_DIR}")
+#print(f"📁 Message files directory: {MESSAGE_FILES_DIR}")
+#print(f"📁 Chat files directory: {CHAT_FILES_DIR}")
 
 # Helper: get or create conversation
 def get_or_create_conversation(user1, user2):
@@ -69,12 +69,12 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, user_id: int):
         self.active_connections[user_id] = websocket
-        print(f"✅ User {user_id} connected via WebSocket")
+        #print(f"✅ User {user_id} connected via WebSocket")
 
     def disconnect(self, user_id: int):
         if user_id in self.active_connections:
             del self.active_connections[user_id]
-            print(f"🔌 User {user_id} disconnected from WebSocket")
+            #print(f"🔌 User {user_id} disconnected from WebSocket")
 
     async def send_personal_message(self, message: dict, user_id: int):
         if user_id in self.active_connections:
@@ -82,7 +82,7 @@ class ConnectionManager:
                 await self.active_connections[user_id].send_json(message)
                 return True
             except Exception as e:
-                print(f"Error sending message to user {user_id}: {e}")
+                #print(f"Error sending message to user {user_id}: {e}")
                 if user_id in self.active_connections:
                     del self.active_connections[user_id]
                 return False
@@ -104,10 +104,10 @@ manager = ConnectionManager()
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
-    print(f"🔌 WebSocket connection attempt for user {user_id}")
+    #print(f"🔌 WebSocket connection attempt for user {user_id}")
     
     await websocket.accept()
-    print(f"✅ WebSocket connection accepted for user {user_id}")
+    #print(f"✅ WebSocket connection accepted for user {user_id}")
     
     await manager.connect(websocket, user_id)
     
@@ -117,7 +117,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
             "user_id": user_id,
             "timestamp": time.time()
         })
-        print(f"📤 Sent connection confirmation to user {user_id}")
+        #print(f"📤 Sent connection confirmation to user {user_id}")
     except Exception as e:
         print(f"❌ Failed to send connection confirmation: {e}")
     
@@ -153,7 +153,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
                 except:
                     break
             except WebSocketDisconnect:
-                print(f"🔌 User {user_id} disconnected")
+                #print(f"🔌 User {user_id} disconnected")
                 break
                 
     except Exception as e:
@@ -164,10 +164,10 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
 # WebRTC Signaling WebSocket
 @router.websocket("/call/{call_id}/signal")
 async def call_signaling_websocket(websocket: WebSocket, call_id: str):
-    print(f"🔌 Signaling WebSocket connection attempt for call {call_id}")
+    #print(f"🔌 Signaling WebSocket connection attempt for call {call_id}")
     
     await websocket.accept()
-    print(f"✅ Signaling WebSocket accepted for call {call_id}")
+    #print(f"✅ Signaling WebSocket accepted for call {call_id}")
     
     if call_id not in call_signaling_connections:
         call_signaling_connections[call_id] = set()
@@ -179,11 +179,11 @@ async def call_signaling_websocket(websocket: WebSocket, call_id: str):
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
-            print(f"📩 Signaling message for call {call_id}: {message.get('type')}")
+            #print(f"📩 Signaling message for call {call_id}: {message.get('type')}")
             
             if message.get("type") == "join":
                 user_id = message.get("user_id")
-                print(f"👤 User {user_id} joined call {call_id}")
+                #print(f"👤 User {user_id} joined call {call_id}")
                 
                 for conn in call_signaling_connections[call_id]:
                     if conn != websocket:
@@ -201,8 +201,7 @@ async def call_signaling_websocket(websocket: WebSocket, call_id: str):
                         try:
                             await conn.send_json(message)
                         except Exception as e:
-                            print(f"❌ Error forwarding signaling message: {e}")
-                            
+                            print(f"❌ Error forwarding signaling message: {e}")    
     except WebSocketDisconnect:
         print(f"🔌 Signaling WebSocket disconnected for call {call_id}")
     except Exception as e:
@@ -223,7 +222,7 @@ async def call_signaling_websocket(websocket: WebSocket, call_id: str):
             
             if not call_signaling_connections[call_id]:
                 del call_signaling_connections[call_id]
-                print(f"🧹 Cleaned up signaling for call {call_id}")
+                #print(f"🧹 Cleaned up signaling for call {call_id}")
 
 # Pydantic models
 class CallInitiate(BaseModel):
@@ -306,7 +305,7 @@ async def clear_message_session():
 async def initiate_call(call_data: CallInitiate):
     """Initiate a WebRTC call"""
     
-    print(f"📞 Initiating call: caller={call_data.caller_id}, receiver={call_data.receiver_id}, type={call_data.call_type}")
+    #print(f"📞 Initiating call: caller={call_data.caller_id}, receiver={call_data.receiver_id}, type={call_data.call_type}")
 
     try:
         sender = await sync_to_async(UserData.objects.get)(id=call_data.caller_id)
@@ -359,13 +358,13 @@ async def initiate_call(call_data: CallInitiate):
             }
         }, call_data.receiver_id)
         
-        print(f"📨 WebSocket notification {'sent' if notification_sent else 'failed'} to receiver {call_data.receiver_id}")
+        #print(f"📨 WebSocket notification {'sent' if notification_sent else 'failed'} to receiver {call_data.receiver_id}")
 
         # Auto-end call after 30 seconds if not answered
         async def auto_end_call():
             await asyncio.sleep(30)
             if call_id in active_calls and active_calls[call_id]["status"] == "initiated":
-                print(f"⏰ Call {call_id} timed out after 30 seconds")
+                #print(f"⏰ Call {call_id} timed out after 30 seconds")
                 
                 await manager.send_personal_message({
                     "type": "call_ended",
@@ -403,7 +402,7 @@ async def initiate_call(call_data: CallInitiate):
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
-        print(f"❌ Unexpected error in initiate_call: {e}")
+        #print(f"❌ Unexpected error in initiate_call: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to initiate call: {str(e)}")
@@ -569,7 +568,7 @@ async def list_users(request: Request, current_user_id: int = Query(...)):
         return result
 
     except Exception as e:
-        print(f"Error in list_users: {e}")
+        #print(f"Error in list_users: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -594,7 +593,7 @@ def set_typing(payload: TypingPayload):
 
         return {"status": "ok"}
     except Exception as e:
-        print(f"Error in set_typing: {e}")
+        #print(f"Error in set_typing: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/send")
@@ -609,7 +608,7 @@ async def send_message(
 ):
     """UPDATED: Send message with S3 support for file attachments"""
     try:
-        print(f"📤 Send message request: sender={sender_id}, receiver={receiver_id}")
+        #print(f"📤 Send message request: sender={sender_id}, receiver={receiver_id}")
         
         sender = await sync_to_async(UserData.objects.filter(id=sender_id).first)()
         receiver = await sync_to_async(UserData.objects.filter(id=receiver_id).first)()
@@ -708,54 +707,66 @@ async def send_message(
         }
 
     except Exception as e:
-        print(f"❌ Error in send_message: {str(e)}")
+        #print(f"❌ Error in send_message: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 
-@router.delete("/{message_id}")
-def delete_message(message_id: int, user_id: int = Query(...)):
-    try:
-        msg = Message.objects.get(id=message_id)
+# fastapi_app/routes/message.py - Fix delete_message
 
-        if msg.sender.id != user_id:
+@router.delete("/{message_id}")
+async def delete_message(message_id: int, user_id: int = Query(...)):
+    try:
+        # ✅ Use sync_to_async for database operations
+        msg = await sync_to_async(Message.objects.get)(id=message_id)
+
+        # ✅ Use sync_to_async to access sender
+        sender_id = await sync_to_async(lambda: msg.sender.id)()
+        
+        if sender_id != user_id:
             raise HTTPException(status_code=403, detail="You can only delete your own messages")
 
-        msg.delete()
+        await sync_to_async(msg.delete)()
         return {"status": "success", "message": "Message deleted successfully"}
     except Message.DoesNotExist:
         raise HTTPException(status_code=404, detail="Message not found")
     except Exception as e:
-        print(f"Error in delete_message: {e}")
+        #print(f"Error in delete_message: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# fastapi_app/routes/message.py - Fix delete_conversation
+
 @router.delete("/conversation/{user1_id}/{user2_id}")
-def delete_conversation(user1_id: int, user2_id: int, user_id: int = Query(...)):
+async def delete_conversation(user1_id: int, user2_id: int, user_id: int = Query(...)):
     try:
         if user_id not in [user1_id, user2_id]:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        convo = Conversation.objects.filter(
-            Q(user1_id=user1_id, user2_id=user2_id) |
-            Q(user1_id=user2_id, user2_id=user1_id)
-        ).first()
+        convo = await sync_to_async(
+            lambda: Conversation.objects.filter(
+                Q(user1_id=user1_id, user2_id=user2_id) |
+                Q(user1_id=user2_id, user2_id=user1_id)
+            ).first()
+        )()
 
         if not convo:
             return {"status": "success", "message": "Conversation already deleted"}
 
-        convo.messages.all().delete()
-        convo.delete()
+        await sync_to_async(convo.messages.all().delete)()
+        await sync_to_async(convo.delete)()
 
         return {"status": "success", "message": "Conversation deleted"}
 
     except Exception as e:
-        print(f"Error deleting conversation: {e}")
+        #print(f"Error deleting conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
+    
 @router.get("/conversation/{user1_id}/{user2_id}")
 async def get_messages(request: Request, user1_id: int, user2_id: int):
     try:
+        # ✅ Use sync_to_async for all database operations
         user1 = await sync_to_async(UserData.objects.filter(id=user1_id).first)()
         user2 = await sync_to_async(UserData.objects.filter(id=user2_id).first)()
 
@@ -784,9 +795,11 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
                 "other_user_last_active": user2.last_active,
             }
 
-        msgs = await sync_to_async(list)(convo.messages.all().order_by("created_at"))
+        # ✅ Fetch messages with select_related to prefetch sender
+        msgs = await sync_to_async(
+            lambda: list(convo.messages.select_related('sender', 'reply_to').order_by("created_at"))
+        )()
 
-        # ✅ FIX: Use build_full_url for file URLs with S3 support
         def get_file_url(file_obj):
             if not file_obj:
                 return None
@@ -838,7 +851,7 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
 
             formatted_messages.append({
                 "id": m.id,
-                "sender": m.sender.id,
+                "sender": m.sender.id,  # ✅ Now safe because we used select_related
                 "content": m.content,
                 "file_url": get_file_url(m.file),
                 "message_type": message_type,
@@ -857,33 +870,38 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
             "messages": formatted_messages
         }
     except Exception as e:
-        print(f"Error in get_messages: {e}")
+        #print(f"Error in get_messages: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+# fastapi_app/routes/message.py - Fix mark_seen
+
 @router.post("/seen/{conversation_id}/{user_id}")
-def mark_seen(conversation_id: int, user_id: int):
+async def mark_seen(conversation_id: int, user_id: int):
     try:
-        convo = Conversation.objects.filter(id=conversation_id).first()
+        convo = await sync_to_async(Conversation.objects.filter(id=conversation_id).first)()
         if not convo:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
-        viewer = UserData.objects.filter(id=user_id).first()
+        viewer = await sync_to_async(UserData.objects.filter(id=user_id).first)()
         if viewer:
             viewer.last_active = timezone.now()
-            viewer.save(update_fields=["last_active"])
+            await sync_to_async(viewer.save)(update_fields=["last_active"])
 
-        updated = Message.objects.filter(
-            conversation=convo
-        ).exclude(sender__id=user_id).update(is_seen=True)
+        updated = await sync_to_async(
+            lambda: Message.objects.filter(
+                conversation=convo
+            ).exclude(sender__id=user_id).update(is_seen=True)
+        )()
         
-        print(f"👁️ Marked {updated} messages as seen in conversation {conversation_id}")
+        #print(f"👁️ Marked {updated} messages as seen in conversation {conversation_id}")
 
         return {"status": "seen updated", "count": updated}
     except Exception as e:
-        print(f"Error in mark_seen: {e}")
+        #print(f"Error in mark_seen: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/user/heartbeat")
@@ -898,7 +916,7 @@ async def heartbeat(user_id: int):
         
         return {"status": "ok", "online": is_online}
     except Exception as e:
-        print(f"Error in heartbeat: {e}")
+        #print(f"Error in heartbeat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/send-for-proposal")
@@ -989,7 +1007,7 @@ async def send_message_for_proposal(
             "created_at": msg.created_at.isoformat()
         }
     except Exception as e:
-        print(f"Error in send_message_for_proposal: {e}")
+        #print(f"Error in send_message_for_proposal: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1027,12 +1045,12 @@ async def get_unread_message_count(
             ).count)()
             total_unread += unread
         
-        print(f"📊 Unread message count for user {current_user_id}: {total_unread}")
+        #print(f"📊 Unread message count for user {current_user_id}: {total_unread}")
         
         return {"count": total_unread}
         
     except Exception as e:
-        print(f"❌ Error fetching unread message count: {str(e)}")
+        #print(f"❌ Error fetching unread message count: {str(e)}")
         return {"count": 0}
 
 
@@ -1115,7 +1133,7 @@ async def get_conversations_list(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error fetching conversations: {str(e)}")
+        #print(f"❌ Error fetching conversations: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1149,7 +1167,7 @@ async def mark_all_messages_read(
             ).update)(is_seen=True)
             total_updated += updated
         
-        print(f"👁️ Marked {total_updated} messages as read for user {user_id}")
+        #print(f"👁️ Marked {total_updated} messages as read for user {user_id}")
         
         return {
             "status": "success",
@@ -1158,7 +1176,7 @@ async def mark_all_messages_read(
         }
         
     except Exception as e:
-        print(f"❌ Error marking all messages as read: {str(e)}")
+        #print(f"❌ Error marking all messages as read: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1205,7 +1223,7 @@ async def download_file(file_type: str, filename: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error downloading file: {str(e)}")
+        #print(f"❌ Error downloading file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
 
 # Optional: Add OPTIONS handler for CORS preflight
@@ -1296,7 +1314,7 @@ async def edit_message(
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        print(f"❌ Error editing message: {str(e)}")
+        #print(f"❌ Error editing message: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1389,7 +1407,7 @@ async def add_reaction(message_id: int, reaction: ReactionPayload):
         }
         
     except Exception as e:
-        print(f"❌ Error in reaction: {str(e)}")
+        #print(f"❌ Error in reaction: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1414,7 +1432,7 @@ async def get_message_reactions(message_id: int):
         return {"reactions": grouped_reactions}
         
     except Exception as e:
-        print(f"❌ Error getting reactions: {str(e)}")
+        #print(f"❌ Error getting reactions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/conversation/by-id/{conversation_id}")
@@ -1458,5 +1476,5 @@ async def get_conversation_by_id(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error getting conversation by ID: {str(e)}")
+        #print(f"❌ Error getting conversation by ID: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -31,7 +31,7 @@ const Findwork = () => {
  {/* HERO SECTION WITH BLACK SHADOW OVERLAY */}
 <div
   className="relative w-full h-[200px] md:h-[460px] bg-cover bg-center"
-  style={{ backgroundImage: `url(${BannerImg})` }}
+  style={{ backgroundImage: `url(₹{BannerImg})` }}
 >
   {/* Black shadow overlay */}
   <div className="absolute inset-0 bg-black/40"></div>
@@ -214,7 +214,7 @@ const Findwork = () => {
 
                 <div className="text-right">
                   <span className="font-semibold text-[14px] text-black">
-                    $10.00 USD
+                    ₹10.00 USD
                   </span>
                   <p className="text-[10px] text-gray-400">
                     BIDDING ENDS IN 6 DAYS,23 HOURS
@@ -339,7 +339,7 @@ const Findwork = () => {
             <div className="bg-gray-100 rounded-lg p-2 text-[10px] border-b border-gray-300">
               <div className="flex justify-between pb-1 border-b border-gray-300">
                 <span className="text-gray-500">Amount</span>
-                <span className="font-semibold">$300.00</span>
+                <span className="font-semibold">₹300.00</span>
               </div>
 
               <div className="flex justify-between pt-1">
@@ -601,7 +601,7 @@ const Findwork = () => {
               </h4>
 
               <p className="text-xs text-gray-500 mb-2">
-                Fixed-price - Intermediate - Est. Budget: $2,000 - Posted 8 hours ago
+                Fixed-price - Intermediate - Est. Budget: ₹2,000 - Posted 8 hours ago
               </p>
 
               <p className="text-xs text-gray-600 leading-relaxed mb-2">
@@ -613,7 +613,7 @@ const Findwork = () => {
 
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span>
-                  <span className="text-purple-600">$</span>{" "}
+                  <span className="text-purple-600">₹</span>{" "}
                   <span className="text-black">Fixed Rate</span>
                 </span>
                 <span className="text-purple-600">★★★★☆</span>
@@ -632,7 +632,7 @@ const Findwork = () => {
               </h4>
 
               <p className="text-xs text-gray-500 mb-2">
-                Fixed-price - Intermediate - Est. Budget: $2,000 - Posted 8 hours ago
+                Fixed-price - Intermediate - Est. Budget: ₹2,000 - Posted 8 hours ago
               </p>
 
               <p className="text-xs text-gray-600 leading-relaxed mb-2">
@@ -643,7 +643,7 @@ const Findwork = () => {
 
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span>
-                  <span className="text-purple-600">$</span>{" "}
+                  <span className="text-purple-600">₹</span>{" "}
                   <span className="text-black">Fixed Rate</span>
                 </span>
                 <span className="text-purple-600">★★★★☆</span>
@@ -662,7 +662,7 @@ const Findwork = () => {
               </h4>
 
               <p className="text-xs text-gray-500 mb-2">
-                Fixed-price - Intermediate - Est. Budget: $2,000 - Posted 8 hours ago
+                Fixed-price - Intermediate - Est. Budget: ₹2,000 - Posted 8 hours ago
               </p>
 
               <p className="text-xs text-gray-600 leading-relaxed mb-2">
@@ -673,7 +673,7 @@ const Findwork = () => {
 
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span>
-                  <span className="text-purple-600">$</span>{" "}
+                  <span className="text-purple-600">₹</span>{" "}
                   <span className="text-black">Fixed Rate</span>
                 </span>
                 <span className="text-purple-600">★★★★☆</span>
@@ -736,7 +736,7 @@ const Findwork = () => {
             </p>
 
             <p className="text-[12px] text-gray-700 mb-4">
-              Budget : <span className="font-semibold text-black">$400</span> | 2 contracts
+              Budget : <span className="font-semibold text-black">₹400</span> | 2 contracts
             </p>
 
             {/* Divider line */}
@@ -958,7 +958,7 @@ const Findwork = () => {
 
                 <div className="text-right">
                   <p className="text-[14px] font-semibold">
-                    $10.00 USD
+                    ₹10.00 USD
                   </p>
                   <p className="text-[10px] text-gray-400">
                     BIDDING ENDS IN 6 DAYS
@@ -1107,7 +1107,7 @@ const Findwork = () => {
               <div className="bg-gray-100 rounded-lg p-3 text-[11px] mb-4">
                 <div className="flex justify-between border-b pb-1 mb-1">
                   <span className="text-gray-500">Amount</span>
-                  <span className="font-semibold">$300.00</span>
+                  <span className="font-semibold">₹300.00</span>
                 </div>
 
                 <p className="text-gray-500">Transaction ID</p>
@@ -1224,7 +1224,7 @@ const Findwork = () => {
                 </h4>
 
                 <p className="text-[11px] text-gray-500 mb-2">
-                  Fixed-price • Intermediate • Budget: $2,000
+                  Fixed-price • Intermediate • Budget: ₹2,000
                 </p>
 
                 <p className="text-[12px] text-gray-600 mb-2">
@@ -1235,7 +1235,7 @@ const Findwork = () => {
 
                 <div className="flex items-center gap-2 text-[11px] text-gray-500 whitespace-nowrap">
                   <span>
-                    <span className="text-purple-600">$</span>{" "}
+                    <span className="text-purple-600">₹</span>{" "}
                     Fixed Rate
                   </span>
                   <span className="text-purple-600">★★★★☆</span>
@@ -1254,7 +1254,7 @@ const Findwork = () => {
                 </h4>
 
                 <p className="text-[11px] text-gray-500 mb-2">
-                  Fixed-price • Intermediate • Budget: $2,000
+                  Fixed-price • Intermediate • Budget: ₹2,000
                 </p>
 
                 <p className="text-[12px] text-gray-600 mb-2">
@@ -1265,7 +1265,7 @@ const Findwork = () => {
 
                 <div className="flex items-center gap-2 text-[11px] text-gray-500 whitespace-nowrap">
                   <span>
-                    <span className="text-purple-600">$</span>{" "}
+                    <span className="text-purple-600">₹</span>{" "}
                     Fixed Rate
                   </span>
                   <span className="text-purple-600">★★★★☆</span>
@@ -1284,7 +1284,7 @@ const Findwork = () => {
                 </h4>
 
                 <p className="text-[11px] text-gray-500 mb-2">
-                  Fixed-price • Intermediate • Budget: $2,000
+                  Fixed-price • Intermediate • Budget: ₹2,000
                 </p>
 
                 <p className="text-[12px] text-gray-600 mb-2">
@@ -1295,7 +1295,7 @@ const Findwork = () => {
 
                 <div className="flex items-center gap-2 text-[11px] text-gray-500 whitespace-nowrap">
                   <span>
-                    <span className="text-purple-600">$</span>{" "}
+                    <span className="text-purple-600">₹</span>{" "}
                     Fixed Rate
                   </span>
                   <span className="text-purple-600">★★★★☆</span>
@@ -1381,7 +1381,7 @@ const Findwork = () => {
               </p>
 
               <p className="text-[12px] text-gray-700 mb-3">
-                Budget: <span className="font-semibold">$400</span> | 2 contracts
+                Budget: <span className="font-semibold">₹400</span> | 2 contracts
               </p>
 
               {/* PROJECT BOX */}

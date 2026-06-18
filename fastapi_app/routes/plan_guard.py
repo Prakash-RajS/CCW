@@ -238,7 +238,7 @@ def get_user_plan(user: UserData):
     
     # ✅ CREATE SUBSCRIPTION IF IT DOESN'T EXIST
     if not sub:
-        print(f"⚠️ No subscription found for user {user.id}, creating Basic plan...")
+        # print(f"⚠️ No subscription found for user {user.id}, creating Basic plan...")
         
         # Get or create Basic plan for the user's role
         role = user.role if user.role else "collaborator"
@@ -266,7 +266,7 @@ def get_user_plan(user: UserData):
                     "max_proposals": 10
                 }
             )
-            print(f"✅ Created default Basic plan for role {role}")
+            # print(f"✅ Created default Basic plan for role {role}")
         
         now = timezone.now()
         sub = UserSubscription.objects.create(
@@ -282,7 +282,7 @@ def get_user_plan(user: UserData):
             status="active",
             is_trial=False,
         )
-        print(f"✅ Created Basic subscription for user {user.id}")
+        # print(f"✅ Created Basic subscription for user {user.id}")
         
         # Create subscription history
         from creator_app.models import SubscriptionHistory
@@ -299,7 +299,7 @@ def get_user_plan(user: UserData):
             plan_id=basic_plan.id,
             stripe_subscription_id=sub.stripe_subscription_id,
         )
-        print(f"✅ Subscription history created for user {user.id}")
+        # print(f"✅ Subscription history created for user {user.id}")
 
     # Check if subscription exists now (it should)
     if not sub:

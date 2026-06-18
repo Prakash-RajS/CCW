@@ -338,7 +338,7 @@ def generate_and_store_notifications(user, request=None):
 def create_profile_update_notification(user):
     """Create a notification when a user updates their profile"""
     try:
-        print(f"🔔 Creating profile update notification for user: {user.email}")
+        #print(f"🔔 Creating profile update notification for user: {user.email}")
         
         user_role = user.role.lower() if user.role else 'employer'
         is_creator = user_role == 'creator'
@@ -357,12 +357,13 @@ def create_profile_update_notification(user):
             is_read=False
         )
         
-        print(f"✅ Created notification ID: {notification.id} for user {user.email}")
+        # print(f"✅ Created notification ID: {notification.id} for user {user.email}")
         logger.info(f"Created profile update notification {notification.id} for user {user.email}")
         return notification
         
     except Exception as e:
-        print(f"❌ Error creating profile update notification: {e}")
+        # print(f"❌ Error creating profile update notification: {e}")
+        logger.error(f"Error creating profile update notification: {e}")
         import traceback
         traceback.print_exc()
         logger.error(f"Error creating profile update notification: {e}")

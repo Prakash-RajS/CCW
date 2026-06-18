@@ -25,7 +25,8 @@ EMAIL_FROM = os.getenv("EMAIL_FROM")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", EMAIL_FROM)
 
 if not all([SMTP_USER, SMTP_PASS, EMAIL_FROM]):
-    print("⚠️  SMTP credentials missing in .env – email sending will fail")
+    pass
+    #print("⚠️  SMTP credentials missing in .env – email sending will fail")
 
 router = APIRouter(prefix="/api", tags=["Contact"])
 
@@ -132,7 +133,7 @@ def build_email_html(
 async def send_email(recipient: str, subject: str, html_body: str, text_body: Optional[str] = None) -> bool:
     """Send an email via smtplib with STARTTLS, wrapped in a thread."""
     if not SMTP_USER or not SMTP_PASS:
-        print("❌ SMTP not configured")
+        # print("❌ SMTP not configured")
         return False
 
     msg = MIMEMultipart("alternative")
@@ -154,7 +155,7 @@ async def send_email(recipient: str, subject: str, html_body: str, text_body: Op
                 server.send_message(msg)
             return True
         except Exception as e:
-            print(f"❌ Email sending failed to {recipient}: {e}")
+            # print(f"❌ Email sending failed to {recipient}: {e}")
             return False
 
     return await asyncio.to_thread(_send_sync)

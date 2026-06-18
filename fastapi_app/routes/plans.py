@@ -207,7 +207,7 @@
 #     except HTTPException:
 #         raise
 #     except Exception as e:
-#         print(f"Error creating plan: {str(e)}")
+#         # print(f"Error creating plan: {str(e)}")
 #         raise HTTPException(status_code=500, detail=str(e))
 
 # # =========================================
@@ -325,7 +325,7 @@
 #     except SubscriptionPlan.DoesNotExist:
 #         raise HTTPException(status_code=404, detail="Plan not found")
 #     except Exception as e:
-#         print(f"Error updating plan: {str(e)}")
+#         # print(f"Error updating plan: {str(e)}")
 #         raise HTTPException(status_code=500, detail=str(e))
 
 # # =========================================
@@ -344,7 +344,7 @@
 #     except SubscriptionPlan.DoesNotExist:
 #         raise HTTPException(status_code=404, detail="Plan not found")
 #     except Exception as e:
-#         print(f"Error deleting plan: {str(e)}")
+#         # print(f"Error deleting plan: {str(e)}")
 #         raise HTTPException(status_code=500, detail=str(e))
 
 # # =========================================
@@ -434,7 +434,7 @@
 #         return {"plans": data}
     
 #     except Exception as e:
-#         print(f"Error in list_active_plans: {str(e)}")
+#         # print(f"Error in list_active_plans: {str(e)}")
 #         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # # =========================================
@@ -526,7 +526,7 @@
 #     except SubscriptionPlan.DoesNotExist:
 #         raise HTTPException(status_code=404, detail="Plan not found")
 #     except Exception as e:
-#         print(f"Error getting plan: {str(e)}")
+#         # print(f"Error getting plan: {str(e)}")
 #         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -660,10 +660,10 @@ def create_plan_notification(notification_type: str, title: str, subtitle: str, 
             )
             created_count += 1
         
-        print(f"✅ Created plan notification '{notification_type}' for {created_count} admin(s)")
+        # print(f"✅ Created plan notification '{notification_type}' for {created_count} admin(s)")
         return True
     except Exception as e:
-        print(f"⚠️ Notification creation failed (non-critical): {e}")
+        # print(f"⚠️ Notification creation failed (non-critical): {e}")
         return False
 
 
@@ -772,7 +772,8 @@ def create_plan(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error creating plan: {str(e)}")
+        pass
+        # print(f"❌ Error creating plan: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -932,7 +933,8 @@ def edit_plan(
     except SubscriptionPlan.DoesNotExist:
         raise HTTPException(status_code=404, detail="Plan not found")
     except Exception as e:
-        print(f"❌ Error updating plan: {str(e)}")
+        pass
+        # print(f"❌ Error updating plan: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -967,7 +969,7 @@ def delete_plan(
     except SubscriptionPlan.DoesNotExist:
         raise HTTPException(status_code=404, detail="Plan not found")
     except Exception as e:
-        print(f"❌ Error deleting plan: {str(e)}")
+        # print(f"❌ Error deleting plan: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1059,7 +1061,7 @@ def list_active_plans(
         return {"plans": data}
     
     except Exception as e:
-        print(f"❌ Error in list_active_plans: {str(e)}")
+        # print(f"❌ Error in list_active_plans: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
@@ -1153,5 +1155,5 @@ def get_plan(plan_id: int, admin = Depends(get_current_admin)):
     except SubscriptionPlan.DoesNotExist:
         raise HTTPException(status_code=404, detail="Plan not found")
     except Exception as e:
-        print(f"❌ Error getting plan: {str(e)}")
+        # print(f"❌ Error getting plan: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

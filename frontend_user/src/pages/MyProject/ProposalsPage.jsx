@@ -187,81 +187,105 @@ export default function ProposalsPage() {
     }));
   };
 
-  const downloadAttachment = async (proposalId, attachmentUrl) => {
-    let loadingToast = null;
-    try {
-      let filename = attachmentUrl.split('/').pop();
-      filename = filename.split('?')[0];
+  // Replace the downloadAttachment function with this:
+
+const downloadAttachment = async (proposalId, attachmentUrl) => {
+  let loadingToast = null;
+  try {
+    let filename = attachmentUrl.split('/').pop();
+    filename = filename.split('?')[0];
+    
+    loadingToast = toast.loading("Preparing download...");
+    
+    // ✅ First, get the download URL from the backend
+    const response = await api.get(`/proposals/download-attachment/${proposalId}/${filename}`);
+    
+    toast.dismiss(loadingToast);
+    
+    // ✅ Check if the response contains a download_url (S3 mode)
+    if (response.data && response.data.download_url) {
+      const downloadUrl = response.data.download_url;
+      const isViewable = /\.(pdf|jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
       
-      loadingToast = toast.loading("Downloading attachment...");
-      
-      const response = await api.get(`/proposals/download-attachment/${proposalId}/${filename}`, {
-        responseType: 'blob',
-        timeout: 30000
-      });
-      
-      toast.dismiss(loadingToast);
-      
-      let downloadedFilename = filename;
-      const contentDisposition = response.headers['content-disposition'];
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (match && match[1]) {
-          downloadedFilename = match[1].replace(/['"]/g, '');
-        }
+      if (isViewable) {
+        // ✅ For viewable files, open in new tab
+        window.open(downloadUrl, '_blank');
+        toast.success("Opening file...");
+      } else {
+        // ✅ For other files, download directly
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success("File downloaded successfully");
       }
-      
+      return;
+    }
+    
+    // ✅ If response is a blob (local mode), handle it
+    if (response.data instanceof Blob || response.data instanceof ArrayBuffer) {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', downloadedFilename);
+      link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
       toast.success("File downloaded successfully");
-    } catch (err) {
-      if (loadingToast) toast.dismiss(loadingToast);
-      console.error("Download error:", err);
-      const errorMsg = err.response?.data?.detail || err.message || "Failed to download attachment";
-      toast.error(errorMsg);
+    } else {
+      toast.error("Unexpected response format");
     }
-  };
+  } catch (err) {
+    if (loadingToast) toast.dismiss(loadingToast);
+    console.error("Download error:", err);
+    const errorMsg = err.response?.data?.detail || err.message || "Failed to download attachment";
+    toast.error(errorMsg);
+  }
+};
 
   const getFileIcon = (filename) => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    switch(ext) {
-      case 'pdf':
-        return (
-          <svg className="w-4 h-4 text-red-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-          </svg>
-        );
-      case 'doc':
-      case 'docx':
-        return (
-          <svg className="w-4 h-4 text-blue-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        );
-      case 'jpg':
-      case 'jpeg':
-      case 'png':
-      case 'gif':
-        return (
-          <svg className="w-4 h-4 text-green-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        );
-      default:
-        return (
-          <svg className="w-4 h-4 text-gray-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        );
-    }
-  };
+  // ✅ Extract filename from URL if it's a full URL
+  let cleanFilename = filename;
+  if (filename.startsWith('http://') || filename.startsWith('https://')) {
+    const urlParts = filename.split('/');
+    cleanFilename = urlParts[urlParts.length - 1].split('?')[0];
+  }
+  
+  const ext = cleanFilename.split('.').pop()?.toLowerCase();
+  switch(ext) {
+    case 'pdf':
+      return (
+        <svg className="w-4 h-4 text-red-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      );
+    case 'doc':
+    case 'docx':
+      return (
+        <svg className="w-4 h-4 text-blue-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      );
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'gif':
+      return (
+        <svg className="w-4 h-4 text-green-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className="w-4 h-4 text-gray-500 mobile-text-xs" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      );
+  }
+};
   
   // ─── API actions ─────────────────────────────────────────────────────────────
   const acceptProposal = async (proposalId) => {
@@ -1120,39 +1144,43 @@ export default function ProposalsPage() {
                   </div>
                   <div className="space-y-1.5 md:space-y-2">
                     {selectedProposal.attachments.map((attachment, idx) => {
-                      const fullFilename = attachment.split('/').pop();
-                      let displayName = fullFilename;
-                      const parts = fullFilename.split('_');
-                      if (parts.length >= 3 && parts[0] === String(selectedProposal.id)) {
-                        displayName = parts.slice(2).join('_');
-                      }
-                      
-                      return (
-                        <div 
-                          key={idx} 
-                          className="flex items-center justify-between p-2 md:p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all group"
-                        >
-                          <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
-                            {getFileIcon(displayName)}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] md:text-sm font-medium text-gray-800 truncate" title={displayName}>
-                                {displayName.length > 20 ? displayName.substring(0, 20) + '...' : displayName}
-                              </p>
-                              <p className="text-[8px] md:text-xs text-gray-400">Attachment</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => downloadAttachment(selectedProposal.id, attachment)}
-                            className="ml-2 md:ml-3 px-2 md:px-3 py-1 text-[9px] md:text-xs font-medium text-blue-600 bg-white rounded-md border border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition flex items-center gap-1"
-                          >
-                            <svg className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download
-                          </button>
-                        </div>
-                      );
-                    })}
+  const fullFilename = attachment.split('/').pop();
+  let displayName = fullFilename.split('?')[0]; // ✅ Remove query params from S3 URLs
+  
+  // Try to clean up the filename (remove proposal ID prefix)
+  const parts = displayName.split('_');
+  if (parts.length >= 3 && parts[0] === String(selectedProposal.id)) {
+    displayName = parts.slice(2).join('_');
+  }
+  
+  // If filename is too long, truncate
+  if (displayName.length > 30) {
+    displayName = displayName.substring(0, 30) + '...';
+  }
+  
+  return (
+    <div key={idx} className="flex items-center justify-between p-2 md:p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 transition-all group">
+      <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+        {getFileIcon(displayName)}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] md:text-sm font-medium text-gray-800 truncate" title={displayName}>
+            {displayName}
+          </p>
+          <p className="text-[8px] md:text-xs text-gray-400">Attachment</p>
+        </div>
+      </div>
+      <button
+        onClick={() => downloadAttachment(selectedProposal.id, attachment)}
+        className="ml-2 md:ml-3 px-2 md:px-3 py-1 text-[9px] md:text-xs font-medium text-blue-600 bg-white rounded-md border border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition flex items-center gap-1"
+      >
+        <svg className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Download
+      </button>
+    </div>
+  );
+})}
                   </div>
                 </div>
               )}
