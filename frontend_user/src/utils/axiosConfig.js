@@ -205,6 +205,10 @@ const PUBLIC_PATHS = [
   '/enter-otp',
   '/otp-request',
   '/reset-succes',
+  '/post-project',
+  '/complete-project',
+  '/Findwork',
+  '/contact',
 ];
 
 const isPublicPath = (path) =>

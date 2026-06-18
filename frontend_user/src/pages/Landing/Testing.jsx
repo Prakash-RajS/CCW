@@ -153,50 +153,50 @@ const Testing = () => {
   }, []);
 
   // ========== AUTH CHECK + ROLE-BASED REDIRECT ==========
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  // useEffect(() => {
+  //   const checkAuth = async () => {
+  //     try {
+  //       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-        const response = await fetch(`${apiBaseUrl}/auth/me`, {
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+  //       const response = await fetch(`${apiBaseUrl}/auth/me`, {
+  //         credentials: 'include',
+  //         headers: {
+  //           'Content-Type': 'application/json',
+  //         },
+  //       });
 
-        if (response.ok) {
-          const userData = await response.json();
-          setIsAuthenticated(true);
+  //       if (response.ok) {
+  //         const userData = await response.json();
+  //         setIsAuthenticated(true);
 
-          if (userData.role === 'collaborator') {
-            navigate("/col-home", { replace: true });
-            return;
-          } else if (userData.role === 'creator') {
-            navigate("/home", { replace: true });
-            return;
-          }
-        } else {
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        setIsAuthenticated(false);
-      } finally {
-        setIsCheckingAuth(false);
-      }
-    };
+  //         if (userData.role === 'collaborator') {
+  //           navigate("/col-home", { replace: true });
+  //           return;
+  //         } else if (userData.role === 'creator') {
+  //           navigate("/home", { replace: true });
+  //           return;
+  //         }
+  //       } else {
+  //         setIsAuthenticated(false);
+  //       }
+  //     } catch (error) {
+  //       setIsAuthenticated(false);
+  //     } finally {
+  //       setIsCheckingAuth(false);
+  //     }
+  //   };
 
-    const urlParams = new URLSearchParams(location.search);
-    const isLogout = urlParams.get('logout');
+  //   const urlParams = new URLSearchParams(location.search);
+  //   const isLogout = urlParams.get('logout');
 
-    if (!isLogout) {
-      checkAuth();
-    } else {
-      window.history.replaceState({}, document.title, window.location.pathname);
-      setIsCheckingAuth(false);
-      setIsAuthenticated(false);
-    }
-  }, [navigate, location]);
+  //   if (!isLogout) {
+  //     checkAuth();
+  //   } else {
+  //     window.history.replaceState({}, document.title, window.location.pathname);
+  //     setIsCheckingAuth(false);
+  //     setIsAuthenticated(false);
+  //   }
+  // }, [navigate, location]);
 
   // ========== NAVIGATION HELPER ==========
   const handleNavigate = (path) => {
@@ -204,34 +204,34 @@ const Testing = () => {
   };
 
   // ========== LOGOUT ==========
-  const handleLogout = async () => {
-    try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  // const handleLogout = async () => {
+  //   try {
+  //     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      await fetch(`${apiBaseUrl}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+  //     await fetch(`${apiBaseUrl}/auth/logout`, {
+  //       method: 'POST',
+  //       credentials: 'include',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
 
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      localStorage.removeItem('userRole');
-      sessionStorage.clear();
+  //     localStorage.removeItem('user');
+  //     localStorage.removeItem('token');
+  //     localStorage.removeItem('userRole');
+  //     sessionStorage.clear();
 
-      setTimeout(() => {
-        window.location.href = "/?logout=" + Date.now();
-      }, 100);
+  //     setTimeout(() => {
+  //       window.location.href = "/?logout=" + Date.now();
+  //     }, 100);
 
-    } catch (error) {
-      console.error("Logout failed:", error);
-      localStorage.clear();
-      sessionStorage.clear();
-      window.location.href = "/?logout=" + Date.now();
-    }
-  };
+  //   } catch (error) {
+  //     console.error("Logout failed:", error);
+  //     localStorage.clear();
+  //     sessionStorage.clear();
+  //     window.location.href = "/?logout=" + Date.now();
+  //   }
+  // };
 
   // ========== CARD CONFIG ==========
   const cards = [
@@ -271,13 +271,13 @@ const Testing = () => {
   };
 
   // ========== LOADING STATE ==========
-  if (isCheckingAuth) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
+  // if (isCheckingAuth) {
+  //   return (
+  //     <div className="flex justify-center items-center h-screen">
+  //       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <>
@@ -319,7 +319,7 @@ const Testing = () => {
                 <div className="hidden sm:flex items-center gap-3 md:gap-4 z-[100] relative">
                   {isAuthenticated ? (
                     <button
-                      onClick={handleLogout}
+                      //onClick={handleLogout}
                       className="px-4 py-2 text-sm font-semibold rounded-full whitespace-nowrap transition-all duration-300 !border border-red-500 text-red-500 bg-white hover:bg-red-500 hover:text-white hover:shadow-md cursor-pointer"
                     >
                       Logout
@@ -353,7 +353,7 @@ const Testing = () => {
                   <div className="flex items-center gap-2 xs:gap-3">
                     {isAuthenticated ? (
                       <button
-                        onClick={handleLogout}
+                        //onClick={handleLogout}
                         className="px-2.5 py-1 xs:px-3 xs:py-1 text-[11px] xs:text-[12px] font-medium rounded-full whitespace-nowrap transition-all duration-300 !border border-red-500 text-red-500 bg-white hover:bg-red-500 hover:text-white hover:shadow-md"
                       >
                         Logout

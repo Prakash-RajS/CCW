@@ -653,6 +653,7 @@ async def save_collaborator_profile(
 
     random_digits = generate_random_digits()
     use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+    print(f"🔍 USE_S3 = {use_s3}")
 
     # ========== HANDLE PROFILE PICTURE ==========
     if profile_picture and profile_picture.filename:
@@ -701,15 +702,31 @@ async def save_collaborator_profile(
                 description=None,
                 order=0,
             )
+            print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
 
             if use_s3:
                 # Use S3 storage for portfolio
                 from fastapi_app.routes.storage import save_portfolio_upload_collaborator
-                s3_key = await save_portfolio_upload_collaborator(portfolio_uploads, str(user_id), str(portfolio_item.id))
-                # Update the portfolio item with S3 key
-                portfolio_item.file.name = s3_key
-                await sync_to_async(portfolio_item.save)()
-                print(f"✅ Portfolio saved to S3: {s3_key}")
+                try:
+                    s3_key = await save_portfolio_upload_collaborator(
+                        portfolio_uploads,
+                        str(user_id),
+                        str(portfolio_item.id)
+                    )
+                    # Update the portfolio item with S3 key
+                    portfolio_item.file.name = s3_key
+                    await sync_to_async(portfolio_item.save)()
+                    print(f"✅ Portfolio saved to S3: {s3_key}")
+                except Exception as s3_error:
+                    print(f"⚠️ S3 upload failed, using local storage: {s3_error}")
+                    # Fallback to local storage
+                    portfolio_filename = f"{user_id}_{random_digits}_portfolio_{original_filename}{portfolio_ext}"
+                    await sync_to_async(portfolio_item.file.save)(
+                        portfolio_filename,
+                        ContentFile(portfolio_content),
+                        save=True,
+                    )
+                    print(f"✅ Portfolio saved locally (fallback): {portfolio_filename}")
             else:
                 # Use local storage
                 portfolio_filename = f"{user_id}_{random_digits}_portfolio_{original_filename}{portfolio_ext}"
@@ -730,6 +747,8 @@ async def save_collaborator_profile(
 
         except Exception as e:
             print(f"❌ Error creating portfolio item: {e}")
+            import traceback
+            traceback.print_exc()
 
     # ========== PARSE TIMING ==========
     parsed_timing = timing
@@ -812,50 +831,9 @@ async def save_collaborator_profile(
     if user.role != "collaborator":
         user.role = "collaborator"
         await sync_to_async(user.save)()
+        # ... rest of the code
 
-        # Ensure Basic plan exists for collaborator role
-        basic_plan = await sync_to_async(get_or_create_basic_plan)("collaborator")
-
-        # Create a UserSubscription only if the user doesn't have one yet
-        subscription_exists = await sync_to_async(
-            lambda: UserSubscription.objects.filter(user=user).exists()
-        )()
-        if not subscription_exists:
-            now = datetime.now()
-            subscription = await sync_to_async(UserSubscription.objects.create)(
-    user=user,
-    email=user.email or "",
-    current_plan=basic_plan.name,
-    plan_name=basic_plan.name,
-    duration=basic_plan.duration.capitalize(),
-    plan_price=basic_plan.price,
-    plan_start_date=now,
-    plan_end_date=now + timedelta(days=30),
-    renewal_date=now + timedelta(days=30),
-    status="active",
-    is_trial=False,
-)
-            print(f"✅ Created Basic subscription for collaborator {user.email}")
-
-            # ─── CREATE SUBSCRIPTION HISTORY ────────────────────────────────
-            await sync_to_async(SubscriptionHistory.objects.create)(
-                user=user,
-                email=user.email or "",
-                plan_name=basic_plan.name,
-                duration=basic_plan.duration,
-                plan_price=basic_plan.price,
-                start_date=now,
-                end_date=subscription.plan_end_date,
-                status="active",
-                action="created",
-                plan_id=basic_plan.id,
-                stripe_subscription_id=subscription.stripe_subscription_id,
-            )
-            print(f"✅ Subscription history created for collaborator {user.email}")
-
-    print(f"✅ Updated user role to collaborator")
-
-    # ========== 🔔 NOTIFICATION: PROFILE SAVED/CREATED ==========
+    # ========== NOTIFICATIONS ==========
     notification_type = "profile_created" if created else "profile_updated"
     notification_title = "Collaborator Profile Created" if created else "Collaborator Profile Updated"
     notification_message = "Your collaborator profile has been created successfully." if created else "Your collaborator profile has been updated successfully."
@@ -868,7 +846,6 @@ async def save_collaborator_profile(
         url="/ColabProfile"
     )
 
-    # ========== 🔔 NOTIFICATION: SKILLS SAVED ==========
     if skills_list:
         await sync_to_async(create_notification)(
             user=user,
@@ -883,7 +860,6 @@ async def save_collaborator_profile(
         "profile_id": profile.id,
         "user_id": user.id,
     }
- 
 
 
 # ==============================================================================
@@ -1370,12 +1346,14 @@ async def delete_portfolio_item(item_id: int, user_id: Optional[int] = None):
         owner = await sync_to_async(lambda: item.user)()
         item_user_id = item.user_id
         use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+        file_name = None  # ✅ Initialize file_name to None
         
         if item.file:
             try:
                 file_size = await sync_to_async(lambda: item.file.size)()
-                file_name = item.file.name
-            except Exception:
+                file_name = item.file.name  # ✅ Set file_name here
+            except Exception as e:
+                print(f"Error getting file size: {e}")
                 file_size = 0
             
             # Delete from S3 or local
@@ -1415,6 +1393,9 @@ async def delete_portfolio_item(item_id: int, user_id: Optional[int] = None):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"Error in delete_portfolio_item: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
 
 

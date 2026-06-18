@@ -142,6 +142,7 @@ from fastapi_app.routes import portfolio
 from fastapi_app.routes import notification
 from fastapi_app.routes.dropdown_options import router as dropdown_router
 from fastapi_app.routes.review import router as reviews_router
+from fastapi_app.routes.contact import router as contact_router
 
 # -------------------------------------------------
 # DATABASE CONNECTION CHECK
@@ -221,6 +222,7 @@ app.include_router(portfolio.router)
 app.include_router(notification.router)
 app.include_router(dropdown_router)
 app.include_router(reviews_router)
+app.include_router(contact_router)
 
 # -------------------------------------------------
 # ROOT ENDPOINT
