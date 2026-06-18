@@ -14,6 +14,9 @@ from enum import Enum
 import uuid
 from datetime import datetime
 
+from django.core.cache import cache
+import hashlib
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 env_path = Path(__file__).parent.parent / '.env'  # Fastapi_app/.env
@@ -922,3 +925,124 @@ if not USE_S3:
                 "Access-Control-Allow-Origin": "*",
             }
         )
+        
+def generate_presigned_urls_batch(
+    s3_keys: List[str],
+    expires_in: int = ExpiryPreset.DAILY
+) -> Dict[str, Optional[str]]:
+    """
+    Generate presigned URLs for multiple S3 keys in batch.
+    This is much faster than generating them one by one.
+    """
+    if not USE_S3:
+        return {key: f"/media/{key}" for key in s3_keys}
+    
+    result = {}
+    for s3_key in s3_keys:
+        if not s3_key or not s3_key.strip():
+            result[s3_key] = None
+            continue
+        
+        try:
+            # Use a shorter expiry for batch to reduce load
+            url = S3_CLIENT.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={
+                    "Bucket": S3_BUCKET,
+                    "Key": s3_key,
+                    "ResponseCacheControl": "public, max-age=86400, immutable",
+                },
+                ExpiresIn=expires_in,
+            )
+            result[s3_key] = url
+        except Exception as e:
+            logger.error(f"Failed to generate presigned URL for {s3_key}: {e}")
+            result[s3_key] = None
+    
+    return result
+
+# fastapi_app/routes/storage.py - Add this function
+
+
+# fastapi_app/routes/storage.py - Update generate_presigned_url_with_cache
+
+def generate_presigned_url_with_cache(
+    s3_key: str,
+    expires_in: int = ExpiryPreset.STANDARD,
+    force_download: bool = False
+) -> Optional[str]:
+    """
+    Generate presigned URL with caching to reduce AWS API calls.
+    Also caches "not found" results to prevent repeated checks.
+    """
+    if not USE_S3:
+        return f"/media/{s3_key}"
+
+    if not s3_key or not s3_key.strip():
+        logger.warning("Empty S3 key provided for presigned URL")
+        return None
+
+    # Create a cache key
+    cache_key = f"presigned_url_{s3_key}_{expires_in}_{force_download}"
+    cache_key = hashlib.md5(cache_key.encode()).hexdigest()
+    
+    # Try to get from cache
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        # If cached result is "NOT_FOUND", return None without hitting AWS
+        if cached_result == "NOT_FOUND":
+            logger.info(f"✅ Using cached 'not found' result for: {s3_key}")
+            return None
+        logger.info(f"✅ Using cached presigned URL for: {s3_key}")
+        return cached_result
+
+    try:
+        # First, check if the file exists
+        try:
+            head = S3_CLIENT.head_object(Bucket=S3_BUCKET, Key=s3_key)
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                # Cache the "not found" result for a longer time (1 hour)
+                cache.set(cache_key, "NOT_FOUND", timeout=3600)
+                logger.warning(f"File not found in S3: {s3_key} (cached for 1 hour)")
+                return None
+            raise e
+
+        content_type = head.get("ContentType") or mimetypes.guess_type(s3_key)[0]
+
+        params = {
+            "Bucket": S3_BUCKET,
+            "Key": s3_key,
+            "ResponseCacheControl": "public, max-age=86400, immutable",
+        }
+
+        if content_type:
+            params["ResponseContentType"] = content_type
+
+        if force_download:
+            filename = extract_filename_from_path(s3_key)
+            params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
+
+        url = S3_CLIENT.generate_presigned_url(
+            ClientMethod="get_object",
+            Params=params,
+            ExpiresIn=expires_in,
+        )
+
+        # Cache the URL for a shorter time than expiry
+        cache_timeout = min(expires_in // 2, 3600)
+        if url:
+            cache.set(cache_key, url, timeout=cache_timeout)
+            logger.info(f"✅ Generated and cached presigned URL for: {s3_key} (expires in {expires_in}s, cached for {cache_timeout}s)")
+        else:
+            cache.set(cache_key, "NOT_FOUND", timeout=3600)
+
+        return url
+
+    except ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            cache.set(cache_key, "NOT_FOUND", timeout=3600)
+            logger.warning(f"File not found for presigned URL: {s3_key}")
+            return None
+        logger.error(f"Failed to generate presigned URL for '{s3_key}': {str(e)}")
+        return None

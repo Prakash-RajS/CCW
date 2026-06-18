@@ -125,12 +125,41 @@ def get_collaborator_location(collaborator: UserData):
     return {"country": "", "state": "", "city": "", "address": ""}
 
 
+# ==========================================================
+# HELPER - GET PROFILE PICTURE URL (WITH S3 SUPPORT)
+# ==========================================================
 def get_user_profile_picture_url(user: UserData, base_url: str):
-    """Get profile picture URL for user"""
-    if user and user.profile_picture:
-        pic_path = str(user.profile_picture).lstrip("/")
+    """Get profile picture URL with S3 support"""
+    if not user or not user.profile_picture:
+        return None
+    
+    pic_path = str(user.profile_picture).lstrip("/")
+    
+    # Check if using S3
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+    
+    if use_s3:
+        # For S3, generate a presigned URL
+        from fastapi_app.routes.storage import generate_presigned_url, ExpiryPreset
+        
+        # Determine if this is a profile picture based on path
+        if "profile_pics" in pic_path or "profile_pic" in pic_path:
+            # Profile pictures can be cached longer
+            expires_in = ExpiryPreset.DAILY  # 24 hours
+        else:
+            expires_in = ExpiryPreset.STANDARD  # 1 hour
+        
+        # Generate presigned URL
+        presigned_url = generate_presigned_url(pic_path, expires_in=expires_in)
+        
+        if presigned_url:
+            return presigned_url
+        else:
+            # Fallback to base URL if presigned URL generation fails
+            return f"{base_url}/media/{pic_path}"
+    else:
+        # Local storage - return media URL
         return f"{base_url}/media/{pic_path}"
-    return None
 
 
 # ==========================================================
@@ -1371,6 +1400,7 @@ def get_all_contracts_history(
     ensure_db_connection()
 
     base_url = str(request.base_url).rstrip("/")
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
     contracts = (
         Contract.objects
@@ -1398,42 +1428,58 @@ def get_all_contracts_history(
         reviews = review_stats["total_reviews"]
         total_earnings = get_total_earnings(collaborator)
 
-        profile_picture_url = get_user_profile_picture_url(collaborator, base_url)
+        # ========== PROFILE PICTURE WITH S3 SUPPORT ==========
+        profile_picture_url = None
+        if collaborator and collaborator.profile_picture:
+            pic_path = str(collaborator.profile_picture).lstrip("/")
+            
+            if use_s3:
+                # For S3, generate a presigned URL
+                from fastapi_app.routes.storage import generate_presigned_url, ExpiryPreset
+                
+                # Profile pictures can be cached longer
+                presigned_url = generate_presigned_url(pic_path, expires_in=ExpiryPreset.DAILY)
+                
+                if presigned_url:
+                    profile_picture_url = presigned_url
+                else:
+                    # Fallback
+                    profile_picture_url = f"{base_url}/media/{pic_path}"
+            else:
+                # Local storage
+                profile_picture_url = f"{base_url}/media/{pic_path}"
 
         result.append({
-    "id": c.id,
-    "job_id": c.job_id,
-    "status": c.status,
-
-    # ADD THESE
-    "milestones_data": (
-        c.milestones_data
-        if hasattr(c, "milestones_data") and c.milestones_data
-        else []
-    ),
-    "current_milestone": (
-        c.current_milestone
-        if hasattr(c, "current_milestone")
-        else 0
-    ),
-    "total_paid": float(c.total_paid or 0),
-
-    "collaborator": {
-        "id": collaborator.id,
-        "name": collaborator.full_name or collaborator.email.split("@")[0],
-        "skill_category": profile.skill_category if profile else "",
-        "skills": profile.skills if profile else [],
-        "city": collab_location.get("city"),
-        "state": collab_location.get("state"),
-        "country": country,
-        "country_code": country_code,
-        "rate_display": get_rate_display(profile),
-        "profile_picture": profile_picture_url,
-        "rating": rating,
-        "reviews": reviews,
-        "total_earnings": float(total_earnings),
-    }
-})
+            "id": c.id,
+            "job_id": c.job_id,
+            "status": c.status,
+            "milestones_data": (
+                c.milestones_data
+                if hasattr(c, "milestones_data") and c.milestones_data
+                else []
+            ),
+            "current_milestone": (
+                c.current_milestone
+                if hasattr(c, "current_milestone")
+                else 0
+            ),
+            "total_paid": float(c.total_paid or 0),
+            "collaborator": {
+                "id": collaborator.id,
+                "name": collaborator.full_name or collaborator.email.split("@")[0],
+                "skill_category": profile.skill_category if profile else "",
+                "skills": profile.skills if profile else [],
+                "city": collab_location.get("city"),
+                "state": collab_location.get("state"),
+                "country": country,
+                "country_code": country_code,
+                "rate_display": get_rate_display(profile),
+                "profile_picture": profile_picture_url,  # Now with S3 support
+                "rating": rating,
+                "reviews": reviews,
+                "total_earnings": float(total_earnings),
+            }
+        })
 
     return result
 # ==========================================================

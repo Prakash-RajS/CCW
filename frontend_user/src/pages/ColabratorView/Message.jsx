@@ -25,6 +25,8 @@ const avatarPool = [User1, User2, User3, User4, User5];
 ---------------------------------- */
 const DEFAULT_QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢"];
 
+
+
 /* ----------------------------------
    QUICK REACTIONS BAR WITH CUSTOM EMOJIS
 ---------------------------------- */

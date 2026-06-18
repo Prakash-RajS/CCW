@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../utils/axiosConfig";
 import toast from "../../component/Toast";
@@ -132,10 +132,6 @@ const FilterPopup = ({
     }
   };
 
-
- 
-
-
   const handleApply = () => {
     const min = Number(filters.minHourlyRate);
     const max = Number(filters.maxHourlyRate);
@@ -224,57 +220,6 @@ const FilterPopup = ({
 
         <div className="p-5">
           <div className="space-y-4">
-            {/* <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Hourly Rate (₹)
-              </label>
-              <div className="flex flex-row items-center gap-2">
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    onWheel={(e) => {
-                      e.preventDefault();
-                      e.target.blur();
-                    }}
-                    placeholder="Min"
-                    value={filters.minHourlyRate || ""}
-                    onChange={(e) =>
-                      handleFilterChange("minHourlyRate", e.target.value)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e") e.preventDefault();
-                    }}
-                    className="w-full px-3 py-2 text-sm border border-gray-400 rounded-lg focus:outline-none focus:border-gray-600 bg-white"
-                    style={{ border: "1px solid #9CA3AF" }}
-                  />
-                </div>
-                <span className="text-gray-500 text-sm font-medium flex-shrink-0">
-                  —
-                </span>
-                <div className="flex-1">
-                  <input
-                    type="number"
-                    min="0"
-                    onWheel={(e) => {
-                      e.preventDefault();
-                      e.target.blur();
-                    }}
-                    placeholder="Max"
-                    value={filters.maxHourlyRate || ""}
-                    onChange={(e) =>
-                      handleFilterChange("maxHourlyRate", e.target.value)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "-" || e.key === "e") e.preventDefault();
-                    }}
-                    className="w-full px-3 py-2 text-sm border border-gray-400 rounded-lg focus:outline-none focus:border-gray-600 bg-white"
-                    style={{ border: "1px solid #9CA3AF" }}
-                  />
-                </div>
-              </div>
-            </div> */}
-
             <div>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                 Minimum Rating
@@ -403,7 +348,6 @@ const InvitePopup = ({
   const [hasStartedTyping, setHasStartedTyping] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
-
 
   useEffect(() => {
     if (isOpen) {
@@ -865,7 +809,7 @@ const Home = () => {
   ).length;
 
   // ========== FETCH CREATOR CONTRACTS (from JobCreated) ==========
-  const fetchContractStats = async () => {
+  const fetchContractStats = useCallback(async () => {
     if (!currentUser?.id) return;
 
     try {
@@ -899,7 +843,8 @@ const Home = () => {
         cancelled: 0,
       });
     }
-  };
+  }, [currentUser?.id]);
+
   const calculateTimeAgo = (dateString) => {
     if (!dateString) return "Recently";
     try {
@@ -935,7 +880,7 @@ const Home = () => {
     return emailRegex.test(email);
   };
 
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
       const authRes = await api.get("/auth/me");
       const authUser = authRes.data;
@@ -970,11 +915,11 @@ const Home = () => {
         console.error("Failed to fetch auth user", fallbackErr);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchUserData();
-  }, []);
+  }, [fetchUserData]);
 
   useEffect(() => {
     const fetchProfileCompletion = async () => {
@@ -1062,7 +1007,7 @@ const Home = () => {
     if (currentUser?.id) {
       fetchContractStats();
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, fetchContractStats]);
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -1127,7 +1072,7 @@ const Home = () => {
     fetchUserJobs();
   }, [currentUser]);
 
-  const fetchCollaboratorRating = async (collaboratorId) => {
+  const fetchCollaboratorRating = useCallback(async (collaboratorId) => {
     try {
       const response = await api.get(
         `/collaborator/reviews/list/${collaboratorId}`,
@@ -1146,177 +1091,62 @@ const Home = () => {
     } catch (error) {
       return { rating: 0, count: 0 };
     }
-  };
- const scrollToBestMatchTop = () => {
-  const bestMatchSection = document.querySelector('.flex.flex-col.gap-4');
-  if (bestMatchSection) {
-    const offset = 70; // Adjust this value for better positioning
-    const elementPosition = bestMatchSection.getBoundingClientRect().top;
-    const offsetPosition = elementPosition + window.pageYOffset - offset;
-    
-    window.scrollTo({
-      top: offsetPosition,
-      behavior: 'smooth'
-    });
-  } else {
-    // Fallback - scroll to top of the main content area
-    const mainContent = document.querySelector('.w-full.lg\\:flex-1');
-    if (mainContent) {
-      const offset = 100;
-      const elementPosition = mainContent.getBoundingClientRect().top;
+  }, []);
+
+  // ========== OPTIMIZED: Batch fetch collaborator ratings ==========
+  const fetchCollaboratorRatingsBatch = useCallback(async (collaboratorIds) => {
+    if (!collaboratorIds.length) return {};
+    try {
+      // Try batch endpoint first
+      const response = await api.post("/collaborator/ratings/batch", {
+        collaborator_ids: collaboratorIds
+      });
+      return response.data || {};
+    } catch (error) {
+      console.error("Batch rating fetch failed, falling back to individual:", error);
+      // Fallback: fetch individually (but this should be rare)
+      const ratingsMap = {};
+      await Promise.all(
+        collaboratorIds.map(async (id) => {
+          try {
+            const rating = await fetchCollaboratorRating(id);
+            ratingsMap[id] = rating;
+          } catch (e) {
+            ratingsMap[id] = { rating: 0, count: 0 };
+          }
+        })
+      );
+      return ratingsMap;
+    }
+  }, [fetchCollaboratorRating]);
+
+  const scrollToBestMatchTop = () => {
+    const bestMatchSection = document.querySelector('.flex.flex-col.gap-4');
+    if (bestMatchSection) {
+      const offset = 70;
+      const elementPosition = bestMatchSection.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - offset;
+      
       window.scrollTo({
         top: offsetPosition,
         behavior: 'smooth'
       });
-    }
-  }
-};
-  const fetchCollaborators = async () => {
-    if (!currentUser?.id) return;
-    try {
-      setLoading(true);
-      let res;
-      if (viewMode === "all") {
-        res = await api.get("/collaborator/list");
-      } else {
-        res = await api.get(
-          `/creator/collaborators/best-match/${currentUser.id}`,
-        );
+    } else {
+      const mainContent = document.querySelector('.w-full.lg\\:flex-1');
+      if (mainContent) {
+        const offset = 100;
+        const elementPosition = mainContent.getBoundingClientRect().top;
+        const offsetPosition = elementPosition + window.pageYOffset - offset;
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        });
       }
-      const transformedData = transformBackendData(res.data);
-      const ratingsEntries = await Promise.all(
-  transformedData.map(async (collaborator) => {
-    if (!collaborator.ratingValue && collaborator.id) {
-      const rating =
-        await fetchCollaboratorRating(
-          collaborator.id
-        );
-
-      return [collaborator.id, rating];
-    }
-
-    return [collaborator.id, null];
-  })
-);
-
-const ratingsMap =
-  Object.fromEntries(ratingsEntries);
-      setCollaboratorRatings(ratingsMap);
-      const profilesWithRatings = transformedData.map((profile) => ({
-        ...profile,
-        ratingValue: ratingsMap[profile.id]?.rating || profile.ratingValue || 0,
-        reviewsCount:
-          ratingsMap[profile.id]?.count || profile.reviewsCount || 0,
-      }));
-      setAllProfiles(profilesWithRatings);
-      applyFilters(profilesWithRatings, activeFilters);
-    } catch (err) {
-      console.error("Failed to fetch collaborators", err);
-      setAllProfiles([]);
-      setFilteredProfiles([]);
-    } finally {
-      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchCollaborators();
-  }, [currentUser, viewMode]);
-
-  const applyFilters = (profiles, filters) => {
-    if (!profiles.length) {
-      setFilteredProfiles([]);
-      return;
-    }
-    let filtered = [...profiles];
-    if (filters.minHourlyRate) {
-      const minRate = parseFloat(filters.minHourlyRate);
-      filtered = filtered.filter(
-        (p) =>
-          parseFloat(p.hourlyRate.replace("₹", "").replace("/hr", "")) >=
-          minRate,
-      );
-    }
-    if (filters.maxHourlyRate) {
-      const maxRate = parseFloat(filters.maxHourlyRate);
-      filtered = filtered.filter(
-        (p) =>
-          parseFloat(p.hourlyRate.replace("₹", "").replace("/hr", "")) <=
-          maxRate,
-      );
-    }
-    if (filters.minRating) {
-      const minRating = parseFloat(filters.minRating);
-      filtered = filtered.filter((p) => p.ratingValue >= minRating);
-    }
-    if (filters.location) {
-      const loc = filters.location.toLowerCase();
-      filtered = filtered.filter((p) =>
-        p.location?.toLowerCase().includes(loc),
-      );
-    }
-    if (filters.skills) {
-      const keywords = filters.skills
-        .toLowerCase()
-        .split(",")
-        .map((s) => s.trim());
-      filtered = filtered.filter((p) =>
-        keywords.some((kw) =>
-          p.skills.some((s) => s.toLowerCase().includes(kw)),
-        ),
-      );
-    }
-    setFilteredProfiles(filtered);
-    setHasActiveFilters(Object.keys(filters).length > 0);
-  };
-
-  const handleApplyFilters = (filters) => {
-    setActiveFilters(filters);
-    applyFilters(allProfiles, filters);
-    setCurrentPage(1);
-  };
-
-  const handleViewModeChange = async (mode) => {
-    if (mode === viewMode) return;
-    setIsSwitchingViewMode(true);
-    setViewMode(mode);
-    setActiveFilters({});
-    setHasActiveFilters(false);
-    setCurrentPage(1);
-    handleApplyFilters({});
-    setTimeout(() => {
-      setIsSwitchingViewMode(false);
-    }, 500);
-  };
-
-  const getCountryCodeFromLocation = (location) => {
-    if (!location) return null;
-    const loc = location.toLowerCase();
-    if (
-      loc.includes("usa") ||
-      loc.includes("united states") ||
-      loc.includes("america")
-    )
-      return "US";
-    if (loc.includes("india") || loc.includes("bharat")) return "IN";
-    if (
-      loc.includes("uk") ||
-      loc.includes("united kingdom") ||
-      loc.includes("england")
-    )
-      return "GB";
-    if (loc.includes("canada")) return "CA";
-    if (loc.includes("australia")) return "AU";
-    if (loc.includes("germany")) return "DE";
-    if (loc.includes("france")) return "FR";
-    if (loc.includes("japan")) return "JP";
-    if (loc.includes("china")) return "CN";
-    if (loc.includes("brazil")) return "BR";
-    return null;
-  };
-
-  const transformBackendData = (backendData) => {
+  // ========== OPTIMIZED: transformBackendData with useCallback ==========
+  const transformBackendData = useCallback((backendData) => {
     if (!backendData) return [];
     const data = Array.isArray(backendData)
       ? backendData
@@ -1325,6 +1155,10 @@ const ratingsMap =
       backendData?.collaborators ||
       [];
     if (!Array.isArray(data)) return [];
+
+    // Pre-compute static values outside the map loop
+    const images = [Dp1, Dp2, Dp3, Dp4];
+    const badges = ["", "Popular", "Best match", "Trending", "Expert"];
 
     return data.map((item, index) => {
       const parseSkills = (skills) => {
@@ -1414,7 +1248,6 @@ const ratingsMap =
       if (displaySkills.length === 0)
         displaySkills = ["Web design", "UI/UX", "Development"];
 
-      const images = [Dp1, Dp2, Dp3, Dp4];
       let dpImage =
         item.profile_picture ||
         item.user?.profile_picture ||
@@ -1429,7 +1262,6 @@ const ratingsMap =
       else if (item.verified) badge = "Verified";
       else if (item.is_top_rated || item.top_rated) badge = "Top rated";
       else {
-        const badges = ["", "Popular", "Best match", "Trending", "Expert"];
         badge = badges[index % badges.length];
       }
 
@@ -1467,41 +1299,187 @@ const ratingsMap =
       ratingValue = Math.round(Math.min(5, Math.max(0, ratingValue)) * 10) / 10;
 
       const skillRatingRaw =
-  item.skill_rating !== undefined && item.skill_rating !== null
-    ? Number(item.skill_rating)
-    : item.skills_rating !== undefined && item.skills_rating !== null
-      ? Number(item.skills_rating)
-      : 0;
-const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 10) / 10;
+        item.skill_rating !== undefined && item.skill_rating !== null
+          ? Number(item.skill_rating)
+          : item.skills_rating !== undefined && item.skills_rating !== null
+            ? Number(item.skills_rating)
+            : 0;
+      const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 10) / 10;
 
       return {
-  id: item.user_id || item.id || item._id || index + 100,
-  name: item.full_name || item.name || "Collaborator",
-  jobTitle,
+        id: item.user_id || item.id || item._id || index + 100,
+        name: item.full_name || item.name || "Collaborator",
+        jobTitle,
 
-  expertiseLevel:
-    item.expertise_level ||
-    item.experience ||
-    item.rawData?.expertise_level ||
-    "Intermediate",
+        expertiseLevel:
+          item.expertise_level ||
+          item.experience ||
+          item.rawData?.expertise_level ||
+          "Intermediate",
 
-  hourlyRate,
-  about,
-  platform,
-  ratingValue,
-  reviewsCount,
-  location,
-  countryCode,
-  isOnline:
-    item.is_online !== undefined ? item.is_online : Math.random() > 0.3,
-  skills: displaySkills,
-  dpImage,
-  badge,
-  rawData: item,
-  skillRatingOutOf5,
-};
+        hourlyRate,
+        about,
+        platform,
+        ratingValue,
+        reviewsCount,
+        location,
+        countryCode,
+        isOnline:
+          item.is_online !== undefined ? item.is_online : Math.random() > 0.3,
+        skills: displaySkills,
+        dpImage,
+        badge,
+        rawData: item,
+        skillRatingOutOf5,
+      };
     });
+  }, []);
+
+  const getCountryCodeFromLocation = (location) => {
+    if (!location) return null;
+    const loc = location.toLowerCase();
+    if (
+      loc.includes("usa") ||
+      loc.includes("united states") ||
+      loc.includes("america")
+    )
+      return "US";
+    if (loc.includes("india") || loc.includes("bharat")) return "IN";
+    if (
+      loc.includes("uk") ||
+      loc.includes("united kingdom") ||
+      loc.includes("england")
+    )
+      return "GB";
+    if (loc.includes("canada")) return "CA";
+    if (loc.includes("australia")) return "AU";
+    if (loc.includes("germany")) return "DE";
+    if (loc.includes("france")) return "FR";
+    if (loc.includes("japan")) return "JP";
+    if (loc.includes("china")) return "CN";
+    if (loc.includes("brazil")) return "BR";
+    return null;
   };
+
+  // ========== OPTIMIZED: applyFilters with useCallback ==========
+  const applyFilters = useCallback((profiles, filters) => {
+    if (!profiles.length) {
+      setFilteredProfiles([]);
+      return;
+    }
+    let filtered = [...profiles];
+    
+    // Cache numeric conversions
+    const minRate = filters.minHourlyRate ? parseFloat(filters.minHourlyRate) : null;
+    const maxRate = filters.maxHourlyRate ? parseFloat(filters.maxHourlyRate) : null;
+    const minRating = filters.minRating ? parseFloat(filters.minRating) : null;
+    const location = filters.location?.toLowerCase();
+    const skills = filters.skills?.toLowerCase().split(",").map(s => s.trim());
+
+    if (minRate) {
+      filtered = filtered.filter(
+        (p) =>
+          parseFloat(p.hourlyRate.replace("₹", "").replace("/hr", "")) >= minRate,
+      );
+    }
+    if (maxRate) {
+      filtered = filtered.filter(
+        (p) =>
+          parseFloat(p.hourlyRate.replace("₹", "").replace("/hr", "")) <= maxRate,
+      );
+    }
+    if (minRating) {
+      filtered = filtered.filter((p) => p.ratingValue >= minRating);
+    }
+    if (location) {
+      filtered = filtered.filter((p) =>
+        p.location?.toLowerCase().includes(location),
+      );
+    }
+    if (skills && skills.length > 0 && skills[0] !== "") {
+      filtered = filtered.filter((p) =>
+        skills.some((kw) =>
+          p.skills.some((s) => s.toLowerCase().includes(kw)),
+        ),
+      );
+    }
+    setFilteredProfiles(filtered);
+    setHasActiveFilters(Object.keys(filters).length > 0);
+  }, []);
+
+  // ========== OPTIMIZED: fetchCollaborators with batching ==========
+  const fetchCollaborators = useCallback(async () => {
+    if (!currentUser?.id) return;
+    try {
+      setLoading(true);
+      let res;
+      if (viewMode === "all") {
+        res = await api.get("/collaborator/list");
+      } else {
+        res = await api.get(
+          `/creator/collaborators/best-match/${currentUser.id}`,
+        );
+      }
+      
+      const transformedData = transformBackendData(res.data);
+      
+      // Batch fetch ratings for all collaborators at once
+      const collaboratorIds = transformedData
+        .filter(c => !c.ratingValue && c.id)
+        .map(c => c.id);
+      
+      if (collaboratorIds.length > 0) {
+        const batchRatings = await fetchCollaboratorRatingsBatch(collaboratorIds);
+        // Merge ratings into profiles
+        const profilesWithRatings = transformedData.map(profile => ({
+          ...profile,
+          ratingValue: batchRatings[profile.id]?.rating || profile.ratingValue || 0,
+          reviewsCount: batchRatings[profile.id]?.count || profile.reviewsCount || 0,
+        }));
+        setAllProfiles(profilesWithRatings);
+        applyFilters(profilesWithRatings, activeFilters);
+      } else {
+        setAllProfiles(transformedData);
+        applyFilters(transformedData, activeFilters);
+      }
+    } catch (err) {
+      console.error("Failed to fetch collaborators", err);
+      setAllProfiles([]);
+      setFilteredProfiles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser, viewMode, transformBackendData, fetchCollaboratorRatingsBatch, applyFilters, activeFilters]);
+
+  useEffect(() => {
+    fetchCollaborators();
+  }, [fetchCollaborators]);
+
+  const handleApplyFilters = useCallback((filters) => {
+    setActiveFilters(filters);
+    applyFilters(allProfiles, filters);
+    setCurrentPage(1);
+  }, [allProfiles, applyFilters]);
+
+  const handleViewModeChange = async (mode) => {
+    if (mode === viewMode) return;
+    setIsSwitchingViewMode(true);
+    setViewMode(mode);
+    setActiveFilters({});
+    setHasActiveFilters(false);
+    setCurrentPage(1);
+    handleApplyFilters({});
+    setTimeout(() => {
+      setIsSwitchingViewMode(false);
+    }, 500);
+  };
+
+  // ========== MEMOIZED: Pagination ==========
+  const paginatedProfiles = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    return filteredProfiles.slice(start, end);
+  }, [filteredProfiles, currentPage, itemsPerPage]);
 
   const handleInvite = async (collaboratorId, jobId) => {
     try {
@@ -1909,9 +1887,6 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
     window.scrollTo(0, 0);
   }, []);
 
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const profilesToShow = filteredProfiles.slice(indexOfFirst, indexOfLast);
   const completionPercentage = profileCompletion;
 
   const handleCompleteProfileClick = () => {
@@ -1948,8 +1923,8 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
   };
 
   const getSkillStars = (ratingOutOf5) => {
-  return Math.round(ratingOutOf5 * 10) / 10;
-};
+    return Math.round(ratingOutOf5 * 10) / 10;
+  };
 
   return (
     <div className="w-full min-h-screen flex flex-col overflow-x-hidden">
@@ -2094,7 +2069,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                   </p>
                 </div>
               </div>
-            ) : profilesToShow.length === 0 ? (
+            ) : paginatedProfiles.length === 0 ? (
               <div className="flex justify-center items-center w-full h-64 bg-white rounded-[8px] shadow-[0px_4px_45px_0px_#0000001F] p-8">
                 <p className="text-gray-500 text-center">
                   {hasActiveFilters ? (
@@ -2141,7 +2116,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                {profilesToShow.map((profile) => {
+                {paginatedProfiles.map((profile) => {
                   const availableSkills = profile.skills.filter(
                     (_, index) => !removedSkills[`${profile.id}-${index}`],
                   );
@@ -2174,6 +2149,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                                   src={profile.dpImage}
                                   alt={profile.name}
                                   className="w-full h-full object-cover"
+                                  loading="lazy"
                                 />
                               </div>
                               <div
@@ -2193,10 +2169,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                                 {profile.jobTitle}
                               </p>
                               
-                              {/* Improved About, Followers, Skill Rating Section */}
-                              {/* Improved About, Followers, Skill Rating Section */}
                               <div className="mt-3 space-y-2">
-                                {/* About Section */}
                                 {profile.about &&
                                   profile.about.trim() !== "" && (
                                     <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
@@ -2211,58 +2184,56 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                                     </div>
                                   )}
 
-                                {/* Expertise Level Section */}
-<div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-  <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
-    Expertise:
-  </span>
-
-  <span className="font-medium text-[11px] lg:text-[12px] text-black/70">
-    {profile.expertiseLevel || "Intermediate"}
-  </span>
-</div>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                                  <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
+                                    Expertise:
+                                  </span>
+                                  <span className="font-medium text-[11px] lg:text-[12px] text-black/70">
+                                    {profile.expertiseLevel || "Intermediate"}
+                                  </span>
+                                </div>
 
                                 {profile.skillRatingOutOf5 > 0 && (
-  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-    <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
-      Skill Rating:
-    </span>
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5].map((_, i) => {
-          const starValue = i + 1;
-          const isFullStar = starValue <= Math.floor(skillStarRating);
-          const isHalfStar = !isFullStar && starValue - 0.5 <= skillStarRating;
-          return (
-            <svg key={i} width="12" height="12" viewBox="0 0 12 12">
-              <defs>
-                <linearGradient id={`half-skill-${profile.id}-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="50%" stopColor="#FFD700" />
-                  <stop offset="50%" stopColor="#E5E7EB" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M6 1L7.545 4.13L11 4.635L8.5 7.07L9.09 10.51L6 8.885L2.91 10.51L3.5 7.07L1 4.635L4.455 4.13L6 1Z"
-                fill={
-                  isFullStar
-                    ? "#FFD700"
-                    : isHalfStar
-                      ? `url(#half-skill-${profile.id}-${i})`
-                      : "#E5E7EB"
-                }
-                stroke="#FFD700"
-                strokeWidth="0.3"
-              />
-            </svg>
-          );
-        })}
-      </div>
-      <span className="text-[10px] lg:text-[11px] text-gray-600 font-medium">
-        {skillStarRating.toFixed(1)} ★
-      </span>
-    </div>
-  </div>
-)}
+                                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                                    <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
+                                      Skill Rating:
+                                    </span>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <div className="flex items-center gap-0.5">
+                                        {[1, 2, 3, 4, 5].map((_, i) => {
+                                          const starValue = i + 1;
+                                          const isFullStar = starValue <= Math.floor(skillStarRating);
+                                          const isHalfStar = !isFullStar && starValue - 0.5 <= skillStarRating;
+                                          return (
+                                            <svg key={i} width="12" height="12" viewBox="0 0 12 12">
+                                              <defs>
+                                                <linearGradient id={`half-skill-${profile.id}-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                                                  <stop offset="50%" stopColor="#FFD700" />
+                                                  <stop offset="50%" stopColor="#E5E7EB" />
+                                                </linearGradient>
+                                              </defs>
+                                              <path
+                                                d="M6 1L7.545 4.13L11 4.635L8.5 7.07L9.09 10.51L6 8.885L2.91 10.51L3.5 7.07L1 4.635L4.455 4.13L6 1Z"
+                                                fill={
+                                                  isFullStar
+                                                    ? "#FFD700"
+                                                    : isHalfStar
+                                                      ? `url(#half-skill-${profile.id}-${i})`
+                                                      : "#E5E7EB"
+                                                }
+                                                stroke="#FFD700"
+                                                strokeWidth="0.3"
+                                              />
+                                            </svg>
+                                          );
+                                        })}
+                                      </div>
+                                      <span className="text-[10px] lg:text-[11px] text-gray-600 font-medium">
+                                        {skillStarRating.toFixed(1)} ★
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -2398,79 +2369,79 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
               filteredProfiles.length > itemsPerPage && (
                 <div className="flex justify-center items-center gap-2 mt-6">
                   <button
-  onClick={() => {
-    setCurrentPage(1);
-    setTimeout(() => {
-      scrollToBestMatchTop();
-    }, 100);
-  }}
-  disabled={currentPage === 1}
-  className="px-2 py-1 text-gray-500 disabled:opacity-40"
->
-  «
-</button>
+                    onClick={() => {
+                      setCurrentPage(1);
+                      setTimeout(() => {
+                        scrollToBestMatchTop();
+                      }, 100);
+                    }}
+                    disabled={currentPage === 1}
+                    className="px-2 py-1 text-gray-500 disabled:opacity-40"
+                  >
+                    «
+                  </button>
                   <button
-  onClick={() => {
-    setCurrentPage((prev) => prev - 1);
-    setTimeout(() => {
-      scrollToBestMatchTop();
-    }, 100);
-  }}
-  disabled={currentPage === 1}
-  className="px-2 py-1 text-gray-500 disabled:opacity-40"
->
-  ‹
-</button>
+                    onClick={() => {
+                      setCurrentPage((prev) => prev - 1);
+                      setTimeout(() => {
+                        scrollToBestMatchTop();
+                      }, 100);
+                    }}
+                    disabled={currentPage === 1}
+                    className="px-2 py-1 text-gray-500 disabled:opacity-40"
+                  >
+                    ‹
+                  </button>
                   {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-  let pageNum;
-  if (totalPages <= 5) {
-    pageNum = i + 1;
-  } else if (currentPage <= 3) {
-    pageNum = i + 1;
-  } else if (currentPage >= totalPages - 2) {
-    pageNum = totalPages - 4 + i;
-  } else {
-    pageNum = currentPage - 2 + i;
-  }
-  return (
-    <button
-      key={i}
-      onClick={() => {
-        setCurrentPage(pageNum);
-        setTimeout(() => {
-          scrollToBestMatchTop();
-        }, 100);
-      }}
-      className={`w-8 h-8 rounded-full text-sm font-medium transition-all ${currentPage === pageNum ? "bg-[#51218F] text-white shadow-md" : "text-gray-700 hover:bg-gray-200"}`}
-    >
-      {pageNum}
-    </button>
-  );
-})}
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setCurrentPage(pageNum);
+                          setTimeout(() => {
+                            scrollToBestMatchTop();
+                          }, 100);
+                        }}
+                        className={`w-8 h-8 rounded-full text-sm font-medium transition-all ${currentPage === pageNum ? "bg-[#51218F] text-white shadow-md" : "text-gray-700 hover:bg-gray-200"}`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
                   <button
-  onClick={() => {
-    setCurrentPage((prev) => prev + 1);
-    setTimeout(() => {
-      scrollToBestMatchTop();
-    }, 100);
-  }}
-  disabled={currentPage === totalPages}
-  className="px-2 py-1 text-gray-500 disabled:opacity-40"
->
-  ›
-</button>
+                    onClick={() => {
+                      setCurrentPage((prev) => prev + 1);
+                      setTimeout(() => {
+                        scrollToBestMatchTop();
+                      }, 100);
+                    }}
+                    disabled={currentPage === totalPages}
+                    className="px-2 py-1 text-gray-500 disabled:opacity-40"
+                  >
+                    ›
+                  </button>
                   <button
-  onClick={() => {
-    setCurrentPage(totalPages);
-    setTimeout(() => {
-      scrollToBestMatchTop();
-    }, 100);
-  }}
-  disabled={currentPage === totalPages}
-  className="px-2 py-1 text-gray-500 disabled:opacity-40"
->
-  »
-</button>
+                    onClick={() => {
+                      setCurrentPage(totalPages);
+                      setTimeout(() => {
+                        scrollToBestMatchTop();
+                      }, 100);
+                    }}
+                    disabled={currentPage === totalPages}
+                    className="px-2 py-1 text-gray-500 disabled:opacity-40"
+                  >
+                    »
+                  </button>
                 </div>
               )}
           </div>
@@ -2503,6 +2474,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                       }
                       alt={userInfo.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   </div>
                   <div className="flex-1">
@@ -2598,6 +2570,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                         alt="Promotional background"
                         className="w-full h-full object-cover"
                         style={{ opacity: "0.3" }}
+                        loading="lazy"
                       />
                     </div>
                     <div className="relative z-10 w-full flex items-center pr-[70px] min-[400px]:pr-[75px] sm:pr-[70px] lg:pr-[110px]">
@@ -2612,7 +2585,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                     </div>
                   </div>
 
-                  {/* Arrow Button – FIXED: Circle on all screens */}
+                  {/* Arrow Button */}
                   <div
                     className="absolute w-[60px] h-[60px] min-[400px]:w-[65px] min-[400px]:h-[65px] sm:w-[70px] sm:h-[70px] md:w-[80px] md:h-[80px] lg:w-[98px] lg:h-[98px] right-[2px] opacity-100 rounded-full flex items-center justify-center z-20 shadow-lg"
                     style={{
@@ -2750,8 +2723,6 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                   </div>
                 </div>
 
-                {/* REPLACED: All Contracts Card - Mobile (from JobCreated) */}
-
                 <div className="w-1/2 bg-white rounded-[10px] shadow-[0px_3px_20px_0px_#0000001A] p-3">
                   <div className="flex justify-between items-center mb-2">
                     <h3 className="font-montserrat font-medium text-[14px] text-[#2A1E17]">
@@ -2801,7 +2772,6 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                       </div>
                       <span className="font-medium text-[10px]">{contractStats.awaiting}</span>
                     </div>
-                    {/* ADDED: In Review Status */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <svg
@@ -2843,7 +2813,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                 </div>
               </div>
 
-              {/* DESKTOP VERIFICATION + CONTRACTS SECTION (from JobCreated) */}
+              {/* DESKTOP VERIFICATION + CONTRACTS SECTION */}
               <div className="hidden lg:flex lg:flex-col lg:gap-5">
                 <div
                   ref={desktopVerificationRef}
@@ -2954,7 +2924,6 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                   </div>
                 </div>
 
-                {/* REPLACED: All Contracts Card - Desktop (from JobCreated) */}
                 <div className="w-full h-auto rounded-[10px] bg-white shadow-lg p-4 lg:p-6">
                   <div className="flex flex-wrap justify-between items-center mb-4 lg:mb-6">
                     <h3 className="font-montserrat font-medium text-[16px] lg:text-[20px] leading-[100%] text-[#2A1E17]">
@@ -3881,6 +3850,7 @@ const skillRatingOutOf5 = Math.round(Math.min(5, Math.max(0, skillRatingRaw)) * 
                 src={Success}
                 alt="Success"
                 className="w-16 h-16 sm:w-20 sm:h-20 md:w-[122px] md:h-[122px] max-w-[25%] max-h-[25%] object-contain"
+                loading="lazy"
               />
               <p className="w-[90%] max-w-[522px] text-center text-base sm:text-lg md:text-[24px] leading-[120%] sm:leading-[100%] font-normal poppins-font text-[#3D1768] px-2">
                 Your{" "}

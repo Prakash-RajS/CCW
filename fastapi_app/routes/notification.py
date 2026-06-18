@@ -1,6 +1,6 @@
 # fastapi_app/routes/notifications.py
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from asgiref.sync import sync_to_async
 from fastapi_app.routes.auth import get_current_user
 from fastapi_app.services.notification_service import (
@@ -13,6 +13,11 @@ from creator_app.models import UserData, Notification
 from typing import List, Optional
 import logging
 
+# ============================================================
+# S3 STORAGE IMPORT
+# ============================================================
+from fastapi_app.routes.storage import build_full_url
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
@@ -21,23 +26,71 @@ router = APIRouter(
 )
 
 
+# ============================================================
+# HELPER - GET PROFILE PICTURE WITH S3 SUPPORT
+# ============================================================
+def get_profile_picture_url(request: Request, user) -> Optional[str]:
+    """
+    Get profile picture URL with S3 support for notifications.
+    """
+    if not user:
+        return None
+    
+    try:
+        # Check if user has profile_picture directly
+        if hasattr(user, "profile_picture") and user.profile_picture:
+            return build_full_url(
+                request=request,
+                path=str(user.profile_picture),
+                file_type="profile"
+            )
+        
+        # Check role-specific profiles
+        if hasattr(user, 'role'):
+            if user.role and user.role.lower() == "creator":
+                from creator_app.models import CreatorProfile
+                profile = CreatorProfile.objects.filter(user=user).first()
+                if profile and profile.profile_picture:
+                    return build_full_url(
+                        request=request,
+                        path=str(profile.profile_picture),
+                        file_type="profile"
+                    )
+            
+            elif user.role and user.role.lower() == "collaborator":
+                from creator_app.models import CollaboratorProfile
+                profile = CollaboratorProfile.objects.filter(user=user).first()
+                if profile and profile.profile_picture:
+                    return build_full_url(
+                        request=request,
+                        path=str(profile.profile_picture),
+                        file_type="profile"
+                    )
+    
+    except Exception as e:
+        logger.error(f"Error getting profile picture URL: {e}")
+    
+    return None
+
+
 # ---------------------------------------------------
-# GET USER NOTIFICATIONS
+# GET USER NOTIFICATIONS (UPDATED WITH S3)
 # ---------------------------------------------------
 @router.get("/")
 async def fetch_notifications(
+    request: Request,  # ADDED request parameter
     limit: int = Query(50, ge=1, le=100),
     include_read: bool = Query(True, description="Include read notifications"),
     current_user: UserData = Depends(get_current_user)
 ):
     """
-    Get user notifications from database with proper read status
+    Get user notifications from database with S3 profile picture support
     """
     try:
         logger.info(f"Fetching notifications for user: {current_user.email}")
         
-        # Get notifications from service (now using database)
-        notifications = await sync_to_async(get_user_notifications)(current_user)
+        # Get notifications from service (pass request for S3 URLs)
+        notifications = await sync_to_async(get_user_notifications)(current_user, request)
         
         if not notifications:
             logger.info(f"No notifications found for user: {current_user.email}")
@@ -49,6 +102,12 @@ async def fetch_notifications(
         
         # Apply limit
         notifications = notifications[:limit]
+        
+        # Ensure profile pictures have S3 URLs
+        for notification in notifications:
+            if notification.get("sender") and notification["sender"].get("profile_picture"):
+                # The profile picture should already be handled by get_user_notifications
+                pass
         
         logger.info(f"Returning {len(notifications)} notifications for user: {current_user.email}")
         return notifications
@@ -88,13 +147,11 @@ async def mark_notification_read(
     Mark a specific notification as read in database
     """
     try:
-        # Convert to integer (since your IDs are integers)
         try:
             notif_id = int(notification_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid notification ID format - must be an integer")
         
-        # Use service to mark as read
         success = await sync_to_async(service_mark_read)(current_user, notif_id)
         
         if not success:
@@ -126,7 +183,6 @@ async def mark_all_notifications_read(
     Mark all notifications as read in database
     """
     try:
-        # Use service to mark all as read
         updated = await sync_to_async(service_mark_all_read)(current_user)
         
         logger.info(f"Marked {updated} notifications as read for {current_user.email}")
@@ -160,7 +216,6 @@ async def mark_bulk_notifications_read(
                 "count": 0
             }
         
-        # Convert to integers and filter valid ones
         valid_ids = []
         for nid in notification_ids:
             try:
@@ -171,7 +226,6 @@ async def mark_bulk_notifications_read(
         if not valid_ids:
             raise HTTPException(status_code=400, detail="No valid notification IDs provided")
         
-        # Bulk update in database
         updated = await sync_to_async(Notification.objects.filter)(
             id__in=valid_ids,
             user=current_user,
@@ -196,20 +250,19 @@ async def mark_bulk_notifications_read(
 # ---------------------------------------------------
 @router.post("/{notification_id}/click")
 async def notification_clicked(
+    request: Request,  # ADDED request parameter
     notification_id: str,
     current_user: UserData = Depends(get_current_user)
 ):
     """
-    Handle notification click - marks as read and returns URL
+    Handle notification click - marks as read and returns URL with S3 profile picture
     """
     try:
-        # Convert to integer
         try:
             notif_id = int(notification_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid notification ID format - must be an integer")
         
-        # Find notification in database
         notification = await sync_to_async(Notification.objects.filter)(
             id=notif_id,
             user=current_user
@@ -222,15 +275,26 @@ async def notification_clicked(
             
             logger.info(f"Notification {notification_id} clicked and marked as read")
             
+            # Get sender profile picture with S3 support
+            sender_data = None
+            if notification.sender:
+                sender_data = {
+                    "id": notification.sender.id,
+                    "name": notification.sender.full_name or notification.sender.email,
+                    "email": notification.sender.email,
+                    "profile_picture": get_profile_picture_url(request, notification.sender)
+                }
+            
             return {
                 "status": "success",
                 "message": "Notification marked as read",
                 "notification_id": notification_id,
                 "url": notification.url,
-                "type": notification.notification_type
+                "type": notification.notification_type,
+                "sender": sender_data,
+                "storage_mode": "s3" if hasattr(notification, 'storage_mode') else "local"
             }
         else:
-            # Notification not found
             return {
                 "status": "success",
                 "message": "Notification processed",
@@ -259,13 +323,11 @@ async def delete_notification(
     Delete a specific notification
     """
     try:
-        # Convert to integer
         try:
             notif_id = int(notification_id)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid notification ID format - must be an integer")
         
-        # Find and delete notification
         deleted = await sync_to_async(Notification.objects.filter)(
             id=notif_id,
             user=current_user
@@ -320,12 +382,13 @@ async def clear_all_notifications(
 # ---------------------------------------------------
 @router.get("/by-type/{notification_type}")
 async def get_notifications_by_type(
+    request: Request,  # ADDED request parameter
     notification_type: str,
     limit: int = Query(20, ge=1, le=50),
     current_user: UserData = Depends(get_current_user)
 ):
     """
-    Get notifications filtered by type
+    Get notifications filtered by type with S3 profile picture support
     """
     try:
         notifications = await sync_to_async(list)(
@@ -337,6 +400,15 @@ async def get_notifications_by_type(
         
         result = []
         for n in notifications:
+            sender_data = None
+            if n.sender:
+                sender_data = {
+                    "id": n.sender.id,
+                    "name": n.sender.full_name or n.sender.email,
+                    "email": n.sender.email,
+                    "profile_picture": get_profile_picture_url(request, n.sender)
+                }
+            
             result.append({
                 "id": str(n.id),
                 "type": n.notification_type,
@@ -344,7 +416,9 @@ async def get_notifications_by_type(
                 "message": n.message,
                 "is_read": n.is_read,
                 "created_at": n.created_at.isoformat(),
-                "url": n.url
+                "url": n.url,
+                "sender": sender_data,
+                "storage_mode": "s3" if hasattr(n, 'storage_mode') else "local"
             })
         
         return result
@@ -365,9 +439,6 @@ async def get_notification_counts_by_type(
     Get notification counts grouped by type
     """
     try:
-        from django.db.models import Count
-        
-        # Get all notifications for user
         notifications = await sync_to_async(list)(
             Notification.objects.filter(user=current_user)
         )
@@ -375,17 +446,14 @@ async def get_notification_counts_by_type(
         if not notifications:
             return {"total": {}, "unread": {}}
         
-        # Count notifications by type
         total_counts = {}
         unread_counts = {}
         
         for notification in notifications:
             n_type = notification.notification_type
             
-            # Total count
             total_counts[n_type] = total_counts.get(n_type, 0) + 1
             
-            # Unread count
             if not notification.is_read:
                 unread_counts[n_type] = unread_counts.get(n_type, 0) + 1
         
@@ -406,7 +474,6 @@ async def get_notification_counts_by_type(
 async def notifications_health_check():
     """Health check endpoint for notifications service"""
     try:
-        # Test database connection
         count = await sync_to_async(Notification.objects.count)()
         
         return {

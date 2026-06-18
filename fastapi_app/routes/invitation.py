@@ -1,5 +1,6 @@
 from datetime import date, timedelta
 import logging
+import os
 
 import fastapi_app.django_setup
 
@@ -12,9 +13,79 @@ from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_conne
 # ✅ FIXED: import from plan_limits, not plan_guard
 from fastapi_app.routes.plan_guard import check_invite_limit
 from fastapi_app.services.notification_service import create_notification
+from fastapi_app.routes.storage import get_profile_pic_url, build_full_url
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/invitations", tags=["Invitations"])
+
+
+# ==========================================================
+# HELPER: GET PROFILE PICTURE URL WITH S3 SUPPORT
+# ==========================================================
+def get_profile_picture_url(request: Request, user: UserData) -> str | None:
+    """
+    Get profile picture URL with S3 support.
+    Handles both S3 and local storage based on USE_S3 environment variable.
+    """
+    if not user or not user.profile_picture:
+        return None
+    
+    stored_path = str(user.profile_picture)
+    
+    # If it's already a full URL (S3 presigned URL or external)
+    if stored_path.startswith(('http://', 'https://')):
+        return stored_path
+    
+    # Get the key (remove leading slash)
+    s3_key = stored_path.lstrip('/')
+    
+    # Check if we should use S3
+    use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+    
+    if use_s3_env:
+        # Try S3 presigned URL
+        file_url = get_profile_pic_url(s3_key)
+        if file_url:
+            return file_url
+    
+    # Fallback to local media path
+    base_url = str(request.base_url).rstrip('/')
+    pic_path = stored_path.lstrip('/')
+    return f"{base_url}/media/{pic_path}"
+
+
+# ==========================================================
+# HELPER: GET PROFILE PICTURE URL WITHOUT REQUEST
+# ==========================================================
+def get_profile_picture_url_sync(base_url: str, user: UserData) -> str | None:
+    """
+    Get profile picture URL with S3 support (sync version for threadpool).
+    """
+    if not user or not user.profile_picture:
+        return None
+    
+    stored_path = str(user.profile_picture)
+    
+    # If it's already a full URL (S3 presigned URL or external)
+    if stored_path.startswith(('http://', 'https://')):
+        return stored_path
+    
+    # Get the key (remove leading slash)
+    s3_key = stored_path.lstrip('/')
+    
+    # Check if we should use S3
+    use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+    
+    if use_s3_env:
+        # Try S3 presigned URL
+        file_url = get_profile_pic_url(s3_key)
+        if file_url:
+            return file_url
+    
+    # Fallback to local media path
+    pic_path = stored_path.lstrip('/')
+    return f"{base_url}/media/{pic_path}"
 
 
 def _create_invitation_sync(
@@ -83,15 +154,14 @@ def _create_invitation_sync(
         logger.info(f"Invitation created: ID={invitation.id}")
         # CREATE INVITATION NOTIFICATION
         create_notification(
-        user=receiver,
-        sender=sender,
-        notification_type='invitation_received',
-        title=f'Invitation from {sender.full_name or sender.email}',
-        message=f'You received an invitation for {project_name}',
-        url='/all-contacts'
+            user=receiver,
+            sender=sender,
+            notification_type='invitation_received',
+            title=f'Invitation from {sender.full_name or sender.email}',
+            message=f'You received an invitation for {project_name}',
+            url='/all-contacts'
         )
      
-
         logger.info(f"🔔 Invitation notification created for {receiver.email}")
 
         return {
@@ -133,33 +203,41 @@ async def create_invitation(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-def _list_invitations_sync(user_id: int):
+def _list_invitations_sync(user_id: int, base_url: str):
     ensure_db_connection()
 
-    invitations = Invitation.objects.filter(receiver_id=user_id).order_by("-id")
+    invitations = Invitation.objects.filter(receiver_id=user_id).select_related('sender').order_by("-id")
+
+    result = []
+    for inv in invitations:
+        sender_profile_pic = None
+        if inv.sender and inv.sender.profile_picture:
+            sender_profile_pic = get_profile_picture_url_sync(base_url, inv.sender)
+        
+        result.append({
+            "id": inv.id,
+            "sender_id": inv.sender_id,
+            "sender_name": inv.sender.full_name or inv.sender.email.split('@')[0] if inv.sender else "Unknown",
+            "sender_profile_pic": sender_profile_pic,
+            "job_id": inv.job_id,
+            "client_name": inv.client_name,
+            "project_name": inv.project_name,
+            "date": inv.date,
+            "revenue": inv.revenue,
+            "status": inv.status
+        })
 
     return {
-        "count": invitations.count(),
-        "invitations": [
-            {
-                "id": inv.id,
-                "sender_id": inv.sender_id,
-                "job_id": inv.job_id,
-                "client_name": inv.client_name,
-                "project_name": inv.project_name,
-                "date": inv.date,
-                "revenue": inv.revenue,
-                "status": inv.status
-            }
-            for inv in invitations
-        ]
+        "count": len(result),
+        "invitations": result
     }
 
 
 @router.get("/list/{user_id}")
-async def list_invitations(user_id: int):
+async def list_invitations(user_id: int, request: Request):
+    base_url = str(request.base_url).rstrip('/')
     try:
-        return await run_in_threadpool(_list_invitations_sync, user_id)
+        return await run_in_threadpool(_list_invitations_sync, user_id, base_url)
     except Exception as e:
         logger.error(f"Error listing invitations: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -183,13 +261,10 @@ def _list_sent_invitations_sync(creator_id: int, base_url: str):
             elif inv.receiver.email:
                 receiver_name = inv.receiver.email.split('@')[0]
 
+        # ✅ UPDATED: Use S3 helper for profile picture
         receiver_profile_pic = None
         if inv.receiver and inv.receiver.profile_picture:
-            try:
-                pic_path = str(inv.receiver.profile_picture).lstrip("/")
-                receiver_profile_pic = f"{base_url}/media/{pic_path}"
-            except Exception:
-                pass
+            receiver_profile_pic = get_profile_picture_url_sync(base_url, inv.receiver)
 
         receiver_skills = []
         receiver_skill_category = None
@@ -407,13 +482,10 @@ def _get_invitation_sync(invitation_id: int, user_id: int, base_url: str):
             return fallback
         return user.full_name or user.email.split('@')[0] if user.email else fallback
 
+    # ✅ UPDATED: Use S3 helper for profile picture
     receiver_profile_pic = None
     if invitation.receiver and invitation.receiver.profile_picture:
-        try:
-            pic_path = str(invitation.receiver.profile_picture).lstrip("/")
-            receiver_profile_pic = f"{base_url}/media/{pic_path}"
-        except Exception:
-            pass
+        receiver_profile_pic = get_profile_picture_url_sync(base_url, invitation.receiver)
 
     receiver_skills = []
     receiver_skill_category = None

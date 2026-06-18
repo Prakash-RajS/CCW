@@ -1,7 +1,6 @@
-
+#fastapi_app/routes/message.py
 from fastapi_app.django_setup import setup_django
 setup_django()
-
 from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Request, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, FileResponse, Response
 import mimetypes
@@ -508,9 +507,10 @@ async def get_call_status(call_id: str):
 
 # User endpoints
 @router.get("/users")
-def list_users(request: Request, current_user_id: int = Query(...)):
+async def list_users(request: Request, current_user_id: int = Query(...)):
     try:
-        users = UserData.objects.all()
+        # ✅ Use sync_to_async for database operations
+        users = await sync_to_async(list)(UserData.objects.all())
         now = timezone.now()
         result = []
 
@@ -523,26 +523,36 @@ def list_users(request: Request, current_user_id: int = Query(...)):
                 online = (now - u.last_active) <= timedelta(seconds=60)
 
             if current_user_id < u.id:
-                convo = Conversation.objects.filter(user1_id=current_user_id, user2=u).first()
+                convo = await sync_to_async(
+                    lambda: Conversation.objects.filter(user1_id=current_user_id, user2=u).first()
+                )()
             else:
-                convo = Conversation.objects.filter(user1=u, user2_id=current_user_id).first()
+                convo = await sync_to_async(
+                    lambda: Conversation.objects.filter(user1=u, user2_id=current_user_id).first()
+                )()
 
             last_msg = None
             if convo:
-                last_msg = convo.messages.order_by("-created_at").first()
+                last_msg = await sync_to_async(
+                    lambda: convo.messages.order_by("-created_at").first()
+                )()
 
             display_name = u.full_name or u.email or f"User {u.id}"
 
             unread_count = 0
             if convo:
-                unread_count = convo.messages.filter(
-                    sender=u,
-                    is_seen=False
-                ).count()
+                unread_count = await sync_to_async(
+                    lambda: convo.messages.filter(sender=u, is_seen=False).count()
+                )()
 
+            # ✅ FIX: Use build_full_url for profile pictures with S3 support
             profile_url = None
             if hasattr(u, "profile_picture") and u.profile_picture:
-                profile_url = f"{request.base_url}media/{u.profile_picture}".replace("\\", "/")
+                profile_url = build_full_url(
+                    request=request,
+                    path=str(u.profile_picture),
+                    file_type="profile"
+                )
 
             result.append({
                 "id": u.id,
@@ -563,6 +573,7 @@ def list_users(request: Request, current_user_id: int = Query(...)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 class TypingPayload(BaseModel):
     user_id: int
@@ -743,22 +754,26 @@ def delete_conversation(user1_id: int, user2_id: int, user_id: int = Query(...))
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/conversation/{user1_id}/{user2_id}")
-def get_messages(request: Request, user1_id: int, user2_id: int):
+async def get_messages(request: Request, user1_id: int, user2_id: int):
     try:
-        user1 = UserData.objects.filter(id=user1_id).first()
-        user2 = UserData.objects.filter(id=user2_id).first()
+        user1 = await sync_to_async(UserData.objects.filter(id=user1_id).first)()
+        user2 = await sync_to_async(UserData.objects.filter(id=user2_id).first)()
 
         if not user1 or not user2:
             raise HTTPException(status_code=404, detail="User not found")
 
         now = timezone.now()
         user1.last_active = now
-        user1.save(update_fields=["last_active"])
+        await sync_to_async(user1.save)(update_fields=["last_active"])
 
         if user1_id < user2_id:
-            convo = Conversation.objects.filter(user1_id=user1_id, user2_id=user2_id).first()
+            convo = await sync_to_async(
+                lambda: Conversation.objects.filter(user1_id=user1_id, user2_id=user2_id).first()
+            )()
         else:
-            convo = Conversation.objects.filter(user1_id=user2_id, user2_id=user1_id).first()
+            convo = await sync_to_async(
+                lambda: Conversation.objects.filter(user1_id=user2_id, user2_id=user1_id).first()
+            )()
 
         if not convo:
             return {
@@ -769,18 +784,25 @@ def get_messages(request: Request, user1_id: int, user2_id: int):
                 "other_user_last_active": user2.last_active,
             }
 
-        msgs = convo.messages.all().order_by("created_at")
+        msgs = await sync_to_async(list)(convo.messages.all().order_by("created_at"))
 
+        # ✅ FIX: Use build_full_url for file URLs with S3 support
         def get_file_url(file_obj):
             if not file_obj:
                 return None
-            url = f"{request.base_url}media/{file_obj.name}".replace("\\", "/")
-            return url
+            # Check if it's a string or object with name attribute
+            file_path = str(file_obj.name) if hasattr(file_obj, 'name') else str(file_obj)
+            return build_full_url(
+                request=request,
+                path=file_path,
+                file_type="message"
+            )
 
         def get_message_type(file_obj):
             if not file_obj:
                 return "text"
-            ext = file_obj.name.split(".")[-1].lower() if '.' in file_obj.name else ''
+            file_path = str(file_obj.name) if hasattr(file_obj, 'name') else str(file_obj)
+            ext = file_path.split(".")[-1].lower() if '.' in file_path else ''
             image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico']
             if ext in image_extensions:
                 return "image"
@@ -824,7 +846,7 @@ def get_messages(request: Request, user1_id: int, user2_id: int):
                 "is_seen": m.is_seen,
                 "created_at": m.created_at.isoformat(),
                 "call_data": call_data,
-                "edited": m.edited  # Add this line - return edited status
+                "edited": m.edited
             })
 
         return {
@@ -839,6 +861,7 @@ def get_messages(request: Request, user1_id: int, user2_id: int):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/seen/{conversation_id}/{user_id}")
 def mark_seen(conversation_id: int, user_id: int):
@@ -1023,7 +1046,6 @@ async def get_conversations_list(
 ):
     """
     Get all conversations for the current user with unread message counts.
-    Useful for the message list page to show unread badges per conversation.
     """
     try:
         user = await sync_to_async(UserData.objects.filter(id=current_user_id).first)()
@@ -1040,28 +1062,28 @@ async def get_conversations_list(
         result = []
         
         for convo in conversations:
-            # Determine the other user in the conversation
             other_user = convo.user2 if convo.user1_id == current_user_id else convo.user1
             
-            # Get last message
             last_msg = await sync_to_async(convo.messages.order_by("-created_at").first)()
             
-            # Get unread count (messages not seen and not sent by current user)
             unread_count = await sync_to_async(convo.messages.filter(
                 is_seen=False
             ).exclude(
                 sender_id=current_user_id
             ).count)()
             
-            # Check if other user is online
             online = False
             if other_user.last_active:
                 online = (now - other_user.last_active) <= timedelta(seconds=60)
             
-            # Get profile picture URL
+            # ✅ FIX: Use build_full_url for profile pictures with S3 support
             profile_url = None
             if hasattr(other_user, "profile_picture") and other_user.profile_picture:
-                profile_url = f"{request.base_url}media/{other_user.profile_picture}".replace("\\", "/")
+                profile_url = build_full_url(
+                    request=request,
+                    path=str(other_user.profile_picture),
+                    file_type="profile"
+                )
             
             result.append({
                 "conversation_id": convo.id,
@@ -1083,7 +1105,6 @@ async def get_conversations_list(
                 "updated_at": convo.updated_at.isoformat() if hasattr(convo, 'updated_at') else None
             })
         
-        # Sort by most recent message first
         result.sort(
             key=lambda x: x.get('last_message', {}).get('created_at', '') or '',
             reverse=True

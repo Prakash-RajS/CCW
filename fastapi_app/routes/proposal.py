@@ -744,7 +744,7 @@ async def withdraw_proposal(proposal_id: int):
 
 
 # ============================================================
-# 6. GET PROPOSALS FOR CREATOR (UPDATED WITH S3)
+# 6. GET PROPOSALS FOR CREATOR (UPDATED WITH S3 AND PROFILE PICS)
 # ============================================================
 @router.get("/GetProposalsForCreator/{creator_id}")
 async def get_proposals_for_creator(request: Request, creator_id: int):
@@ -796,10 +796,14 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
                     freelancer_city = freelancer_location.get("city") or ""
                     freelancer_country = freelancer_location.get("location") or ""
 
+                    # ✅ FIX: Use build_full_url for profile picture with S3 support
                     profile_picture_url = None
                     if p.freelancer.profile_picture:
-                        pic_path = str(p.freelancer.profile_picture).lstrip("/")
-                        profile_picture_url = f"{base_url}/media/{pic_path}"
+                        profile_picture_url = build_full_url(
+                            request=request,
+                            path=str(p.freelancer.profile_picture),
+                            file_type="profile"
+                        )
 
                     freelancer_name = p.freelancer.full_name or ""
                     if not freelancer_name:
@@ -864,6 +868,7 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
                         "expertise": p.expertise,
                         "job_details": job_details,
                         "has_contract": p.job.has_contract if p.job else False,
+                        "storage_mode": "s3" if USE_S3 else "local"
                     })
 
                 except Exception as inner_e:
@@ -897,17 +902,15 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
 
 
 # ============================================================
-# 7. ACCEPT PROPOSAL
+# 7. ACCEPT PROPOSAL (FIXED - No manual transaction management)
 # ============================================================
 @router.post("/AcceptProposal/{proposal_id}")
 async def accept_proposal(proposal_id: int, creator_id: int):
-    from django.db import connection
     from datetime import date, timedelta
     import re
     import json
 
     try:
-        connection.set_autocommit(True)
         await sync_to_async(ensure_db_connection)()
 
         creator = await sync_to_async(UserData.objects.get)(id=creator_id)
@@ -1027,7 +1030,9 @@ async def accept_proposal(proposal_id: int, creator_id: int):
                 })
             print(f"✅ Created {len(contract_milestones)} milestones for contract")
 
+        # ✅ Use transaction.atomic() inside sync function
         def create_contract_sync():
+            from django.db import transaction
             with transaction.atomic():
                 contract = Contract.objects.create(
                     job=job,
@@ -1085,10 +1090,6 @@ async def accept_proposal(proposal_id: int, creator_id: int):
         print(f"❌ AcceptProposal ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
-        try:
-            connection.rollback()
-        except:
-            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1141,16 +1142,13 @@ async def reject_proposal(proposal_id: int, creator_id: int):
 
 
 # ============================================================
-# 9. REVOKE ACCEPTANCE
+# 9. REVOKE ACCEPTANCE (FIXED - No manual transaction management)
 # ============================================================
 @router.post("/RevokeAcceptance/{proposal_id}")
 async def revoke_acceptance(proposal_id: int, creator_id: int):
-    from django.db import connection
-    
-    await sync_to_async(ensure_db_connection)()
-    connection.set_autocommit(True)
-    
     try:
+        await sync_to_async(ensure_db_connection)()
+        
         creator = await sync_to_async(UserData.objects.get)(id=creator_id)
         
         proposal = await sync_to_async(
@@ -1176,29 +1174,31 @@ async def revoke_acceptance(proposal_id: int, creator_id: int):
             )
         
         def revoke_sync():
-            contract = Contract.objects.filter(
-                job=job,
-                creator=creator,
-                collaborator=freelancer
-            ).first()
-            
-            deleted_contract_id = None
-            if contract:
-                deleted_contract_id = contract.id
-                contract.delete()
-                print(f"✅ Contract {deleted_contract_id} deleted successfully")
-            
-            other_contracts = Contract.objects.filter(job=job).exists()
-            
-            if not other_contracts:
-                job.has_contract = False
-                job.save(update_fields=['has_contract'])
-                print(f"✅ Job {job.id} has_contract set to False")
-            
-            proposal.status = "submitted"
-            proposal.save(update_fields=['status'])
-            
-            return deleted_contract_id
+            from django.db import transaction
+            with transaction.atomic():
+                contract = Contract.objects.filter(
+                    job=job,
+                    creator=creator,
+                    collaborator=freelancer
+                ).first()
+                
+                deleted_contract_id = None
+                if contract:
+                    deleted_contract_id = contract.id
+                    contract.delete()
+                    print(f"✅ Contract {deleted_contract_id} deleted successfully")
+                
+                other_contracts = Contract.objects.filter(job=job).exists()
+                
+                if not other_contracts:
+                    job.has_contract = False
+                    job.save(update_fields=['has_contract'])
+                    print(f"✅ Job {job.id} has_contract set to False")
+                
+                proposal.status = "submitted"
+                proposal.save(update_fields=['status'])
+                
+                return deleted_contract_id
 
         deleted_contract_id = await sync_to_async(revoke_sync)()
         
@@ -1208,7 +1208,8 @@ async def revoke_acceptance(proposal_id: int, creator_id: int):
             "contract_id": deleted_contract_id,
             "status": "submitted",
             "has_contract": job.has_contract,
-            "contract_deleted": True
+            "contract_deleted": True,
+            "storage_mode": "s3" if USE_S3 else "local"
         }
         
     except UserData.DoesNotExist:
@@ -1217,10 +1218,6 @@ async def revoke_acceptance(proposal_id: int, creator_id: int):
         print(f"❌ Error in revoke_acceptance: {str(e)}")
         import traceback
         traceback.print_exc()
-        try:
-            connection.rollback()
-        except:
-            pass
         raise HTTPException(status_code=500, detail=str(e))
 
 

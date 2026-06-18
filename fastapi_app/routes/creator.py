@@ -74,6 +74,8 @@ def get_or_create_basic_plan(role: str):
         print(f"✅ Created new Basic plan for {role}")
     return plan
 
+# fastapi_app/routes/creator.py - Update build_full_url function
+
 def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> str | None:
     """Build full URL from relative path with S3 support for all file types"""
     if not path:
@@ -86,25 +88,31 @@ def build_full_url(request: Request, path: str | None, use_s3: bool = True) -> s
     if use_s3 and use_s3_env:
         s3_key = path.lstrip('/')
         
+        # Check if we have a cached URL
+        from django.core.cache import cache
+        cache_key = f"presigned_url_{s3_key}_86400"  # 24 hours expiry
+        cached_url = cache.get(cache_key)
+        if cached_url:
+            return cached_url
+        
         # Determine which S3 URL generator to use based on path
         if s3_key.startswith('profile_pics/'):
-            # Profile picture
             from fastapi_app.routes.storage import get_profile_pic_url
             file_url = get_profile_pic_url(s3_key)
         elif s3_key.startswith('portfolio_uploads/'):
-            # Portfolio upload
             from fastapi_app.routes.storage import get_portfolio_upload_url
             file_url = get_portfolio_upload_url(s3_key)
         else:
             # Generic fallback - try profile pic first
             from fastapi_app.routes.storage import get_profile_pic_url
             file_url = get_profile_pic_url(s3_key)
-            # If that fails, try portfolio
             if not file_url:
                 from fastapi_app.routes.storage import get_portfolio_upload_url
                 file_url = get_portfolio_upload_url(s3_key)
         
         if file_url:
+            # Cache the URL
+            cache.set(cache_key, file_url, timeout=3600)  # Cache for 1 hour
             return file_url
     
     # Fallback to local media path
@@ -695,6 +703,8 @@ def delete_creator_profile(user_id: int):
 # ------------------------------------------------
 # BEST MATCH COLLABORATORS (For Creator Dashboard)
 # ------------------------------------------------
+# fastapi_app/routes/creator.py - Update get_best_match_collaborators
+
 @router.get("/collaborators/best-match/{user_id}")
 def get_best_match_collaborators(user_id: int, request: Request):
     """Get best match collaborators with scoring"""
@@ -714,14 +724,12 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     for skill in job.skills:
                         needed_skills.add(skill.lower().strip())
                 elif isinstance(job.skills, str):
-                    # Handle string format
                     try:
                         import json
                         skills_list = json.loads(job.skills)
                         for skill in skills_list:
                             needed_skills.add(skill.lower().strip())
                     except:
-                        # Split by comma if not JSON
                         for skill in job.skills.split(','):
                             needed_skills.add(skill.lower().strip())
 
@@ -729,12 +737,13 @@ def get_best_match_collaborators(user_id: int, request: Request):
                 needed_skills.add(job.title.lower().strip())
 
         if not needed_skills:
-            # Return empty list if no skills needed
             return []
 
         all_collaborators = CollaboratorProfile.objects.select_related("user").all()
 
         scored_results = []
+        user_ids = []
+        user_pic_map = {}
 
         for collab in all_collaborators:
             score = 0
@@ -783,29 +792,22 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     score += 2
 
             review_rating = getattr(collab, 'rating', 0)
-
-            skill_rating = (
-                float(collab.skills_rating)
-                if collab.skills_rating is not None
-                else 0
-            )
+            skill_rating = float(collab.skills_rating) if collab.skills_rating is not None else 0
 
             if score > 0:
-                # ========== FIXED: Proper pricing formatting ==========
+                # ========== PRICING FORMATTING ==========
                 hourly_rate = None
                 formatted_rate = "Rate not specified"
                 pricing_type_display = "hourly"
 
                 if collab.pricing_amount:
                     amount = float(collab.pricing_amount)
-                    # Get pricing_type from database
                     pricing_type = getattr(collab, 'pricing_type', None)
                     if not pricing_type:
                         pricing_type = getattr(collab, 'pricing_unit', 'hourly')
 
                     pricing_type_display = pricing_type
 
-                    # Format based on pricing type
                     if pricing_type in ['hourly', 'hour', 'hr']:
                         formatted_rate = f"₹{amount:.2f}/hr"
                         hourly_rate = amount
@@ -822,7 +824,6 @@ def get_best_match_collaborators(user_id: int, request: Request):
                         formatted_rate = f"₹{amount:.2f}/project"
                         hourly_rate = amount
                     else:
-                        # Default to hourly if unknown
                         formatted_rate = f"₹{amount:.2f}/hr"
                         hourly_rate = amount
                         pricing_type_display = 'hourly'
@@ -831,7 +832,7 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     formatted_rate = "₹20.00/hr"
                     pricing_type_display = "hourly"
 
-                # Get the correct name from user.full_name
+                # Get the correct name
                 collaborator_name = "Collaborator"
                 if collab.user:
                     if collab.user.full_name:
@@ -841,10 +842,9 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     else:
                         collaborator_name = collab.user.email.split('@')[0] if collab.user.email else "Collaborator"
 
-                # ✅ UPDATED: Handle profile picture URL with S3 support
-                profile_picture_url = None
-                if collab.user and collab.user.profile_picture:
-                    profile_picture_url = build_full_url(request, collab.user.profile_picture.name)
+                # Track user ID for batch profile picture fetching
+                if collab.user and collab.user.id:
+                    user_ids.append(collab.user.id)
 
                 scored_results.append({
                     "user_id": collab.user.id if collab.user else None,
@@ -874,9 +874,43 @@ def get_best_match_collaborators(user_id: int, request: Request):
                     "reviewsCount": getattr(collab, 'reviews_count', 0),
                     "total_earnings": getattr(collab, 'total_earnings', 0),
                     "is_online": getattr(collab, 'is_online', True),
-                    "profile_picture": profile_picture_url,  # ✅ Updated with S3 support
                     "badge": getattr(collab, 'badge', None),
                 })
+
+        # ========== BATCH FETCH PROFILE PICTURES ==========
+        if user_ids:
+            try:
+                from fastapi_app.routes.storage import generate_presigned_urls_batch, ExpiryPreset
+                
+                # Get all users with profile pictures
+                users_with_pics = UserData.objects.filter(
+                    id__in=user_ids
+                ).exclude(profile_picture__isnull=True).exclude(profile_picture='')
+                
+                # Collect S3 keys
+                s3_keys = []
+                for u in users_with_pics:
+                    if u.profile_picture:
+                        s3_key = str(u.profile_picture).lstrip('/')
+                        s3_keys.append(s3_key)
+                
+                # Generate all URLs in batch
+                if s3_keys:
+                    url_map = generate_presigned_urls_batch(s3_keys, expires_in=ExpiryPreset.DAILY)
+                    
+                    # Map back to user IDs
+                    user_pic_map = {}
+                    for u in users_with_pics:
+                        if u.profile_picture:
+                            s3_key = str(u.profile_picture).lstrip('/')
+                            user_pic_map[u.id] = url_map.get(s3_key)
+                    
+                    # Update results with profile pictures
+                    for result in scored_results:
+                        if result['id'] in user_pic_map:
+                            result['profile_picture'] = user_pic_map[result['id']]
+            except Exception as e:
+                print(f"❌ Batch profile picture error: {e}")
 
         # Sort by score descending
         scored_results.sort(key=lambda x: x["match_score"], reverse=True)
@@ -1241,3 +1275,63 @@ async def get_all_reviews(user_id: int, request: Request):
         })
 
     return results
+
+@router.post("/batch-profile-pictures")
+def batch_get_profile_pictures(
+    user_ids: List[int],
+    request: Request
+):
+    """
+    Get profile pictures for multiple users in a single request.
+    This significantly reduces loading time by batching S3 URL generation.
+    """
+    ensure_db_connection()
+    
+    if not user_ids:
+        return {"profiles": {}}
+    
+    use_s3 = os.getenv("USE_S3", "False").lower() == "true"
+    base_url = str(request.base_url).rstrip('/')
+    
+    # Fetch all users in one query
+    users = UserData.objects.filter(id__in=user_ids).only('id', 'profile_picture')
+    
+    result = {}
+    s3_keys_to_generate = []
+    user_pic_map = {}
+    
+    for user in users:
+        if user and user.profile_picture:
+            pic_path = str(user.profile_picture).lstrip("/")
+            user_pic_map[user.id] = pic_path
+            if use_s3:
+                s3_keys_to_generate.append(pic_path)
+        else:
+            result[user.id] = None
+    
+    # Generate all S3 URLs in batch
+    if use_s3 and s3_keys_to_generate:
+        try:
+            from fastapi_app.routes.storage import generate_presigned_urls_batch
+            from fastapi_app.routes.storage import ExpiryPreset
+            
+            # Get all URLs in one batch operation
+            url_map = generate_presigned_urls_batch(
+                s3_keys_to_generate,
+                expires_in=ExpiryPreset.DAILY
+            )
+            
+            # Map URLs back to user IDs
+            for user_id, pic_path in user_pic_map.items():
+                result[user_id] = url_map.get(pic_path)
+        except Exception as e:
+            print(f"❌ Error generating batch URLs: {e}")
+            # Fallback to local URLs
+            for user_id, pic_path in user_pic_map.items():
+                result[user_id] = f"{base_url}/media/{pic_path}"
+    else:
+        # Local storage
+        for user_id, pic_path in user_pic_map.items():
+            result[user_id] = f"{base_url}/media/{pic_path}"
+    
+    return {"profiles": result}

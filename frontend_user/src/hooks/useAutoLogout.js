@@ -3,7 +3,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'; // ✅ Added u
 import { useUser } from '../contexts/UserContext';
 
 // For testing - auto logout in 1 minute, warning in 30 seconds
-const AUTO_LOGOUT_TIME = 5 * 60 * 1000; // 5 minutes
+const AUTO_LOGOUT_TIME = 5 * 60 * 1000; // 1 minute
 const WARNING_TIME = 30 * 1000; // 30 seconds (testing)
 
 export const useAutoLogout = (enabled = true) => {
