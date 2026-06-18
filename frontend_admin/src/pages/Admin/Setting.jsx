@@ -403,7 +403,13 @@ const Setting = () => {
   const handleFirstNameChange = (e) => {
     const value = e.target.value;
     const filteredValue = value.replace(/[^A-Za-z\s]/g, '');
-    setProfile({ ...profile, firstName: filteredValue });
+
+    if (filteredValue.length > 20) return;
+
+    setProfile({
+      ...profile,
+      firstName: filteredValue
+    });
     if (value !== filteredValue && filteredValue.length > 0) {
       setNameErrors({ ...nameErrors, firstName: true });
       toast.error("Validation Error", "First name should only contain letters and spaces");
@@ -411,11 +417,16 @@ const Setting = () => {
       setNameErrors({ ...nameErrors, firstName: false });
     }
   };
-
   const handleLastNameChange = (e) => {
     const value = e.target.value;
     const filteredValue = value.replace(/[^A-Za-z\s]/g, '');
-    setProfile({ ...profile, lastName: filteredValue });
+
+    if (filteredValue.length > 20) return;
+
+    setProfile({
+      ...profile,
+      lastName: filteredValue
+    });
     if (value !== filteredValue && filteredValue.length > 0) {
       setNameErrors({ ...nameErrors, lastName: true });
       toast.error("Validation Error", "Last name should only contain letters and spaces");
@@ -666,55 +677,55 @@ const Setting = () => {
   };
 
   const handleThemeChange = async (selectedTheme) => {
-  // Update local state
-  setTheme(selectedTheme);
-  
-  // Update preferences in backend
-  const newPreferences = { ...preferences, theme: selectedTheme };
-  setPreferences(newPreferences);
-  
-  // Apply theme to document element
-  const darkMode = selectedTheme === "Dark";
-  const htmlElement = document.documentElement;
-  const bodyElement = document.body;
-  
-  if (darkMode) {
-    htmlElement.classList.add("dark");
-    htmlElement.classList.remove("light");
-    bodyElement.classList.add("dark");
-    bodyElement.classList.remove("light");
-  } else {
-    htmlElement.classList.add("light");
-    htmlElement.classList.remove("dark");
-    bodyElement.classList.add("light");
-    bodyElement.classList.remove("dark");
-  }
-  
-  localStorage.setItem("theme", darkMode ? "dark" : "light");
-  
-  // Dispatch events to notify all components
-  window.dispatchEvent(new Event("theme-change"));
-  
-  // Also dispatch a storage event for cross-tab sync and other components
-  window.dispatchEvent(new StorageEvent('storage', {
-    key: 'theme',
-    newValue: darkMode ? "dark" : "light",
-    oldValue: darkMode ? "light" : "dark"
-  }));
-  
-  // Force a small delay to ensure DOM updates are processed
-  setTimeout(() => {
-    // Force a re-render of the Dashboard by dispatching another event
+    // Update local state
+    setTheme(selectedTheme);
+
+    // Update preferences in backend
+    const newPreferences = { ...preferences, theme: selectedTheme };
+    setPreferences(newPreferences);
+
+    // Apply theme to document element
+    const darkMode = selectedTheme === "Dark";
+    const htmlElement = document.documentElement;
+    const bodyElement = document.body;
+
+    if (darkMode) {
+      htmlElement.classList.add("dark");
+      htmlElement.classList.remove("light");
+      bodyElement.classList.add("dark");
+      bodyElement.classList.remove("light");
+    } else {
+      htmlElement.classList.add("light");
+      htmlElement.classList.remove("dark");
+      bodyElement.classList.add("light");
+      bodyElement.classList.remove("dark");
+    }
+
+    localStorage.setItem("theme", darkMode ? "dark" : "light");
+
+    // Dispatch events to notify all components
     window.dispatchEvent(new Event("theme-change"));
-  }, 50);
-  
-  try {
-    await api.put(`/admin/preferences`, newPreferences);
-    toast.success("Success", "Theme preference saved!");
-  } catch (err) {
-    console.error('Error saving theme preference:', err);
-  }
-};
+
+    // Also dispatch a storage event for cross-tab sync and other components
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'theme',
+      newValue: darkMode ? "dark" : "light",
+      oldValue: darkMode ? "light" : "dark"
+    }));
+
+    // Force a small delay to ensure DOM updates are processed
+    setTimeout(() => {
+      // Force a re-render of the Dashboard by dispatching another event
+      window.dispatchEvent(new Event("theme-change"));
+    }, 50);
+
+    try {
+      await api.put(`/admin/preferences`, newPreferences);
+      toast.success("Success", "Theme preference saved!");
+    } catch (err) {
+      console.error('Error saving theme preference:', err);
+    }
+  };
 
 
   const handleExportData = async () => {
@@ -1233,36 +1244,67 @@ const Setting = () => {
                 {/* Name Fields */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   {[
-                    { label: 'First Name', key: 'firstName', handler: handleFirstNameChange, error: nameErrors.firstName, errMsg: 'Only letters and spaces allowed' },
-                    { label: 'Last Name', key: 'lastName', handler: handleLastNameChange, error: nameErrors.lastName, errMsg: 'Only letters and spaces allowed' }
+                    {
+                      label: 'First Name',
+                      key: 'firstName',
+                      handler: handleFirstNameChange,
+                      error: nameErrors.firstName,
+                      errMsg: 'Only letters and spaces allowed'
+                    },
+                    {
+                      label: 'Last Name',
+                      key: 'lastName',
+                      handler: handleLastNameChange,
+                      error: nameErrors.lastName,
+                      errMsg: 'Only letters and spaces allowed'
+                    }
                   ].map(({ label, key, handler, error, errMsg }) => (
                     <div key={key}>
-                      <label className={`font-medium mb-1.5 block text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                      <label
+                        className={`font-medium mb-1.5 block text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'
+                          }`}
+                      >
                         {label} <span className="text-red-500">*</span>
                       </label>
+
                       <input
                         type="text"
                         value={profile[key]}
                         onChange={handler}
                         className={`w-full !border rounded-[12px] px-4 py-3 text-[15px]
-  focus:outline-none focus:ring-2 focus:ring-[#51218F] focus:border-transparent
-  ${isDark
+          focus:outline-none focus:ring-2 focus:ring-[#51218F] focus:border-transparent
+          ${isDark
                             ? 'bg-gray-700 text-white border-gray-600'
                             : 'bg-white text-gray-900 border-gray-300'
                           }
-  ${(showValidationErrors && !profile[key]) || error ? 'border-red-500' : ''}
-`}
+          ${(showValidationErrors && !profile[key]) || error
+                            ? 'border-red-500'
+                            : ''
+                          }
+        `}
                         disabled={loading}
                         placeholder={`Enter ${label.toLowerCase()}`}
                       />
+
                       {showValidationErrors && !profile[key] && (
-                        <p className="text-red-500 text-xs mt-1">{label} is required</p>
+                        <p className="text-red-500 text-xs mt-1">
+                          {label} is required
+                        </p>
                       )}
-                      {error && <p className="text-red-500 text-xs mt-1">{errMsg}</p>}
+
+                      {error && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {errMsg}
+                        </p>
+                      )}
+
+                      {/* Character Counter */}
+                      <p className="text-right text-xs text-gray-500 mt-1">
+                        {profile[key]?.length || 0}/20
+                      </p>
                     </div>
                   ))}
                 </div>
-
                 {/* Email */}
                 <div className="mb-4">
                   <label className={`font-medium mb-1.5 block text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>

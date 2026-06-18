@@ -16,7 +16,7 @@ import User5 from "../../assets/myproject/user5.png";
 import { CallButton, CallWindow, IncomingCallNotification } from "./CallComponents";
 
 /* ----------------------------------
-   TEMP UI AVATARS
+   TEMP UI AVATARS 
 ---------------------------------- */
 const avatarPool = [User1, User2, User3, User4, User5];
 
