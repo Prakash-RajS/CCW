@@ -901,6 +901,7 @@ export default function Message() {
   const [searchParams] = useSearchParams();
   const targetUserIdFromUrl = searchParams.get("user");
   const jobIdFromUrl = searchParams.get("jobId");
+  const conversationIdFromUrl = searchParams.get("conversation");
 
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -1627,62 +1628,155 @@ export default function Message() {
     }
   }, [searchTerm, allUsers, conversationUsers, targetUserIdFromUrl]);
 
-  useEffect(() => {
-    if (!currentUserId) return;
-    const loadUsers = async () => {
-      setIsLoadingUsers(true);
-      try {
-        const res = await api.get("/message/users", { params: { current_user_id: currentUserId } });
-        if (!isMounted.current) return;
-        const processed = res.data.map((u, i) => ({
-          id: u.id, name: u.name || u.email?.split("@")[0] || `User ${u.id}`, email: u.email,
-          avatar: u.profile_picture || avatarPool[i % avatarPool.length],
-          lastMessage: u.last_message || "", online: u.online || false,
-          last_message_time: u.last_message_time, last_active: u.last_active,
-          unread_count: u.unread_count || 0, hasConversation: !!u.last_message,
-        }));
-        const convoUsers = processed.filter((u) => u.hasConversation);
-        setAllUsers(processed); setConversationUsers(convoUsers);
+ useEffect(() => {
+  if (!currentUserId) return;
+  const loadUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const res = await api.get("/message/users", { params: { current_user_id: currentUserId } });
+      if (!isMounted.current) return;
+      const processed = res.data.map((u, i) => ({
+        id: u.id, 
+        name: u.name || u.email?.split("@")[0] || `User ${u.id}`, 
+        email: u.email,
+        avatar: u.profile_picture || avatarPool[i % avatarPool.length],
+        lastMessage: u.last_message || "", 
+        online: u.online || false,
+        last_message_time: u.last_message_time, 
+        last_active: u.last_active,
+        unread_count: u.unread_count || 0, 
+        hasConversation: !!u.last_message,
+      }));
+      const convoUsers = processed.filter((u) => u.hasConversation);
+      setAllUsers(processed); 
+      setConversationUsers(convoUsers);
 
-        if (targetUserIdFromUrl) {
-          const t = processed.find((u) => Number(u.id) === Number(targetUserIdFromUrl));
-          if (t) {
-            setDisplayedUsers([t]); setActiveUserId(t.id); setShowChatMobile(true); clearUnreadMessages(t.id);
-          } else {
-            try {
-              const ur = await api.get(`/user/${targetUserIdFromUrl}`);
-              if (ur.data && isMounted.current) {
-                const nu = { id: ur.data.id, name: ur.data.name || ur.data.email?.split("@")[0], email: ur.data.email, avatar: ur.data.profile_picture || avatarPool[0], lastMessage: "", online: ur.data.online || false, last_active: ur.data.last_active, unread_count: 0, hasConversation: false };
-                setDisplayedUsers([nu]); setActiveUserId(nu.id); setShowChatMobile(true);
-                setAllUsers((p) => [...p, nu]); clearUnreadMessages(nu.id);
-              }
-            } catch { setDisplayedUsers([]); setActiveUserId(null); }
-          }
-        } else {
-          setDisplayedUsers(convoUsers);
-          let uid = null;
-          if (receiverId) {
-            if (convoUsers.some((u) => Number(u.id) === Number(receiverId))) uid = Number(receiverId);
-            else {
-              try {
-                const ur = await api.get(`/user/${receiverId}`);
-                if (ur.data && isMounted.current) {
-                  const nu = { id: ur.data.id, name: ur.data.name || ur.data.email?.split("@")[0], email: ur.data.email, avatar: ur.data.profile_picture || avatarPool[0], lastMessage: "", online: ur.data.online || false, last_active: ur.data.last_active, unread_count: 0, hasConversation: false };
-                  setAllUsers((p) => [...p, nu]); setDisplayedUsers((p) => [...p, nu]); uid = nu.id; clearUnreadMessages(nu.id);
-                }
-              } catch {}
+      // --- HANDLE CONVERSATION ID FROM URL ---
+      let targetUserId = null;
+      
+      // Priority 1: Direct user ID from URL
+      if (targetUserIdFromUrl) {
+        targetUserId = Number(targetUserIdFromUrl);
+      }
+      
+      // Priority 2: Conversation ID from URL (new notification navigation)
+      if (!targetUserId && conversationIdFromUrl) {
+        try {
+          const convRes = await api.get(`/message/conversation/by-id/${conversationIdFromUrl}`, {
+            params: { current_user_id: currentUserId }
+          });
+          if (convRes.data && convRes.data.other_user_id) {
+            targetUserId = convRes.data.other_user_id;
+            
+            // If the user isn't in our list yet, add them
+            if (!processed.some(u => u.id === targetUserId)) {
+              const otherUser = convRes.data.other_user;
+              const newUser = {
+                id: otherUser.id,
+                name: otherUser.name || otherUser.email?.split("@")[0],
+                email: otherUser.email,
+                avatar: otherUser.profile_picture || avatarPool[0],
+                lastMessage: "",
+                online: false,
+                hasConversation: true,
+                unread_count: 0
+              };
+              setAllUsers(prev => [...prev, newUser]);
+              setConversationUsers(prev => [...prev, newUser]);
             }
           }
-          if (!uid && convoUsers.length > 0) uid = convoUsers[0].id;
-          if (uid) { setActiveUserId(uid); setShowChatMobile(true); clearUnreadMessages(uid); }
+        } catch (e) {
+          console.warn("Could not fetch conversation details:", e);
         }
-        setInitialLoadDone(true);
-      } catch (err) {
-        console.error("Failed to load users", err); setInitialLoadDone(true);
-      } finally { setIsLoadingUsers(false); }
-    };
-    loadUsers();
-  }, [currentUserId, targetUserIdFromUrl, receiverId, clearUnreadMessages]);
+      }
+      
+      // Priority 3: Use the provided receiverId
+      if (!targetUserId && receiverId) {
+        targetUserId = Number(receiverId);
+      }
+      
+      // Now set the active user if we have a target
+      if (targetUserId) {
+        const t = processed.find((u) => u.id === targetUserId);
+        if (t) {
+          setDisplayedUsers([t]); 
+          setActiveUserId(t.id); 
+          setShowChatMobile(true); 
+          clearUnreadMessages(t.id);
+        } else {
+          // Try to fetch user directly
+          try {
+            const ur = await api.get(`/user/${targetUserId}`);
+            if (ur.data && isMounted.current) {
+              const nu = { 
+                id: ur.data.id, 
+                name: ur.data.name || ur.data.email?.split("@")[0], 
+                email: ur.data.email, 
+                avatar: ur.data.profile_picture || avatarPool[0], 
+                lastMessage: "", 
+                online: ur.data.online || false, 
+                last_active: ur.data.last_active, 
+                unread_count: 0, 
+                hasConversation: true 
+              };
+              setDisplayedUsers([nu]); 
+              setActiveUserId(nu.id); 
+              setShowChatMobile(true);
+              setAllUsers((p) => [...p, nu]); 
+              clearUnreadMessages(nu.id);
+            }
+          } catch { 
+            setDisplayedUsers([]); 
+            setActiveUserId(null); 
+          }
+        }
+      } else {
+        // No target user, show conversation list
+        setDisplayedUsers(convoUsers);
+        let uid = null;
+        if (receiverId) {
+          if (convoUsers.some((u) => Number(u.id) === Number(receiverId))) uid = Number(receiverId);
+          else {
+            try {
+              const ur = await api.get(`/user/${receiverId}`);
+              if (ur.data && isMounted.current) {
+                const nu = { 
+                  id: ur.data.id, 
+                  name: ur.data.name || ur.data.email?.split("@")[0], 
+                  email: ur.data.email, 
+                  avatar: ur.data.profile_picture || avatarPool[0], 
+                  lastMessage: "", 
+                  online: ur.data.online || false, 
+                  last_active: ur.data.last_active, 
+                  unread_count: 0, 
+                  hasConversation: false 
+                };
+                setAllUsers((p) => [...p, nu]); 
+                setDisplayedUsers((p) => [...p, nu]); 
+                uid = nu.id; 
+                clearUnreadMessages(nu.id);
+              }
+            } catch {}
+          }
+        }
+        if (!uid && convoUsers.length > 0) uid = convoUsers[0].id;
+        if (uid) { 
+          setActiveUserId(uid); 
+          setShowChatMobile(true); 
+          clearUnreadMessages(uid); 
+        }
+      }
+      
+      setInitialLoadDone(true);
+    } catch (err) {
+      console.error("Failed to load users", err); 
+      setInitialLoadDone(true);
+    } finally { 
+      setIsLoadingUsers(false); 
+    }
+  };
+  loadUsers();
+}, [currentUserId, targetUserIdFromUrl, receiverId, conversationIdFromUrl, clearUnreadMessages]);
 
   useEffect(() => {
     if (activeUserId && currentUserId) {

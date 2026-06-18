@@ -215,7 +215,7 @@ def generate_and_store_notifications(user):
             continue
         
         sender_name = m.sender.full_name or m.sender.email
-        url = f"/message?conversation={m.conversation.id}"
+        url = f"/message?conversation={m.conversation.id}&user={m.sender.id}" 
         
         notification = Notification.objects.create(
             user=user,

@@ -1395,3 +1395,47 @@ async def get_message_reactions(message_id: int):
     except Exception as e:
         print(f"❌ Error getting reactions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/conversation/by-id/{conversation_id}")
+async def get_conversation_by_id(
+    conversation_id: int,
+    current_user_id: int = Query(..., description="Current user ID")
+):
+    """
+    Get conversation details by ID, including the other user's ID.
+    Used when navigating from a notification.
+    """
+    try:
+        convo = await sync_to_async(Conversation.objects.filter(id=conversation_id).first)()
+        if not convo:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # Determine the other user
+        if convo.user1_id == current_user_id:
+            other_user_id = convo.user2_id
+        elif convo.user2_id == current_user_id:
+            other_user_id = convo.user1_id
+        else:
+            raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
+        
+        # Get the other user's details
+        other_user = await sync_to_async(UserData.objects.filter(id=other_user_id).first)()
+        if not other_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "conversation_id": convo.id,
+            "other_user_id": other_user_id,
+            "other_user": {
+                "id": other_user.id,
+                "name": other_user.full_name or other_user.email,
+                "email": other_user.email,
+                "profile_picture": getattr(other_user, 'profile_picture', None),
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error getting conversation by ID: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
