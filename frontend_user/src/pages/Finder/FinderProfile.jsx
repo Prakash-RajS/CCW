@@ -1616,58 +1616,119 @@ const InvitePopup = ({ isOpen, onClose, collaborator, currentUser, jobs, onInvit
 };
 
 /* ================= PORTFOLIO HELPERS ================= */
+/* ================= PORTFOLIO HELPERS ================= */
 const getFullUrl = (url) => {
   if (!url) return null;
   if (url.startsWith('http')) return url;
   return `${API_BASE_URL}${url}`;
 };
 
-const PortfolioActions = ({ item }) => {
+const PortfolioActions = ({ item, loggedInUser }) => {
+  const [isDownloading, setIsDownloading] = useState(false);
   const fileUrl = item.is_fallback ? null : getFullUrl(item.file_url);
   const mediaLink = item.media_link || null;
 
   const handleDownload = async (e) => {
     e.stopPropagation();
-    if (!fileUrl) { toast.info("No file available to download"); return; }
+    
+    if (!item.id) { 
+      toast.info("No file available to download"); 
+      return; 
+    }
+    
+    if (isDownloading) return;
+    
+    setIsDownloading(true);
+    
+    // ✅ Show "Download started" immediately
+    toast.success("Download started");
+    
     try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
+      const response = await api.get(`/collaborator/portfolio/download/${item.id}`, {
+        params: { user_id: loggedInUser?.id || userData?.id },
+        responseType: "blob"
+      });
+      
+      // Get filename from Content-Disposition header if available
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = item.original_filename || item.title || 'portfolio-file';
+      
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
       const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = item.original_filename || item.title || 'portfolio-file';
-      document.body.appendChild(a); a.click();
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
       document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch { window.open(fileUrl, '_blank'); }
+      
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+    } catch (error) {
+      console.error("Download error:", error);
+      toast.error("Download failed", error.response?.data?.detail || "Could not retrieve file");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handleNavigate = (e) => {
-    e.stopPropagation(); e.preventDefault();
-    if (!mediaLink) { toast.info("No link provided for this portfolio item"); return; }
+    e.stopPropagation(); 
+    e.preventDefault();
+    if (!mediaLink) { 
+      toast.info("No link provided for this portfolio item"); 
+      return; 
+    }
     const a = document.createElement('a');
-    a.href = mediaLink; a.target = '_blank'; a.rel = 'noopener noreferrer';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    a.href = mediaLink; 
+    a.target = '_blank'; 
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a); 
+    a.click(); 
+    document.body.removeChild(a);
   };
 
-  const canDownload = !!fileUrl;
+  const canDownload = !!fileUrl && !!item.id && !item.is_fallback;
   if (!canDownload && !mediaLink) return null;
 
   return (
     <div className="absolute top-3 right-3 z-30 flex gap-1.5">
       {canDownload && (
-        <button onClick={handleDownload} title="Download file"
-          className="w-8 h-8 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all hover:scale-110">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
+        <button 
+          onClick={handleDownload} 
+          title="Download file"
+          disabled={isDownloading}
+          className="w-8 h-8 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isDownloading ? (
+            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          )}
         </button>
       )}
       {(mediaLink || canDownload) && (
-        <button onClick={handleNavigate} title={mediaLink ? "Open link" : "No link provided"}
-          className="w-8 h-8 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all hover:scale-110">
+        <button 
+          onClick={handleNavigate} 
+          title={mediaLink ? "Open link" : "No link provided"}
+          className="w-8 h-8 bg-black/40 hover:bg-black/60 backdrop-blur-sm rounded-full flex items-center justify-center text-white transition-all hover:scale-110"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
             <polyline points="15 3 21 3 21 9" />
@@ -2039,7 +2100,7 @@ export default function FinderProfile() {
                       <h3 className="text-white text-[24px] font-medium mb-5">{item.title || "Portfolio Item"}</h3>
                       <div className="relative w-full h-[260px]">
                         <div className="absolute top-[10px] left-[10px] w-full h-full rounded-xl bg-white/10 blur-md" />
-                        <PortfolioActions item={item} />
+                        <PortfolioActions item={item} loggedInUser={loggedInUser} />
                         <div className="relative rounded-xl shadow-xl w-full h-full overflow-hidden cursor-pointer">
                           <PortfolioMedia item={item} index={index} className="rounded-xl" />
                         </div>
@@ -2254,7 +2315,7 @@ export default function FinderProfile() {
                   <div className="rounded-[18px]">
                     <h3 className="text-white text-[16px] font-medium mb-3 text-center truncate px-2">{item.title || "Portfolio Item"}</h3>
                     <div className="relative w-full h-[200px] rounded-[16px] overflow-hidden">
-                      <PortfolioActions item={item} />
+                      <PortfolioActions item={item} loggedInUser={loggedInUser} />
                       <PortfolioMedia item={item} index={index} className="rounded-[16px]" />
                     </div>
                   </div>

@@ -753,10 +753,27 @@ const renderStars = (rating) => {
 
 const getProfilePicUrl = (profilePic) => {
   if (!profilePic) return cardphoto;
-  if (profilePic.startsWith("http")) return profilePic;
+  
+  // ✅ If it's already a full URL (S3 presigned URL or external URL), return as-is
+  if (profilePic.startsWith("http://") || profilePic.startsWith("https://")) {
+    return profilePic;
+  }
+  
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-  if (profilePic.startsWith("/collaborator/files/")) return `${API_BASE_URL}${profilePic}`;
-  return `${API_BASE_URL}${profilePic.startsWith("/") ? "" : "/"}${profilePic}`;
+  
+  // Handle collaborator files endpoint
+  if (profilePic.startsWith("/collaborator/files/")) {
+    return `${API_BASE_URL}${profilePic}`;
+  }
+  
+  // Handle media paths
+  if (profilePic.startsWith("/media/") || profilePic.startsWith("media/")) {
+    const cleanPath = profilePic.startsWith("/") ? profilePic : `/${profilePic}`;
+    return `${API_BASE_URL}${cleanPath}`;
+  }
+  
+  // Default: assume it's a relative path
+  return `${API_BASE_URL}/${profilePic}`;
 };
 
 const toDisplayName = (name) => {
@@ -1208,21 +1225,25 @@ const SimpleDropdown = ({ value, setValue, options, name, className }) => {
 
   // ProfileCard component
   const ProfileCard = ({ u }) => {
-    const [imgError, setImgError] = useState(false);
-    const profilePicUrl = u.profile_picture_url || u.profile_pic;
-    return (
-      <article className="relative w-full max-w-[320px] 2xl:max-w-[520px] mx-auto h-[380px] rounded-[24px] overflow-hidden bg-[#8E78A8] flex flex-col shadow-lg hover:shadow-xl transition-shadow">
-        <div className="relative h-[180px] w-full">
-          <img
-            src={imgError ? cardphoto : getProfilePicUrl(profilePicUrl)}
-            alt={u.name}
-            className="absolute inset-0 w-full h-full object-cover"
-            onError={(e) => {
-              setImgError(true);
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = cardphoto;
-            }}
-          />
+  const [imgError, setImgError] = useState(false);
+  
+  // ✅ Use the correct field name from backend response
+  // Backend returns 'profile_picture' in the search response
+  const profilePicUrl = u.profile_picture || u.profile_pic || u.profile_picture_url;
+  
+  return (
+    <article className="relative w-full max-w-[320px] 2xl:max-w-[520px] mx-auto h-[380px] rounded-[24px] overflow-hidden bg-[#8E78A8] flex flex-col shadow-lg hover:shadow-xl transition-shadow">
+      <div className="relative h-[180px] w-full">
+        <img
+          src={imgError ? cardphoto : getProfilePicUrl(profilePicUrl)}
+          alt={u.name}
+          className="absolute inset-0 w-full h-full object-cover"
+          onError={(e) => {
+            setImgError(true);
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = cardphoto;
+          }}
+        />
           <div className="absolute top-3 right-3 flex items-center gap-1 bg-white/90 rounded-full px-2 py-1">
             <span className="text-[12px] font-semibold text-[#3D1768]">{formatFollowers(u.followers)}</span>
             <svg viewBox="0 0 24 24" fill="none" stroke="#3D1768" strokeWidth="2.5" className="w-[12px] h-[12px]">

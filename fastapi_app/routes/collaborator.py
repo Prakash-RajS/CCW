@@ -2,8 +2,9 @@ import fastapi_app.django_setup
 from typing import Optional, List, Dict, Any
 from django.db.models import Q
 from fastapi_app.services.notification_service import create_job_save_notification
-from fastapi import APIRouter, HTTPException, Form, Request, UploadFile, File, Response
+from fastapi import APIRouter, HTTPException, Form, Request, UploadFile, File, Response, Query
 import random
+import io
 import string
 from pathlib import Path as PathLib
 from asgiref.sync import sync_to_async
@@ -23,6 +24,13 @@ from creator_app.models import track_file_upload, track_file_deletion
 from fastapi_app.services.notification_service import create_notification
 from fastapi_app.routes.storage import get_profile_pic_url, save_profile_pic, delete_file, get_portfolio_upload_url  # ✅ Add get_portfolio_upload_url
 import os
+from fastapi_app.routes.storage import (
+    get_profile_pic_url, 
+    save_profile_pic, 
+    delete_file, 
+    get_portfolio_upload_url,
+    read_file_bytes  # Also import this for S3 file reading
+)
 
 
 # ✅ DATABASE CONNECTION MANAGEMENT (Import from dbconnection)
@@ -222,21 +230,56 @@ def get_file_type(filename):
 # ==============================================================================
 #  FILE SERVER - FastAPI endpoint to serve files
 # ==============================================================================
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse
 import os
 import mimetypes
 from typing import Optional
 import hashlib
+import urllib.parse
 
 
 @router.get("/files/{file_path:path}")
 async def serve_file(file_path: str, request: Request):
-    """Stream files with support for range requests and caching"""
+    """
+    Stream files with support for range requests and caching.
+    Also handles external URLs (Google/Auth0 profile pictures) by redirecting.
+    """
     ensure_db_connection()
+    
+    # ✅ Check if the file_path is actually a full URL (Google/Auth0 profile pics)
+    if file_path.startswith(('http://', 'https://')):
+        # Decode URL if it was encoded
+        decoded_url = urllib.parse.unquote(file_path)
+        print(f"🔄 Redirecting to external URL: {decoded_url}")
+        return RedirectResponse(url=decoded_url, status_code=302)
+    
     try:
         if ".." in file_path or file_path.startswith("/"):
             raise HTTPException(status_code=400, detail="Invalid file path")
         
+        # For S3 files, check if we should redirect to presigned URL
+        use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+        if use_s3_env and file_path.startswith(('profile_pics/', 'portfolio_uploads/', 'work_submissions/')):
+            from fastapi_app.routes.storage import (
+                get_profile_pic_url,
+                get_portfolio_upload_url,
+                get_work_submission_url
+            )
+            
+            # Determine which URL generator to use
+            file_url = None
+            if file_path.startswith('profile_pics/'):
+                file_url = get_profile_pic_url(file_path)
+            elif file_path.startswith('portfolio_uploads/'):
+                file_url = get_portfolio_upload_url(file_path)
+            elif file_path.startswith('work_submissions/'):
+                file_url = get_work_submission_url(file_path)
+            
+            if file_url:
+                print(f"🔄 Redirecting to S3 presigned URL: {file_url}")
+                return RedirectResponse(url=file_url, status_code=302)
+        
+        # Check local file paths
         storage_base = FASTAPI_BASE_DIR.parent / "media"
         possible_locations = [
             storage_base / file_path,
@@ -348,6 +391,8 @@ async def serve_file(file_path: str, request: Request):
         
     except Exception as e:
         print(f"Error serving file: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3194,3 +3239,122 @@ async def get_user_connects(user_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
+    
+# ==============================================================================
+#  PORTFOLIO DOWNLOAD ENDPOINT
+# ==============================================================================
+@router.get("/portfolio/download/{item_id}")
+async def download_portfolio_item(
+    item_id: int,
+    user_id: int = Query(...),
+):
+    """
+    Download a portfolio item file directly through the backend.
+    Handles both S3 and local storage with proper filename and content type.
+    """
+    ensure_db_connection()
+    
+    try:
+        # Get the portfolio item
+        item = await sync_to_async(
+            lambda: PortfolioItem.objects.select_related("user").get(
+                id=item_id,
+                role="collaborator"
+            )
+        )()
+        
+        # Check if user is authorized
+        if item.user_id != user_id:
+            # Allow any authenticated user to view/download portfolio items
+            # You can add more specific authorization logic here if needed
+            pass
+        
+        if not item.file:
+            raise HTTPException(status_code=404, detail="No file attached to this portfolio item")
+        
+        # Get the file path/name
+        file_path = str(item.file.name)
+        original_filename = item.heading or "portfolio-file"
+        
+        # Try to get original filename from the file
+        if '/' in file_path:
+            stored_filename = file_path.split('/')[-1]
+            # Use stored filename if heading is not available
+            if not item.heading:
+                original_filename = stored_filename
+        
+        use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+        
+        if use_s3_env:
+            # ========== S3 STORAGE ==========
+            try:
+                from fastapi_app.routes.storage import read_file_bytes
+                s3_key = file_path.lstrip('/')
+                file_content = read_file_bytes(s3_key)
+                
+                # Determine content type
+                import mimetypes
+                content_type, _ = mimetypes.guess_type(original_filename)
+                if not content_type:
+                    content_type = 'application/octet-stream'
+                
+                # Return as downloadable file
+                return StreamingResponse(
+                    io.BytesIO(file_content),
+                    media_type=content_type,
+                    headers={
+                        "Content-Disposition": f'attachment; filename="{original_filename}"',
+                        "Content-Type": content_type,
+                        "Cache-Control": "no-cache, no-store, must-revalidate",
+                        "Pragma": "no-cache",
+                        "Expires": "0"
+                    }
+                )
+            except Exception as e:
+                print(f"Error downloading from S3: {e}")
+                raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
+        else:
+            # ========== LOCAL STORAGE ==========
+            # Try to find the file in various locations
+            possible_paths = [
+                PathLib(f"media/{file_path}"),
+                PathLib(f"fastapi_app/media/{file_path}"),
+                PathLib(f"fastapi_app/local_storage/{file_path}"),
+                PathLib(f"fastapi_app/{file_path}"),
+                PathLib(f"media/portfolio_uploads/collaborator/{PathLib(file_path).name}"),
+                PathLib(f"media/portfolio_uploads/creator/{PathLib(file_path).name}"),
+            ]
+            
+            file_location = None
+            for path in possible_paths:
+                if path.exists() and path.is_file():
+                    file_location = path
+                    break
+            
+            if not file_location:
+                raise HTTPException(status_code=404, detail="File not found on server")
+            
+            # Determine content type
+            import mimetypes
+            content_type, _ = mimetypes.guess_type(str(file_location))
+            if not content_type:
+                content_type = 'application/octet-stream'
+            
+            return FileResponse(
+                path=file_location,
+                filename=original_filename,
+                media_type=content_type,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
+            
+    except PortfolioItem.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Portfolio item not found")
+    except Exception as e:
+        print(f"Error in download_portfolio_item: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
