@@ -688,10 +688,10 @@ async def save_collaborator_profile(
             portfolio_file_size = len(portfolio_content)
             original_filename = PathLib(portfolio_uploads.filename).stem
             portfolio_ext = PathLib(portfolio_uploads.filename).suffix or ".png"
-            
+
             # Check storage limit
             await sync_to_async(check_storage_limit)(user, portfolio_file_size)
-            
+
             # Create portfolio item
             portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
                 user=user,
@@ -701,7 +701,7 @@ async def save_collaborator_profile(
                 description=None,
                 order=0,
             )
-            
+
             if use_s3:
                 # Use S3 storage for portfolio
                 from fastapi_app.routes.storage import save_portfolio_upload_collaborator
@@ -719,7 +719,7 @@ async def save_collaborator_profile(
                     save=True,
                 )
                 print(f"✅ Portfolio saved locally: {portfolio_filename}")
-            
+
             # Track file upload
             await sync_to_async(track_file_upload)(
                 user,
@@ -727,7 +727,7 @@ async def save_collaborator_profile(
                 portfolio_file_size,
             )
             print(f"✅ Created portfolio item (ID: {portfolio_item.id})")
-            
+
         except Exception as e:
             print(f"❌ Error creating portfolio item: {e}")
 
@@ -812,10 +812,10 @@ async def save_collaborator_profile(
     if user.role != "collaborator":
         user.role = "collaborator"
         await sync_to_async(user.save)()
-        
+
         # Ensure Basic plan exists for collaborator role
         basic_plan = await sync_to_async(get_or_create_basic_plan)("collaborator")
-        
+
         # Create a UserSubscription only if the user doesn't have one yet
         subscription_exists = await sync_to_async(
             lambda: UserSubscription.objects.filter(user=user).exists()
@@ -823,20 +823,20 @@ async def save_collaborator_profile(
         if not subscription_exists:
             now = datetime.now()
             subscription = await sync_to_async(UserSubscription.objects.create)(
-                user=user,
-                email=user.email or "",
-                current_plan=basic_plan.name,
-                plan_name=basic_plan.name,
-                duration=basic_plan.duration.capitalize(),
-                plan_price=basic_plan.price,
-                plan_start_date=now,
-                plan_end_date=now + timedelta(days=365*100),
-                renewal_date=now + timedelta(days=365*100),
-                status="active",
-                is_trial=False,
-            )
+    user=user,
+    email=user.email or "",
+    current_plan=basic_plan.name,
+    plan_name=basic_plan.name,
+    duration=basic_plan.duration.capitalize(),
+    plan_price=basic_plan.price,
+    plan_start_date=now,
+    plan_end_date=now + timedelta(days=30),
+    renewal_date=now + timedelta(days=30),
+    status="active",
+    is_trial=False,
+)
             print(f"✅ Created Basic subscription for collaborator {user.email}")
-    
+
             # ─── CREATE SUBSCRIPTION HISTORY ────────────────────────────────
             await sync_to_async(SubscriptionHistory.objects.create)(
                 user=user,
@@ -852,14 +852,14 @@ async def save_collaborator_profile(
                 stripe_subscription_id=subscription.stripe_subscription_id,
             )
             print(f"✅ Subscription history created for collaborator {user.email}")
-    
+
     print(f"✅ Updated user role to collaborator")
 
     # ========== 🔔 NOTIFICATION: PROFILE SAVED/CREATED ==========
     notification_type = "profile_created" if created else "profile_updated"
     notification_title = "Collaborator Profile Created" if created else "Collaborator Profile Updated"
     notification_message = "Your collaborator profile has been created successfully." if created else "Your collaborator profile has been updated successfully."
-    
+
     await sync_to_async(create_notification)(
         user=user,
         notification_type=notification_type,
@@ -883,6 +883,7 @@ async def save_collaborator_profile(
         "profile_id": profile.id,
         "user_id": user.id,
     }
+ 
 
 
 # ==============================================================================

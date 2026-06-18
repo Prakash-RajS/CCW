@@ -20,6 +20,9 @@ const Header = ({ variant = "default" }) => {
   const mobileMenuRef = useRef(null);
   const mobileProfileRef = useRef(null);
   const notificationIntervalRef = useRef(null);
+  const hasInitializedRef = useRef(false);
+  const imagePreloadedRef = useRef(false);
+  const cachedImageSrcRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState("");
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -44,6 +47,8 @@ const Header = ({ variant = "default" }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
   const [notificationImageErrors, setNotificationImageErrors] = useState({});
+  // ✅ NEW: Track if image is ready to show
+  const [isImageReady, setIsImageReady] = useState(false);
 
   const { updateUserData, logout } = useUser() || {};
 
@@ -52,6 +57,135 @@ const Header = ({ variant = "default" }) => {
   const isFinderProfile = location.pathname.startsWith('/finder-profile/');
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // ✅ Get the actual user image URL
+  const getUserImageUrl = (pictureOverride = null) => {
+    const picture = pictureOverride || userData?.profile_picture;
+    
+    if (!picture) {
+      return Profile;
+    }
+
+    let pictureStr = picture;
+
+    if (typeof pictureStr === 'string') {
+      if (pictureStr.includes('googleusercontent.com')) {
+        try {
+          let decoded = decodeURIComponent(pictureStr);
+          decoded = decoded.replace(/^media\//, '');
+          if (decoded.startsWith('https:')) {
+            return decoded;
+          }
+          if (decoded.startsWith('http:')) {
+            return decoded;
+          }
+          if (decoded.includes('googleusercontent.com')) {
+            return `https://${decoded.replace(/^https?:\/\//, '')}`;
+          }
+        } catch (e) {
+          console.error("Error decoding Google URL:", e);
+        }
+      }
+
+      if (pictureStr.startsWith('http://') || pictureStr.startsWith('https://')) {
+        return pictureStr;
+      }
+
+      if (pictureStr.startsWith('/media/')) {
+        return `${API_BASE_URL}${pictureStr}`;
+      }
+
+      if (pictureStr.startsWith('/')) {
+        return `${API_BASE_URL}${pictureStr}`;
+      }
+
+      if (pictureStr.includes('media/')) {
+        return `${API_BASE_URL}/${pictureStr}`;
+      }
+
+      return `${API_BASE_URL}/media/${pictureStr}`;
+    }
+
+    return Profile;
+  };
+
+  // ✅ Preload image function
+  const preloadImage = (src) => {
+    if (!src || src === Profile || imagePreloadedRef.current) return;
+    
+    const img = new Image();
+    img.onload = () => {
+      console.log("✅ Image preloaded successfully");
+      imagePreloadedRef.current = true;
+      cachedImageSrcRef.current = src;
+      setIsImageReady(true);
+    };
+    img.onerror = () => {
+      console.log("⚠️ Image preload failed, using fallback");
+      setImageError(true);
+      setIsImageReady(true);
+    };
+    img.src = src;
+  };
+
+  // ✅ Get the image source to display
+  const getDisplayImageSrc = () => {
+    // If we have a cached image and it's ready, use it
+    if (cachedImageSrcRef.current && isImageReady) {
+      return cachedImageSrcRef.current;
+    }
+    
+    // If we have user data and no error, use the user image
+    if (userData?.profile_picture && !imageError) {
+      const src = getUserImageUrl();
+      // Preload if not already preloaded
+      if (!imagePreloadedRef.current) {
+        preloadImage(src);
+      }
+      // If preloaded, use the cached src, otherwise show placeholder
+      if (isImageReady && cachedImageSrcRef.current) {
+        return cachedImageSrcRef.current;
+      }
+      return src;
+    }
+    
+    return Profile;
+  };
+
+  // ✅ Preload image whenever user data changes
+  useEffect(() => {
+    if (userData?.profile_picture && !imageError) {
+      const src = getUserImageUrl();
+      if (src && src !== Profile) {
+        preloadImage(src);
+      }
+    }
+  }, [userData?.profile_picture, imageError]);
+
+  // ✅ When image loads successfully, mark it as ready
+  const handleImageLoad = () => {
+    if (!isImageReady) {
+      setIsImageReady(true);
+      if (cachedImageSrcRef.current) {
+        // Update cached src to the actual URL
+        const currentSrc = getUserImageUrl();
+        if (currentSrc) {
+          cachedImageSrcRef.current = currentSrc;
+        }
+      }
+    }
+  };
+
+  // ✅ Force image ready after a timeout (fallback)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (!isImageReady && !isLoading) {
+        setIsImageReady(true);
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [isImageReady, isLoading]);
 
   const handleNotificationImageError = (notificationId) => {
     setNotificationImageErrors(prev => ({
@@ -107,7 +241,7 @@ const Header = ({ variant = "default" }) => {
     }
 
     if (userData?.profile_picture && !imageError) {
-      const userImageUrl = getUserImage();
+      const userImageUrl = getUserImageUrl();
       return (
         <img
           src={userImageUrl}
@@ -150,28 +284,51 @@ const Header = ({ variant = "default" }) => {
     return null;
   }
 
+  // ========================================================
+  //  INITIALIZATION - Only fetch once
+  // ========================================================
   useEffect(() => {
+    if (hasInitializedRef.current) {
+      return;
+    }
+    hasInitializedRef.current = true;
+    
+    // Check if user data is already in localStorage
+    const cachedUser = localStorage.getItem('userData');
+    if (cachedUser) {
+      try {
+        const parsedUser = JSON.parse(cachedUser);
+        if (parsedUser.id) {
+          setUserData(parsedUser);
+          setStatus(parsedUser.status === "Active" ? "Available" : "Away");
+          setIsLoading(false);
+          // Preload cached image
+          if (parsedUser.profile_picture) {
+            const src = getUserImageUrl(parsedUser.profile_picture);
+            preloadImage(src);
+          }
+          return;
+        }
+      } catch (e) {
+        console.error('Error parsing cached user data:', e);
+      }
+    }
+    
     fetchUserData();
   }, []);
 
+  // ========================================================
+  //  CACHE USER DATA IN LOCALSTORAGE
+  // ========================================================
   useEffect(() => {
-    if (userData?.id) {
-      fetchNotifications(true);
-      fetchUnreadMessageCount();
-
-      notificationIntervalRef.current = setInterval(() => {
-        fetchNotifications(false);
-        fetchUnreadMessageCount();
-      }, 10000);
-
-      return () => {
-        if (notificationIntervalRef.current) {
-          clearInterval(notificationIntervalRef.current);
-        }
-      };
+    if (userData.id) {
+      localStorage.setItem('userData', JSON.stringify(userData));
     }
-  }, [userData?.id]);
+  }, [userData]);
 
+  // ========================================================
+  //  NAVIGATION TABS
+  // ========================================================
   useEffect(() => {
     const homePaths = ['/home', '/created', '/job-created', '/subscription', '/my-projects'];
     const findCollaboratorPaths = ['/user-list'];
@@ -205,6 +362,9 @@ const Header = ({ variant = "default" }) => {
     }
   }, [location.pathname]);
 
+  // ========================================================
+  //  CLICK OUTSIDE HANDLERS
+  // ========================================================
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -274,6 +434,9 @@ const Header = ({ variant = "default" }) => {
     };
   }, [isMobileMenuOpen, isMobileProfileOpen]);
 
+  // ========================================================
+  //  FETCH USER DATA
+  // ========================================================
   const fetchUserData = async () => {
     try {
       setIsLoading(true);
@@ -307,15 +470,25 @@ const Header = ({ variant = "default" }) => {
 
       const backendStatus = response.data.status === "Active" ? "Available" : "Away";
 
-      setUserData({
+      const newUserData = {
         id: response.data.id,
         full_name: response.data.full_name || "",
         profile_picture: profilePicture,
         email: response.data.email || "",
         status: backendStatus
-      });
+      };
 
+      setUserData(newUserData);
       setStatus(backendStatus);
+      
+      // Cache in localStorage
+      localStorage.setItem('userData', JSON.stringify(newUserData));
+      
+      // Preload image
+      if (profilePicture) {
+        const src = getUserImageUrl(profilePicture);
+        preloadImage(src);
+      }
     } catch (error) {
       console.error('❌ Error fetching user data:', error);
       if (error.response?.status === 401) {
@@ -323,9 +496,37 @@ const Header = ({ variant = "default" }) => {
       }
     } finally {
       setIsLoading(false);
+      // Ensure image is marked ready even if no profile picture
+      if (!userData?.profile_picture) {
+        setIsImageReady(true);
+      }
     }
   };
 
+  // ========================================================
+  //  NOTIFICATIONS - Only when user is logged in
+  // ========================================================
+  useEffect(() => {
+    if (userData?.id) {
+      fetchNotifications(true);
+      fetchUnreadMessageCount();
+
+      notificationIntervalRef.current = setInterval(() => {
+        fetchNotifications(false);
+        fetchUnreadMessageCount();
+      }, 10000);
+
+      return () => {
+        if (notificationIntervalRef.current) {
+          clearInterval(notificationIntervalRef.current);
+        }
+      };
+    }
+  }, [userData?.id]);
+
+  // ========================================================
+  //  NOTIFICATION FUNCTIONS
+  // ========================================================
   const fetchNotifications = async (showLoader = false) => {
     try {
       if (showLoader) {
@@ -541,7 +742,9 @@ const Header = ({ variant = "default" }) => {
       });
 
       setStatus(newStatus);
-      setUserData(prev => ({ ...prev, status: newStatus }));
+      const updatedUserData = { ...userData, status: newStatus };
+      setUserData(updatedUserData);
+      localStorage.setItem('userData', JSON.stringify(updatedUserData));
       setIsStatusMenuOpen(false);
       setIsMobileProfileOpen(false);
 
@@ -617,6 +820,10 @@ const Header = ({ variant = "default" }) => {
         }
       }
       
+      // Clear cached user data
+      localStorage.removeItem('userData');
+      setUserData({ id: null, full_name: "", profile_picture: null, email: "", status: "Available" });
+      
       toast.success("Logout successfully!");
       
       setTimeout(() => {
@@ -650,66 +857,17 @@ const Header = ({ variant = "default" }) => {
     return fullName.length > 12 ? fullName.substring(0, 10) + '...' : fullName;
   };
 
-  const getUserImage = () => {
-    if (imageError) {
-      return Profile;
-    }
-
-    if (userData?.profile_picture) {
-      let picture = userData.profile_picture;
-
-      if (typeof picture === 'string') {
-        if (picture.includes('googleusercontent.com')) {
-          try {
-            let decoded = decodeURIComponent(picture);
-            decoded = decoded.replace(/^media\//, '');
-            if (decoded.startsWith('https:')) {
-              return decoded;
-            }
-            if (decoded.startsWith('http:')) {
-              return decoded;
-            }
-            if (decoded.includes('googleusercontent.com')) {
-              return `https://${decoded.replace(/^https?:\/\//, '')}`;
-            }
-          } catch (e) {
-            console.error("Error decoding Google URL:", e);
-          }
-        }
-
-        if (picture.startsWith('http://') || picture.startsWith('https://')) {
-          return picture;
-        }
-
-        if (picture.startsWith('/media/')) {
-          return `${API_BASE_URL}${picture}`;
-        }
-
-        if (picture.startsWith('/')) {
-          return `${API_BASE_URL}${picture}`;
-        }
-
-        if (picture.includes('media/')) {
-          return `${API_BASE_URL}/${picture}`;
-        }
-
-        return `${API_BASE_URL}/media/${picture}`;
-      }
-    }
-
-    return Profile;
-  };
-
   const handleImageError = (e) => {
     setImageError(true);
     e.target.src = Profile;
-  };
-
-  const retryImageLoad = () => {
-    setImageError(false);
+    // Mark as ready even on error
+    setIsImageReady(true);
   };
 
   const filteredNotifications = getFilteredNotifications();
+
+  // ✅ Determine the image source to display
+  const imageSrc = (isLoading || !isImageReady) ? Profile : getDisplayImageSrc();
 
   return (
     <header className="w-full max-w-[1251px] h-[72px] mx-auto mt-6 flex items-center justify-between px-4 md:px-8 relative z-50">
@@ -884,12 +1042,12 @@ const Header = ({ variant = "default" }) => {
             className="w-9 h-9 rounded-full overflow-hidden border-2 border-white flex-shrink-0 cursor-pointer"
           >
             <img
-              key={userData?.profile_picture}
-              src={isLoading ? Profile : getUserImage()}
+              key={userData?.profile_picture || 'profile-image'}
+              src={imageSrc}
               alt={getFullName()}
               className="w-full h-full object-cover"
               onError={handleImageError}
-              onLoad={retryImageLoad}
+              onLoad={handleImageLoad}
             />
           </div>
         </div>
@@ -903,24 +1061,20 @@ const Header = ({ variant = "default" }) => {
 
             <div onClick={toggleProfileMenu} className="w-8 h-8 md:w-12 md:h-12 lg:w-14 lg:h-14 xl:w-16 xl:h-16 rounded-full overflow-hidden border-2 border-white flex-shrink-0">
               <img
-                key={userData?.profile_picture}
-                src={isLoading ? Profile : getUserImage()}
+                key={userData?.profile_picture || 'profile-image'}
+                src={imageSrc}
                 alt={getFullName()}
                 className="w-full h-full object-cover"
                 onError={handleImageError}
-                onLoad={retryImageLoad}
+                onLoad={handleImageLoad}
               />
             </div>
           </div>
-
-          {/* {!isLoading && getFullName() !== "User" && (
-  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs px-3 py-1.5 rounded-xl opacity-0 group-hover:opacity-100 transition-all duration-300 whitespace-nowrap z-[100] pointer-events-none">
-    {getFullName()}
-  </div>
-)} */}
         </div>
       </div>
 
+      {/* ... rest of the code (mobile menu, profile dropdown, notifications) remains the same ... */}
+      
       {/* MOBILE MENU SLIDE PANEL */}
       {isMobileMenuOpen && (
         <>
@@ -1056,10 +1210,11 @@ const Header = ({ variant = "default" }) => {
             <div className="flex flex-col items-center p-6 border-b border-white/20">
               <div className="w-20 h-20 rounded-full overflow-hidden border-3 border-white/30 mb-3">
                 <img
-                  src={isLoading ? Profile : getUserImage()}
+                  src={imageSrc}
                   alt={getFullName()}
                   className="w-full h-full object-cover"
                   onError={handleImageError}
+                  onLoad={handleImageLoad}
                 />
               </div>
               <h3 className="text-white text-lg font-semibold text-center">
@@ -1191,99 +1346,99 @@ const Header = ({ variant = "default" }) => {
     </button>
 
     {/* Status Section */}
-    <div className="relative">
-      <button
-        type="button"
-        onClick={toggleStatusMenu}
-        className={`
-          w-full px-5 py-2.5 flex items-center justify-between transition-all duration-200
-          ${isFinderProfile || isLightVariant 
-            ? 'text-gray-700 hover:bg-gray-200' 
-            : 'text-gray-200 hover:bg-white/10 hover:text-white'
-          }
-        `}
-      >
-        <div className="flex items-center gap-3">
-          {/* Dynamic Status Icon */}
-          {status === "Available" ? (
+ <div className="relative">
+  <button
+    type="button"
+    onClick={toggleStatusMenu}
+    className={`
+      w-full px-5 py-2.5 flex items-center justify-between transition-all duration-200
+      ${isFinderProfile || isLightVariant 
+        ? 'text-gray-700 hover:bg-gray-200' 
+        : 'text-gray-200 hover:bg-white/10 hover:text-white'
+      }
+    `}
+  >
+    <div className="flex items-center gap-3">
+      {/* Dynamic Status Icon */}
+      {status === "Available" ? (
+        <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+          </svg>
+        </span>
+      ) : (
+        <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+          </svg>
+        </span>
+      )}
+      <span className="text-sm font-medium">{status || "Set Status"}</span>
+    </div>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      className={`w-3.5 h-3.5 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''} ${isFinderProfile || isLightVariant ? 'text-gray-400' : 'text-gray-500'}`}
+      fill="none"
+    >
+      <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  </button>
+
+  {/* Status Sub-options */}
+  {isStatusMenuOpen && (
+    <div className="px-3 pb-2">
+      <div className={`rounded-xl p-1.5 ${isFinderProfile || isLightVariant ? 'bg-gray-50' : 'bg-white/5'}`}>
+        <button
+          type="button"
+          onClick={() => changeStatus("Available")}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
+            ${status === "Available"
+              ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
+              : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
+            }
+          `}
+        >
+          <span className="relative">
             <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+              {status === "Available" && (
+                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                </svg>
+              )}
+            </span>
+            {status === "Available" && (
+              <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
+            )}
+          </span>
+          <span className="text-sm">Available</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => changeStatus("Away")}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
+            ${status === "Away"
+              ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
+              : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
+            }
+          `}
+        >
+          <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+            {status === "Away" && (
               <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
               </svg>
-            </span>
-          ) : (
-            <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
-              </svg>
-            </span>
-          )}
-          <span className="text-sm font-medium">Set Status</span>
-        </div>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          className={`w-3.5 h-3.5 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''} ${isFinderProfile || isLightVariant ? 'text-gray-400' : 'text-gray-500'}`}
-          fill="none"
-        >
-          <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-
-      {/* Status Sub-options */}
-      {isStatusMenuOpen && (
-        <div className="px-3 pb-2">
-          <div className={`rounded-xl p-1.5 ${isFinderProfile || isLightVariant ? 'bg-gray-50' : 'bg-white/5'}`}>
-            <button
-              type="button"
-              onClick={() => changeStatus("Available")}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
-                ${status === "Available"
-                  ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
-                  : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
-                }
-              `}
-            >
-              <span className="relative">
-                <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-                  {status === "Available" && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                  )}
-                </span>
-                {status === "Available" && (
-                  <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
-                )}
-              </span>
-              <span className="text-sm">Available</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => changeStatus("Away")}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
-                ${status === "Away"
-                  ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
-                  : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
-                }
-              `}
-            >
-              <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-                {status === "Away" && (
-                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                  </svg>
-                )}
-              </span>
-              <span className="text-sm">Away</span>
-            </button>
-          </div>
-        </div>
-      )}
+            )}
+          </span>
+          <span className="text-sm">Away</span>
+        </button>
+      </div>
     </div>
+  )}
+</div>
 
     {/* Divider */}
     <div className={`mx-4 my-1 border-t ${isFinderProfile || isLightVariant ? 'border-gray-100' : 'border-white/10'}`}></div>

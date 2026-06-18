@@ -1151,87 +1151,91 @@ const ColHeader = () => {
     </button>
 
     {/* Status Section */}
-    <div className="relative">
-      <button
-        type="button"
-        onClick={toggleStatusMenu}
-        className="w-full px-5 py-2.5 flex items-center justify-between text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
-      >
-        <div className="flex items-center gap-3">
-          {/* Dynamic Status Icon */}
-          {status === "Available" ? (
+   <div className="relative">
+  <button
+    type="button"
+    onClick={toggleStatusMenu}
+    className="w-full px-5 py-2.5 flex items-center justify-between text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
+  >
+    <div className="flex items-center gap-3">
+      {/* Dynamic Status Icon */}
+      {status === "Available" ? (
+        <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+          </svg>
+        </span>
+      ) : status === "Away" ? (
+        <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+          </svg>
+        </span>
+      ) : (
+        <span className="w-4 h-4 rounded-full bg-gray-500"></span>
+      )}
+      <span className="text-sm font-medium">
+        {status === "Set Status" ? "Set Status" : status}
+      </span>
+    </div>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 16 16"
+      className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''}`}
+      fill="none"
+    >
+      <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  </button>
+
+  {/* Status Sub-options */}
+  {isStatusMenuOpen && (
+    <div className="px-3 pb-2">
+      <div className="rounded-xl p-1.5 bg-white/5">
+        <button
+          type="button"
+          onClick={() => changeStatus("Available")}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
+            ${status === "Available" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
+          `}
+        >
+          <span className="relative">
             <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+              {status === "Available" && (
+                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                </svg>
+              )}
+            </span>
+            {status === "Available" && (
+              <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
+            )}
+          </span>
+          <span className="text-sm">Available</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => changeStatus("Away")}
+          className={`
+            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
+            ${status === "Away" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
+          `}
+        >
+          <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+            {status === "Away" && (
               <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
               </svg>
-            </span>
-          ) : (
-            <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
-              </svg>
-            </span>
-          )}
-          <span className="text-sm font-medium">Set Status</span>
-        </div>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 16 16"
-          className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''}`}
-          fill="none"
-        >
-          <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-
-      {/* Status Sub-options */}
-      {isStatusMenuOpen && (
-        <div className="px-3 pb-2">
-          <div className="rounded-xl p-1.5 bg-white/5">
-            <button
-              type="button"
-              onClick={() => changeStatus("Available")}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
-                ${status === "Available" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
-              `}
-            >
-              <span className="relative">
-                <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-                  {status === "Available" && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                    </svg>
-                  )}
-                </span>
-                {status === "Available" && (
-                  <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
-                )}
-              </span>
-              <span className="text-sm">Available</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => changeStatus("Away")}
-              className={`
-                w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
-                ${status === "Away" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
-              `}
-            >
-              <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-                {status === "Away" && (
-                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                  </svg>
-                )}
-              </span>
-              <span className="text-sm">Away</span>
-            </button>
-          </div>
-        </div>
-      )}
+            )}
+          </span>
+          <span className="text-sm">Away</span>
+        </button>
+      </div>
     </div>
+  )}
+</div>
 
     {/* Divider */}
     <div className="mx-4 my-1 border-t border-white/10"></div>

@@ -548,12 +548,12 @@ const SubscriptionPage = () => {
         // Add Creator card ONLY if plan supports creator role
         if (plan.role === 'creator' || plan.role === 'both') {
           cards.push({
-            id: `${plan.name}_creator`,
+            id: `${plan.name}_${plan.duration}_creator`,
             name: plan.name,
             role: "creator",
-            users: plan.creator_count,  // Will be 0 for plans with no subscribers
+            users: plan.creator_count, 
+             duration: plan.duration,  // Will be 0 for plans with no subscribers
             price_value: 0,
-            duration: "monthly",
             features: [],
             is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
           });
@@ -562,12 +562,13 @@ const SubscriptionPage = () => {
         // Add Collaborator card ONLY if plan supports collaborator role
         if (plan.role === 'collaborator' || plan.role === 'both') {
           cards.push({
-            id: `${plan.name}_collaborator`,
+            id: `${plan.name}_${plan.duration}_collaborator`,
             name: plan.name,
             role: "collaborator",
             users: plan.collaborator_count,  // Will be 0 for plans with no subscribers
             price_value: 0,
-            duration: "monthly",
+            duration: plan.duration, 
+
             features: [],
             is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
           });
@@ -604,8 +605,13 @@ const SubscriptionPage = () => {
       const statsMap = {};
       if (statsResponse.data && statsResponse.data.plans) {
         statsResponse.data.plans.forEach(plan => {
-          statsMap[`${plan.name}_creator`] = plan.creator_count;
-          statsMap[`${plan.name}_collaborator`] = plan.collaborator_count;
+          statsMap[
+  `${plan.name}_${plan.duration}_creator`
+] = plan.creator_count;
+
+statsMap[
+  `${plan.name}_${plan.duration}_collaborator`
+] = plan.collaborator_count;
         });
       }
 
@@ -616,8 +622,15 @@ const SubscriptionPage = () => {
       
       plansResponse.data.plans.forEach((plan) => {
         // Get real counts from stats
-        const creatorCount = statsMap[`${plan.name}_creator`] || 0;
-        const collaboratorCount = statsMap[`${plan.name}_collaborator`] || 0;
+        const creatorCount =
+  statsMap[
+    `${plan.name}_${plan.billing_cycle}_creator`
+  ] || 0;
+
+const collaboratorCount =
+  statsMap[
+    `${plan.name}_${plan.billing_cycle}_collaborator`
+  ] || 0;
         
         // For role-specific plans, use the appropriate count
         let userCount = 0;
@@ -1372,7 +1385,13 @@ const { duplicateByName, duplicateByPrice } =
             </div>
             <p className="text-[13px] mt-1 capitalize opacity-90 text-white" style={{ fontFamily: "'Old Standard TT', serif" }}>
               {plan.name}
-            </p>
+  {" "}
+  (
+  {plan.duration === "yearly"
+    ? "Yearly"
+    : "Monthly"}
+  )
+</p>
           </div>
         </div>
       ))}
@@ -1501,6 +1520,12 @@ const { duplicateByName, duplicateByPrice } =
                 <div className="flex justify-between items-start mb-4 mt-8">
                   <div className={`px-4 py-1 rounded-lg text-sm font-bold ${isDarkMode ? "bg-purple-600 text-white" : "bg-[#C9A7FF] text-black"}`}>
                     {plan.name}
+  {" "}
+  (
+  {plan.duration === "yearly"
+    ? "Yearly"
+    : "Monthly"}
+  )
                   </div>
                   <div className={`px-3 py-1 rounded-lg text-xs font-bold ${plan.duration === "yearly"
                     ? "bg-amber-500 text-white"

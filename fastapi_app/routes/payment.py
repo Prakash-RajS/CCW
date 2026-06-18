@@ -585,10 +585,10 @@ def create_user_subscription_db(
             )
 
             duration_display = (
-                "Annual"
-                if is_annual
-                else "Monthly"
-            )
+    "Yearly"
+    if is_annual
+    else "Monthly"
+)
 
             final_price = (
                 amount_paid

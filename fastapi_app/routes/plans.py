@@ -735,7 +735,7 @@ def create_plan(
         create_plan_notification(
             notification_type="plan_created",
             title="📋 Subscription Plan Created",
-            subtitle=f"Admin {admin.name or admin.email} created plan: {plan.name} (${plan.price}/{plan.duration})",
+            subtitle=f"Admin {admin.name or admin.email} created plan: {plan.name} (₹{plan.price}/{plan.duration})",
             exclude_admin=None
         )
 
@@ -803,7 +803,7 @@ def edit_plan(
             plan.name = plan_data.name
             
         if plan_data.price is not None and float(plan_data.price) != float(plan.price):
-            changes.append(f"price: ${plan.price} → ${plan_data.price}")
+            changes.append(f"price: ₹{plan.price} → ₹{plan_data.price}")
             plan.price = plan_data.price
             
         if plan_data.billing_cycle is not None and plan_data.billing_cycle.value != plan.duration:
@@ -958,7 +958,7 @@ def delete_plan(
         create_plan_notification(
             notification_type="plan_deleted",
             title="🗑️ Subscription Plan Deleted",
-            subtitle=f"Admin {admin.name or admin.email} deleted plan: {plan_name} (${plan_price}/{plan_duration})",
+            subtitle=f"Admin {admin.name or admin.email} deleted plan: {plan_name} (₹{plan_price}/{plan_duration})",
             exclude_admin=None
         )
         

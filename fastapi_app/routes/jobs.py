@@ -1662,7 +1662,10 @@ async def list_all_jobs_paginated(
 # GET JOBS USER IS WORKING ON (UPDATED WITH S3)
 # =========================================================
 @router.get("/working/{user_id}")
-async def get_working_jobs(request: Request, user_id: int):
+async def get_working_jobs(
+    request: Request,
+    user_id: int
+):
     """
     Get all jobs where the user is working as a collaborator
     (through contracts with status = in_progress)
@@ -1675,23 +1678,28 @@ async def get_working_jobs(request: Request, user_id: int):
         def build_pic_url(user_obj):
             if not user_obj:
                 return None
+
             try:
                 pic = user_obj.profile_picture
+
                 if not pic:
                     return None
-                # Use build_full_url for profile picture
+
                 from fastapi_app.routes.storage import build_full_url
+
                 return build_full_url(
                     request=request,
-                    path=pic.name if hasattr(pic, 'name') else str(pic),
+                    path=pic.name if hasattr(pic, "name") else str(pic),
                     file_type="profile"
                 )
+
             except Exception:
                 return None
 
         def get_contracts():
             try:
-                user = UserData.objects.get(id=user_id)
+                UserData.objects.get(id=user_id)
+
             except UserData.DoesNotExist:
                 return {
                     "user_id": user_id,
@@ -1700,109 +1708,372 @@ async def get_working_jobs(request: Request, user_id: int):
                     "error": "User not found"
                 }
 
-            contracts = Contract.objects.filter(
-                collaborator_id=user_id,
-                status="in_progress"
-            ).select_related('job', 'job__employer', 'creator').order_by('-updated_at')
+            contracts = (
+                Contract.objects.filter(
+                    collaborator_id=user_id,
+                    status="in_progress"
+                )
+                .select_related(
+                    "job",
+                    "job__employer",
+                    "creator",
+                    "collaborator"
+                )
+                .order_by("-updated_at")
+            )
 
-            print(f"Found {contracts.count()} in_progress contracts for user {user_id}")
+            print(
+                f"Found {contracts.count()} "
+                f"in_progress contracts for user {user_id}"
+            )
 
             jobs_data = []
+
             for contract in contracts:
+
                 try:
                     job = contract.job
+
                     if not job:
-                        print(f"Contract {contract.id} has no associated job")
+                        print(
+                            f"Contract {contract.id} "
+                            f"has no associated job"
+                        )
                         continue
 
                     employer = job.employer or contract.creator
 
                     creator_name = None
                     if contract.creator:
-                        creator_name = contract.creator.full_name or contract.creator.email
+                        creator_name = (
+                            contract.creator.full_name
+                            or contract.creator.email
+                        )
 
                     collaborator_name = None
                     if contract.collaborator:
-                        collaborator_name = contract.collaborator.full_name or contract.collaborator.email
+                        collaborator_name = (
+                            contract.collaborator.full_name
+                            or contract.collaborator.email
+                        )
 
-                    # Calculate creator rating
+                    # ======================================
+                    # Creator Rating
+                    # ======================================
+
                     creator_rating = 0
                     creator_reviews_count = 0
-                    
+
                     if employer:
-                        reviews = Review.objects.filter(recipient=employer)
+                        reviews = Review.objects.filter(
+                            recipient=employer
+                        )
+
                         if reviews.exists():
-                            total_rating = sum(r.rating for r in reviews)
-                            creator_rating = total_rating / reviews.count()
+                            total_rating = sum(
+                                r.rating for r in reviews
+                            )
+
+                            creator_rating = (
+                                total_rating / reviews.count()
+                            )
+
                             creator_reviews_count = reviews.count()
-                    
-                    # Generate attachment URLs
+
+                    # ======================================
+                    # Creator Profile Location
+                    # ======================================
+
+                    creator_location = ""
+                    creator_state = ""
+
+                    if employer:
+                        try:
+                            from creator_app.models import CreatorProfile
+
+                            creator_profile = (
+                                CreatorProfile.objects.filter(
+                                    user=employer
+                                ).first()
+                            )
+
+                            if creator_profile:
+                                creator_location = (
+                                    creator_profile.location or ""
+                                )
+
+                                creator_state = (
+                                    creator_profile.state or ""
+                                )
+
+                        except Exception as e:
+                            print(
+                                f"Could not fetch creator "
+                                f"profile location: {e}"
+                            )
+
+                    # ======================================
+                    # Job Attachments
+                    # ======================================
+
                     attachment_urls = []
-                    if job.attachments:
+
+                    if (
+                        hasattr(job, "attachments")
+                        and job.attachments
+                    ):
                         for att in job.attachments:
-                            url = get_job_attachment_url(request, att)
-                            if url:
-                                attachment_urls.append(url)
+                            try:
+                                url = get_job_attachment_url(
+                                    request,
+                                    att
+                                )
+
+                                if url:
+                                    attachment_urls.append(url)
+
+                            except Exception as e:
+                                print(
+                                    f"Attachment URL error: {e}"
+                                )
+
+                    # ======================================
+                    # Job Details
+                    # ======================================
 
                     job_details = {
-                        "skills": job.skills if hasattr(job, 'skills') else [],
-                        "duration": job.duration if hasattr(job, 'duration') else '',
-                        "expertise_level": job.expertise_level if hasattr(job, 'expertise_level') else '',
-                        "budget_type": job.budget_type if hasattr(job, 'budget_type') else '',
-                        "budget_from": float(job.budget_from) if job.budget_from else None,
-                        "budget_to": float(job.budget_to) if job.budget_to else None,
-                        "attachments": attachment_urls
+                        "skills": (
+                            job.skills
+                            if hasattr(job, "skills")
+                            else []
+                        ),
+                        "duration": (
+                            job.duration
+                            if hasattr(job, "duration")
+                            else ""
+                        ),
+                        "expertise_level": (
+                            job.expertise_level
+                            if hasattr(job, "expertise_level")
+                            else ""
+                        ),
+                        "budget_type": (
+                            job.budget_type
+                            if hasattr(job, "budget_type")
+                            else ""
+                        ),
+                        "budget_from": (
+                            float(job.budget_from)
+                            if job.budget_from
+                            else None
+                        ),
+                        "budget_to": (
+                            float(job.budget_to)
+                            if job.budget_to
+                            else None
+                        ),
+                        "attachments": attachment_urls,
                     }
 
-                    start_date = None
-                    if contract.start_date:
-                        start_date = contract.start_date.isoformat()
-                    elif hasattr(contract, 'created_at') and contract.created_at:
-                        start_date = contract.created_at.isoformat()
+                    # ======================================
+                    # Dates
+                    # ======================================
 
-                    budget_amount = float(contract.budget) if contract.budget else None
-                    if not budget_amount and job.budget_from:
-                        budget_amount = float(job.budget_from)
+                    start_date = None
+
+                    if contract.start_date:
+                        start_date = (
+                            contract.start_date.isoformat()
+                        )
+
+                    elif (
+                        hasattr(contract, "created_at")
+                        and contract.created_at
+                    ):
+                        start_date = (
+                            contract.created_at.isoformat()
+                        )
+
+                    end_date = None
+
+                    if (
+                        hasattr(contract, "end_date")
+                        and contract.end_date
+                    ):
+                        end_date = (
+                            contract.end_date.isoformat()
+                        )
+
+                    # ======================================
+                    # Budget
+                    # ======================================
+
+                    budget_amount = (
+                        float(contract.budget)
+                        if contract.budget
+                        else None
+                    )
+
+                    if (
+                        not budget_amount
+                        and job.budget_from
+                    ):
+                        budget_amount = float(
+                            job.budget_from
+                        )
+
+                    # ======================================
+                    # Contract Data
+                    # ======================================
 
                     contract_data = {
                         "id": job.id,
                         "contract_id": contract.id,
-                        "job_title": job.title if hasattr(job, 'title') else "Untitled Project",
-                        "title": job.title if hasattr(job, 'title') else "Untitled Project",
-                        "description": job.description if hasattr(job, 'description') else "",
+
+                        "job_title": (
+                            job.title
+                            if hasattr(job, "title")
+                            else "Untitled Project"
+                        ),
+
+                        "title": (
+                            job.title
+                            if hasattr(job, "title")
+                            else "Untitled Project"
+                        ),
+
+                        "description": (
+                            job.description
+                            if hasattr(job, "description")
+                            else ""
+                        ),
+
                         "budget": budget_amount,
                         "amount": budget_amount,
-                        "budget_type": job.budget_type if hasattr(job, 'budget_type') else 'hourly',
+
+                        "budget_type": (
+                            job.budget_type
+                            if hasattr(job, "budget_type")
+                            else "hourly"
+                        ),
+
                         "status": contract.status,
+
                         "start_date": start_date,
-                        "work_description": contract.work_description if hasattr(contract, 'work_description') else "",
-                        "work_attachment": str(contract.work_attachment) if contract.work_attachment and hasattr(contract, 'work_attachment') else None,
+                        "end_date": end_date,
+
+                        "work_description": (
+                            contract.work_description
+                            if hasattr(
+                                contract,
+                                "work_description"
+                            )
+                            else ""
+                        ),
+
+                        "work_attachment": (
+                            str(contract.work_attachment)
+                            if (
+                                hasattr(
+                                    contract,
+                                    "work_attachment"
+                                )
+                                and contract.work_attachment
+                            )
+                            else None
+                        ),
+
                         "has_contract": job.has_contract,
+
                         "creator": {
-                            "id": employer.id if employer else None,
-                            "name": employer.full_name or employer.email if employer else "Client",
-                            "email": employer.email if employer else "",
-                            "location": employer.location if employer and hasattr(employer, 'location') else "",
-                            "city": employer.city if employer and hasattr(employer, 'city') else "",
-                            "profile_picture": build_pic_url(employer),
-                            "rating": round(creator_rating, 1),
-                            "reviews_count": creator_reviews_count,
+                            "id": (
+                                employer.id
+                                if employer
+                                else None
+                            ),
+                            "name": (
+                                employer.full_name
+                                or employer.email
+                                if employer
+                                else "Client"
+                            ),
+                            "email": (
+                                employer.email
+                                if employer
+                                else ""
+                            ),
+                            "location": creator_location,
+                            "state": creator_state,
+                            "profile_picture": build_pic_url(
+                                employer
+                            ),
+                            "rating": round(
+                                creator_rating,
+                                1
+                            ),
+                            "reviews_count": (
+                                creator_reviews_count
+                            ),
                         },
+
                         "collaborator": {
-                            "id": contract.collaborator.id if contract.collaborator else None,
+                            "id": (
+                                contract.collaborator.id
+                                if contract.collaborator
+                                else None
+                            ),
                             "name": collaborator_name,
-                            "email": contract.collaborator.email if contract.collaborator else "",
-                            "profile_picture": build_pic_url(contract.collaborator),
+                            "email": (
+                                contract.collaborator.email
+                                if contract.collaborator
+                                else ""
+                            ),
+                            "profile_picture": build_pic_url(
+                                contract.collaborator
+                            ),
                         },
+
                         "job_details": job_details,
-                        "created_at": contract.created_at.isoformat() if hasattr(contract, 'created_at') and contract.created_at else None,
-                        "updated_at": contract.updated_at.isoformat() if hasattr(contract, 'updated_at') and contract.updated_at else None,
-                        "storage_mode": "s3" if USE_S3 else "local"
+
+                        "created_at": (
+                            contract.created_at.isoformat()
+                            if (
+                                hasattr(
+                                    contract,
+                                    "created_at"
+                                )
+                                and contract.created_at
+                            )
+                            else None
+                        ),
+
+                        "updated_at": (
+                            contract.updated_at.isoformat()
+                            if (
+                                hasattr(
+                                    contract,
+                                    "updated_at"
+                                )
+                                and contract.updated_at
+                            )
+                            else None
+                        ),
+
+                        "storage_mode": (
+                            "s3"
+                            if USE_S3
+                            else "local"
+                        ),
                     }
+
                     jobs_data.append(contract_data)
 
                 except Exception as e:
-                    print(f"Error processing contract {contract.id}: {str(e)}")
+                    print(
+                        f"Error processing contract "
+                        f"{contract.id}: {e}"
+                    )
+
                     import traceback
                     traceback.print_exc()
                     continue
@@ -1810,22 +2081,35 @@ async def get_working_jobs(request: Request, user_id: int):
             return {
                 "user_id": user_id,
                 "total_working_jobs": len(jobs_data),
-                "contracts": jobs_data
+                "contracts": jobs_data,
             }
 
-        response = await sync_to_async(get_contracts)()
-        print(f"Returning {len(response.get('contracts', []))} jobs for user {user_id}")
+        response = await sync_to_async(
+            get_contracts
+        )()
+
+        print(
+            f"Returning "
+            f"{len(response.get('contracts', []))} "
+            f"jobs for user {user_id}"
+        )
+
         return response
 
     except Exception as e:
-        print(f"Server error in get_working_jobs: {str(e)}")
+        print(
+            f"Server error in "
+            f"get_working_jobs: {e}"
+        )
+
         import traceback
         traceback.print_exc()
+
         return {
             "user_id": user_id,
             "total_working_jobs": 0,
             "contracts": [],
-            "error": str(e)
+            "error": str(e),
         }
 
 

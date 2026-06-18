@@ -208,7 +208,7 @@ async def save_creator_profile(
 ):
     # Ensure database connection
     ensure_db_connection()
-    
+
     try:
         user = await sync_to_async(UserData.objects.get)(id=user_id)
     except UserData.DoesNotExist:
@@ -273,7 +273,7 @@ async def save_creator_profile(
         try:
             # Read the file content
             content = await portfolio_uploads.read()
-            
+
             # Create the portfolio item
             portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
                 user=user,
@@ -281,7 +281,7 @@ async def save_creator_profile(
                 title=portfolio_category or "Portfolio",
                 media_link=portfolio_link.strip() if portfolio_link else None,
             )
-            
+
             if use_s3:
                 # Use S3 storage for portfolio
                 from fastapi_app.routes.storage import save_portfolio_upload_creator
@@ -304,11 +304,11 @@ async def save_creator_profile(
                     save=True,
                 )
                 print(f"✅ Portfolio saved locally: {filename}")
-                
+
         except Exception as e:
             print(f"❌ Error saving portfolio: {e}")
             # If portfolio fails, still continue with profile creation
-            
+
     elif portfolio_link and portfolio_link.strip():
         await sync_to_async(PortfolioItem.objects.create)(
             user=user,
@@ -316,7 +316,7 @@ async def save_creator_profile(
             title=portfolio_category or "Portfolio",
             media_link=portfolio_link.strip(),
         )
-    
+
     # ---------------- Update user role ----------------
     user.role = "creator"
     user.full_name = creator_name 
@@ -332,18 +332,18 @@ async def save_creator_profile(
     if not subscription_exists:
         now = datetime.now()
         subscription = await sync_to_async(UserSubscription.objects.create)(
-            user=user,
-            email=user.email or "",
-            current_plan=basic_plan.name,
-            plan_name=basic_plan.name,
-            duration=basic_plan.duration.capitalize(),
-            plan_price=basic_plan.price,
-            plan_start_date=now,
-            plan_end_date=now + timedelta(days=365*100),
-            renewal_date=now + timedelta(days=365*100),
-            status="active",
-            is_trial=False,
-        )
+    user=user,
+    email=user.email or "",
+    current_plan=basic_plan.name,
+    plan_name=basic_plan.name,
+    duration=basic_plan.duration.capitalize(),
+    plan_price=basic_plan.price,
+    plan_start_date=now,
+    plan_end_date=now + timedelta(days=30),
+    renewal_date=now + timedelta(days=30),
+    status="active",
+    is_trial=False,
+)
         print(f"✅ Created Basic subscription for creator {user.email}")
 
         # ─── CREATE SUBSCRIPTION HISTORY ────────────────────────────────
@@ -361,7 +361,7 @@ async def save_creator_profile(
             stripe_subscription_id=subscription.stripe_subscription_id,
         )
         print(f"✅ Subscription history created for creator {user.email}")
-    
+
     return {
         "message": "Creator profile saved successfully"
     }
