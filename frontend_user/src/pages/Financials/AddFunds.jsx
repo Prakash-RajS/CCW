@@ -11,6 +11,10 @@ export default function AddFunds({ onWalletSelect }) {
   const [cashfreeReady, setCashfreeReady] = useState(false);
   const cashfreeInitialized = useRef(false);
 
+  // Amount validation error
+  const [amountError, setAmountError] = useState("");
+  const MAX_AMOUNT = 100000; // ₹1,00,000
+
   // Email verification states (reused from Home)
   const [showEmailSetupPopup, setShowEmailSetupPopup] = useState(false);
   const [showEmailPopup, setShowEmailPopup] = useState(false);
@@ -70,8 +74,8 @@ export default function AddFunds({ onWalletSelect }) {
   }, []);
 
   useEffect(() => {
-    setShowSummaryTable(!!(depositAmount && Number(depositAmount) > 0));
-  }, [depositAmount]);
+    setShowSummaryTable(!!(depositAmount && Number(depositAmount) > 0 && !amountError));
+  }, [depositAmount, amountError]);
 
   // OTP countdown timer
   useEffect(() => {
@@ -320,8 +324,12 @@ export default function AddFunds({ onWalletSelect }) {
       toast.error("User data not ready", "Please wait a moment and try again.");
       return;
     }
-    // Basic validation for amount
+    // Re-validate amount before proceeding (safety)
     const amountNum = Number(depositAmount);
+    if (amountError) {
+      toast.error(amountError);
+      return;
+    }
     if (/^0\d+/.test(depositAmount)) {
       toast.error("Invalid amount", "Amount cannot start with zero.");
       return;
@@ -332,6 +340,10 @@ export default function AddFunds({ onWalletSelect }) {
     }
     if (amountNum < 1) {
       toast.error("Minimum amount is ₹1.00", "Please enter an amount of ₹1 or more.");
+      return;
+    }
+    if (amountNum > MAX_AMOUNT) {
+      toast.error(`Maximum amount is ₹${MAX_AMOUNT.toLocaleString()}`, `Please enter an amount up to ₹${MAX_AMOUNT.toLocaleString()}.`);
       return;
     }
     // Phone number is still required
@@ -514,15 +526,47 @@ export default function AddFunds({ onWalletSelect }) {
           }}
           onChange={(e) => {
             let value = e.target.value;
+            // Remove non-numeric except decimal
             value = value.replace(/[^0-9.]/g, "");
+            // Prevent leading zeros
             if (value === "0") return;
             if (/^0\d+/.test(value)) return;
+            // Allow only one decimal point
             const parts = value.split(".");
             if (parts.length > 2) return;
+            // Limit to 2 decimal places
             if (parts[1] && parts[1].length > 2) {
               value = parts[0] + "." + parts[1].slice(0, 2);
             }
             setDepositAmount(value);
+
+            // --- Validation logic ---
+            const num = Number(value);
+            if (value === "") {
+              setAmountError("");
+              return;
+            }
+            if (isNaN(num) || num <= 0) {
+              setAmountError("Please enter a valid positive amount.");
+              return;
+            }
+            if (/^0\d+/.test(value)) {
+              setAmountError("Amount cannot start with zero.");
+              return;
+            }
+            if (value.includes(".")) {
+              const decimalPart = value.split(".")[1];
+              if (decimalPart && decimalPart.length > 2) {
+                setAmountError("Only 2 decimal places are allowed.");
+                return;
+              }
+            }
+            if (num > MAX_AMOUNT) {
+              setAmountError(`Maximum amount is ₹${MAX_AMOUNT.toLocaleString()}.`);
+              return;
+            }
+            // All valid
+            setAmountError("");
           }}
           style={{
             flex: 1,
@@ -536,9 +580,16 @@ export default function AddFunds({ onWalletSelect }) {
             fontSize: "15px",
             color: "#111827",
           }}
-          className="placeholder-gray-400 disabled:bg-gray-100"
+          className={`placeholder-gray-400 disabled:bg-gray-100 ${amountError ? "border-red-500" : ""}`}
         />
       </div>
+
+      {/* Warning message below input */}
+      {amountError && (
+        <div className="mt-1 text-red-500 text-sm font-medium">
+          ⚠️ {amountError}
+        </div>
+      )}
 
       {/* Warning if phone number is missing (still required) */}
       {!hasPhone && (
@@ -597,7 +648,7 @@ export default function AddFunds({ onWalletSelect }) {
 
       <button
         onClick={handleProceedToPayment}
-        disabled={isLoading || !cashfreeReady || userLoading || !hasPhone}
+        disabled={isLoading || !cashfreeReady || userLoading || !hasPhone || !!amountError}
         className="mt-6 px-6 py-3 bg-gradient-to-r from-[#51218F] to-black text-white rounded-[10px] font-semibold text-[14px] md:text-[16px] hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isLoading ? "Processing..." : "Proceed to Payment"}

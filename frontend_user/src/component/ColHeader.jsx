@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import profilepic from "../assets/Landing/Profilepic.png";
-import NotiProfile from "../assets/AfterSign/profile.png";
 import api, { setLoggingOut } from "../utils/axiosConfig";
 import { useUser } from "../contexts/UserContext";
 import { formatDistanceToNow } from 'date-fns';
@@ -15,12 +14,8 @@ console.log("🔍 ColHeader API_BASE_URL:", API_BASE_URL);
 const ColHeader = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { updateUserData, logout } = useUser();
-
-  // Add user state
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [fetchAttempted, setFetchAttempted] = useState(false);
+  // ✅ Use global user data from context
+  const { userData, loading, updateUserData, logout } = useUser();
 
   // NAVBAR STATE
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -51,16 +46,10 @@ const ColHeader = () => {
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+  // ✅ Local status (synced with context)
   const [status, setStatus] = useState("Available");
 
   const [notificationImageErrors, setNotificationImageErrors] = useState({});
-
-  const handleNotificationImageError = (notificationId) => {
-    setNotificationImageErrors(prev => ({
-      ...prev,
-      [notificationId]: true
-    }));
-  };
 
   // Add a flag to track if component is mounted
   const isMounted = useRef(true);
@@ -108,22 +97,17 @@ const ColHeader = () => {
     return null;
   }
 
-  // Fetch user data on component mount
+  // ✅ Sync local status with context
   useEffect(() => {
-    isMounted.current = true;
-
-    if (!fetchAttempted && !location.pathname.includes('/login')) {
-      fetchUserData();
+    if (userData?.status) {
+      const mappedStatus = userData.status === "Active" ? "Available" : "Away";
+      setStatus(mappedStatus);
     }
+  }, [userData?.status]);
 
-    return () => {
-      isMounted.current = false;
-    };
-  }, [fetchAttempted, location.pathname]);
-
-  // Fetch notifications and messages when user is loaded
+  // ✅ Fetch notifications and messages when user ID is available
   useEffect(() => {
-    if (user?.id) {
+    if (userData?.id) {
       fetchNotifications(true);
       fetchUnreadMessageCount();
 
@@ -138,13 +122,13 @@ const ColHeader = () => {
         }
       };
     }
-  }, [user?.id]);
+  }, [userData?.id]);
 
   // Listen for manual refresh events from profile page
   useEffect(() => {
     const handleRefreshNotifications = () => {
       console.log("🔄 Refreshing notifications instantly...");
-      if (user?.id) {
+      if (userData?.id) {
         fetchNotifications(true);
         fetchUnreadMessageCount();
       }
@@ -155,7 +139,7 @@ const ColHeader = () => {
     return () => {
       window.removeEventListener('refreshNotifications', handleRefreshNotifications);
     };
-  }, [user?.id]);
+  }, [userData?.id]);
 
   // Update active tab based on location
   useEffect(() => {
@@ -274,44 +258,9 @@ const ColHeader = () => {
     };
   }, [openDropdown]);
 
-  const fetchUserData = async () => {
-    if (location.pathname.includes('/login')) {
-      if (isMounted.current) {
-        setLoading(false);
-      }
-      return;
-    }
+  // ✅ No fetchUserData needed – we use context
 
-    try {
-      setFetchAttempted(true);
-      const response = await api.get("/auth/me");
-      console.log("✅ ColHeader user data:", response.data);
-      
-      if (isMounted.current) {
-        setUser(response.data);
-        const backendStatus = response.data.status === "Active" ? "Available" : "Away";
-        setStatus(backendStatus);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error("Failed to fetch user data:", error);
-
-      if (error.response?.status === 401) {
-        if (isMounted.current) {
-          setUser(null);
-          updateUserData(null);
-        }
-
-        if (!location.pathname.includes('/login')) {
-          window.location.href = '/login';
-        }
-      } else if (isMounted.current) {
-        setUser(null);
-        setLoading(false);
-      }
-    }
-  };
-
+  // ---- API functions (unchanged, but now use userData.id) ----
   const fetchNotifications = async (showLoader = false) => {
     try {
       if (showLoader) {
@@ -349,10 +298,7 @@ const ColHeader = () => {
         });
 
         const unread = formattedNotifications.filter(n => !n.is_read).length;
-        
-        setUnreadCount(prev => {
-          return prev === unread ? prev : unread;
-        });
+        setUnreadCount(prev => (prev === unread ? prev : unread));
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -365,22 +311,18 @@ const ColHeader = () => {
 
   const fetchUnreadMessageCount = async () => {
     try {
-      const response = await api.get(`/message/unread-count?current_user_id=${user.id}`);
+      if (!userData?.id) return;
+      const response = await api.get(`/message/unread-count?current_user_id=${userData.id}`);
       console.log("💬 ColHeader unread message count response:", response.data);
       
       if (response.data) {
         const count = response.data.count || 0;
         console.log(`💬 ColHeader setting unread message count to: ${count}`);
-        
-        setUnreadMessageCount(prev => {
-          return prev === count ? prev : count;
-        });
+        setUnreadMessageCount(prev => (prev === count ? prev : count));
       }
     } catch (error) {
       console.error('❌ ColHeader error fetching unread message count:', error);
-      setUnreadMessageCount(prev => {
-        return prev === 0 ? prev : 0;
-      });
+      setUnreadMessageCount(0);
     }
   };
 
@@ -525,7 +467,7 @@ const ColHeader = () => {
       );
     }
 
-    if (user?.profile_picture) {
+    if (userData?.profile_picture) {
       const userImageUrl = getUserImage();
       return (
         <img
@@ -539,7 +481,7 @@ const ColHeader = () => {
       );
     }
 
-    const userFirstLetter = getFirstLetterFromUser(user);
+    const userFirstLetter = getFirstLetterFromUser(userData);
     return (
       <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#51218F] to-[#7242B8] flex items-center justify-center text-white text-xs font-bold uppercase">
         {userFirstLetter}
@@ -619,10 +561,11 @@ const ColHeader = () => {
     setIsStatusMenuOpen((p) => !p);
   };
 
+  // ✅ Update status – now uses context
   const changeStatus = async (newStatus) => {
     console.log("🔄 changeStatus called with:", newStatus);
     
-    if (!user?.id) {
+    if (!userData?.id) {
       console.error("❌ No user ID available");
       toast.error("User data not loaded");
       return;
@@ -631,19 +574,19 @@ const ColHeader = () => {
     const mappedStatus = newStatus === "Available" ? "Active" : "Inactive";
 
     try {
-      const response = await api.put(`/profile/update-status/${user.id}/`, {
+      const response = await api.put(`/profile/update-status/${userData.id}/`, {
         status: mappedStatus
       });
       
       console.log("✅ Status update response:", response.data);
       
       setStatus(newStatus);
-      setUser(prev => prev ? { ...prev, status: mappedStatus } : prev);
+      // ✅ Update global context so other components reflect the change
+      updateUserData({ status: newStatus });
       setIsStatusMenuOpen(false);
       setIsProfileMenuOpen(false);
       setIsMobileProfileOpen(false);
       toast.success(`Status updated to ${newStatus}`);
-      await fetchUserData();
       
     } catch (error) {
       console.error("❌ Error updating status:", error);
@@ -672,11 +615,9 @@ const ColHeader = () => {
         } catch (error) {
           console.error("Logout error:", error);
         }
-        
         if (updateUserData) {
           updateUserData(null);
         }
-        setUser(null);
       }
       
       toast.success("Logout successfully!");
@@ -698,11 +639,11 @@ const ColHeader = () => {
   };
 
   const getUserName = () => {
-    if (!user) return "User";
-    if (user?.full_name) {
-      return user.full_name;
-    } else if (user?.email) {
-      return user.email.split('@')[0];
+    if (!userData) return "User";
+    if (userData?.full_name) {
+      return userData.full_name;
+    } else if (userData?.email) {
+      return userData.email.split('@')[0];
     }
     return "User";
   };
@@ -713,17 +654,31 @@ const ColHeader = () => {
   };
 
   const getUserImage = () => {
-    if (!user?.profile_picture) return profilepic;
+    if (!userData?.profile_picture) return profilepic;
 
-    if (user.profile_picture.startsWith('http')) {
-      return user.profile_picture;
+    let picture = userData.profile_picture;
+    if (typeof picture === 'string') {
+      if (picture.startsWith('http://') || picture.startsWith('https://')) {
+        return picture;
+      }
+      if (picture.startsWith('/media/')) {
+        return `${API_BASE_URL}${picture}`;
+      }
+      if (picture.startsWith('/')) {
+        return `${API_BASE_URL}${picture}`;
+      }
+      if (picture.includes('media/')) {
+        return `${API_BASE_URL}/${picture}`;
+      }
+      return `${API_BASE_URL}/media/${picture}`;
     }
-    return `${API_BASE_URL}/media/${user.profile_picture}`;
+    return profilepic;
   };
 
   const filteredNotifications = getFilteredNotifications();
 
-  if (!user && !loading && !location.pathname.includes('/login')) {
+  // ✅ If not authenticated and not loading, don't render (redirect happens elsewhere)
+  if (!userData && !loading && !location.pathname.includes('/login')) {
     return null;
   }
 
@@ -847,41 +802,39 @@ const ColHeader = () => {
             onClick={() => setIsMobileProfileOpen(true)}
             className="w-10 h-10 rounded-full overflow-hidden border-2 border-white flex-shrink-0 cursor-pointer"
           >
-            <img
-              src={loading ? profilepic : getUserImage()}
-              alt={getUserName()}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.src = profilepic;
-              }}
-            />
+            {loading ? (
+              <div className="w-full h-full bg-gray-300 animate-pulse" />
+            ) : (
+              <img
+                src={getUserImage()}
+                alt={getUserName()}
+                className="w-full h-full object-cover"
+                onError={(e) => { e.target.src = profilepic; }}
+              />
+            )}
           </div>
         </div>
 
         {/* Profile and Name Container for Desktop */}
         <div ref={profileRef} className="relative group hidden md:block">
-          <div className="w-auto md:w-[140px] h-[64px] flex items-center gap-2  hover:opacity-90 transition-opacity">
+          <div className="w-auto md:w-[140px] h-[64px] flex items-center gap-2 hover:opacity-90 transition-opacity">
             <div className="text-white font-poppins font-normal text-[20px] leading-[100%] hidden sm:block max-w-[90px] truncate">
               {loading ? "Loading..." : getDisplayName()}
             </div>
 
             <div onClick={toggleProfileMenu} className="w-10 h-10 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-white flex-shrink-0">
-              <img
-                src={loading ? profilepic : getUserImage()}
-                alt={getUserName()}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.src = profilepic;
-                }}
-              />
+              {loading ? (
+                <div className="w-full h-full bg-gray-300 animate-pulse" />
+              ) : (
+                <img
+                  src={getUserImage()}
+                  alt={getUserName()}
+                  className="w-full h-full object-cover"
+                  onError={(e) => { e.target.src = profilepic; }}
+                />
+              )}
             </div>
           </div>
-
-          {/* {!loading && getUserName() !== "User" && (
-            <div className="absolute top-full left-0 mt-1 bg-gray-800 text-white text-sm px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-[100] pointer-events-none">
-              {getUserName()}
-            </div>
-          )} */}
         </div>
       </div>
 
@@ -1030,14 +983,16 @@ const ColHeader = () => {
           >
             <div className="flex flex-col items-center p-6 border-b border-white/20">
               <div className="w-20 h-20 rounded-full overflow-hidden border-3 border-white/30 mb-3">
-                <img
-                  src={loading ? profilepic : getUserImage()}
-                  alt={getUserName()}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.src = profilepic;
-                  }}
-                />
+                {loading ? (
+                  <div className="w-full h-full bg-gray-300 animate-pulse" />
+                ) : (
+                  <img
+                    src={getUserImage()}
+                    alt={getUserName()}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { e.target.src = profilepic; }}
+                  />
+                )}
               </div>
               <h3 className="text-white text-lg font-semibold text-center">
                 {getUserName()}
@@ -1120,139 +1075,137 @@ const ColHeader = () => {
       )}
 
       {/* ================= COMBINED PROFILE DROPDOWN (DESKTOP) ================= */}
-     {isProfileMenuOpen && (
-  <div
-  className="
-    absolute
-    right-0
-    top-[74px] 
-    w-[180px]
-    rounded-[12px]
-    overflow-hidden
-    z-[60]
-    py-2
-  "
-  style={{
-    background: "linear-gradient(180deg, #7242B8 0%, #030016 100%)",
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    boxShadow: '0 20px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05)'
-  }}
->
-    {/* Profile Button */}
-    <button 
-      onClick={() => handleDropdownItemClick("/ColabProfile")}
-      type="button"
-      className="w-full px-5 py-2.5 flex items-center gap-3 text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
-    >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-      <span className="text-sm font-medium">View Profile</span>
-    </button>
-
-    {/* Status Section */}
-   <div className="relative">
-  <button
-    type="button"
-    onClick={toggleStatusMenu}
-    className="w-full px-5 py-2.5 flex items-center justify-between text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
-  >
-    <div className="flex items-center gap-3">
-      {/* Dynamic Status Icon */}
-      {status === "Available" ? (
-        <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-          </svg>
-        </span>
-      ) : status === "Away" ? (
-        <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
-          </svg>
-        </span>
-      ) : (
-        <span className="w-4 h-4 rounded-full bg-gray-500"></span>
-      )}
-      <span className="text-sm font-medium">
-        {status === "Set Status" ? "Set Status" : status}
-      </span>
-    </div>
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 16 16"
-      className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''}`}
-      fill="none"
-    >
-      <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  </button>
-
-  {/* Status Sub-options */}
-  {isStatusMenuOpen && (
-    <div className="px-3 pb-2">
-      <div className="rounded-xl p-1.5 bg-white/5">
-        <button
-          type="button"
-          onClick={() => changeStatus("Available")}
-          className={`
-            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
-            ${status === "Available" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
-          `}
+      {isProfileMenuOpen && (
+        <div
+          className="
+            absolute
+            right-0
+            top-[74px] 
+            w-[180px]
+            rounded-[12px]
+            overflow-hidden
+            z-[60]
+            py-2
+          "
+          style={{
+            background: "linear-gradient(180deg, #7242B8 0%, #030016 100%)",
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.05)'
+          }}
         >
-          <span className="relative">
-            <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-              {status === "Available" && (
-                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-                </svg>
-              )}
-            </span>
-            {status === "Available" && (
-              <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
-            )}
-          </span>
-          <span className="text-sm">Available</span>
-        </button>
+          {/* Profile Button */}
+          <button 
+            onClick={() => handleDropdownItemClick("/ColabProfile")}
+            type="button"
+            className="w-full px-5 py-2.5 flex items-center gap-3 text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <span className="text-sm font-medium">View Profile</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => changeStatus("Away")}
-          className={`
-            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
-            ${status === "Away" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
-          `}
-        >
-          <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-            {status === "Away" && (
-              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+          {/* Status Section */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={toggleStatusMenu}
+              className="w-full px-5 py-2.5 flex items-center justify-between text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
+            >
+              <div className="flex items-center gap-3">
+                {status === "Available" ? (
+                  <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                  </span>
+                ) : status === "Away" ? (
+                  <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                    </svg>
+                  </span>
+                ) : (
+                  <span className="w-4 h-4 rounded-full bg-gray-500"></span>
+                )}
+                <span className="text-sm font-medium">
+                  {status === "Set Status" ? "Set Status" : status}
+                </span>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                className={`w-3.5 h-3.5 text-gray-500 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''}`}
+                fill="none"
+              >
+                <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
+            </button>
+
+            {isStatusMenuOpen && (
+              <div className="px-3 pb-2">
+                <div className="rounded-xl p-1.5 bg-white/5">
+                  <button
+                    type="button"
+                    onClick={() => changeStatus("Available")}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
+                      ${status === "Available" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
+                    `}
+                  >
+                    <span className="relative">
+                      <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+                        {status === "Available" && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        )}
+                      </span>
+                      {status === "Available" && (
+                        <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
+                      )}
+                    </span>
+                    <span className="text-sm">Available</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => changeStatus("Away")}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
+                      ${status === "Away" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
+                    `}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+                      {status === "Away" && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-sm">Away</span>
+                  </button>
+                </div>
+              </div>
             )}
-          </span>
-          <span className="text-sm">Away</span>
-        </button>
-      </div>
-    </div>
-  )}
-</div>
+          </div>
 
-    {/* Divider */}
-    <div className="mx-4 my-1 border-t border-white/10"></div>
+          {/* Divider */}
+          <div className="mx-4 my-1 border-t border-white/10"></div>
 
-    {/* Logout Button */}
-    <button 
-      onClick={handleLogout}
-      type="button"
-      className="w-full px-5 py-2.5 flex items-center gap-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200"
-    >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-      </svg>
-      <span className="text-sm font-medium">Log Out</span>
-    </button>
-  </div>
-)}
+          {/* Logout Button */}
+          <button 
+            onClick={handleLogout}
+            type="button"
+            className="w-full px-5 py-2.5 flex items-center gap-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            <span className="text-sm font-medium">Log Out</span>
+          </button>
+        </div>
+      )}
 
       {/* ================= NOTIFICATION POPUP ================= */}
       {showNotifications && (

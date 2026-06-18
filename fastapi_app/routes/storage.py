@@ -333,7 +333,8 @@ async def save_upload_file(
             extra_args = {
                 "ACL": acl,
                 "ContentType": content_type or file.content_type or "application/octet-stream",
-                "CacheControl": "no-store, no-cache, must-revalidate",
+                # ✅ CHANGE: Allow caching for profile pics
+                "CacheControl": "public, max-age=86400",
                 "ContentDisposition": "inline",
             }
 
@@ -562,20 +563,12 @@ def delete_file_by_path(storage_type: StoragePath, filename: str):
 # PRE-SIGNED URL WITH AUTO EXPIRE
 # =====================================================
 def generate_presigned_url(
-    s3_key: str,  # <-- First parameter should be s3_key
+    s3_key: str,
     expires_in: int = ExpiryPreset.STANDARD,
     force_download: bool = False
 ) -> Optional[str]:
     """
     Generate presigned URL that AUTO EXPIRES after specified time.
-
-    Args:
-        s3_key: S3 object key
-        expires_in: Seconds until URL expires (default: 3600 = 1 hour)
-        force_download: If True, browser will download instead of displaying
-
-    Returns:
-        Presigned URL string or None if file not found
     """
     if not USE_S3:
         return f"/media/{s3_key}"
@@ -591,8 +584,8 @@ def generate_presigned_url(
         params = {
             "Bucket": S3_BUCKET,
             "Key": s3_key,
-            "ResponseCacheControl": "no-store, no-cache, must-revalidate, max-age=0",
-            "ResponseExpires": "0",
+            # ✅ CHANGE: Allow caching in browser
+            "ResponseCacheControl": "public, max-age=86400, immutable",
         }
 
         if content_type:
