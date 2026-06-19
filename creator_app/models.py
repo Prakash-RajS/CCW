@@ -411,8 +411,14 @@ class Message(models.Model):
     file = models.FileField(upload_to="message_files/", null=True, blank=True)
     message_type = models.CharField(max_length=20, default="text")
     edited = models.BooleanField(default=False)
+    
+    # NEW: Starred messages feature
+    is_starred = models.BooleanField(default=False)
+    starred_by = models.ManyToManyField('UserData', related_name='starred_messages', blank=True)
+    starred_at = models.DateTimeField(null=True, blank=True)
 
-    def __str__(self): return f"Msg from {self.sender.email}"
+    def __str__(self): 
+        return f"Msg from {self.sender.email}"
 
 # In creator_app/models.py
 class MessageReaction(models.Model):

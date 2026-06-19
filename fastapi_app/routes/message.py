@@ -1,7 +1,7 @@
 #fastapi_app/routes/message.py
 from fastapi_app.django_setup import setup_django
 setup_django()
-from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Request, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form, Request, Query, WebSocket, WebSocketDisconnect, Header
 from fastapi.responses import JSONResponse, FileResponse, Response
 import mimetypes
 from pydantic import BaseModel
@@ -27,6 +27,8 @@ from fastapi_app.routes.storage import (
     StoragePath,
     get_storage_path,
 )
+import hashlib
+import json
 
 router = APIRouter(prefix="/message", tags=["Messaging"])
 
@@ -48,6 +50,10 @@ CHAT_FILES_DIR.mkdir(parents=True, exist_ok=True)
 #print(f"📁 Media directory: {MEDIA_DIR}")
 #print(f"📁 Message files directory: {MESSAGE_FILES_DIR}")
 #print(f"📁 Chat files directory: {CHAT_FILES_DIR}")
+
+class StarMessagePayload(BaseModel):
+    user_id: int
+    is_starred: bool
 
 # Helper: get or create conversation
 def get_or_create_conversation(user1, user2):
@@ -764,9 +770,13 @@ async def delete_conversation(user1_id: int, user2_id: int, user_id: int = Query
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/conversation/{user1_id}/{user2_id}")
-async def get_messages(request: Request, user1_id: int, user2_id: int):
+async def get_messages(
+    request: Request, 
+    user1_id: int, 
+    user2_id: int,
+    if_none_match: Optional[str] = Header(None)
+):
     try:
-        # ✅ Use sync_to_async for all database operations
         user1 = await sync_to_async(UserData.objects.filter(id=user1_id).first)()
         user2 = await sync_to_async(UserData.objects.filter(id=user2_id).first)()
 
@@ -792,18 +802,16 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
                 "messages": [],
                 "other_user_online": False,
                 "other_user_typing": (user2.is_typing and user2.typing_with == user1_id) if hasattr(user2, 'is_typing') else False,
-                "other_user_last_active": user2.last_active,
+                "other_user_last_active": user2.last_active.isoformat() if user2.last_active else None,
             }
 
-        # ✅ Fetch messages with select_related to prefetch sender
         msgs = await sync_to_async(
-            lambda: list(convo.messages.select_related('sender', 'reply_to').order_by("created_at"))
+            lambda: list(convo.messages.select_related('sender', 'reply_to').prefetch_related('starred_by').order_by("created_at"))
         )()
 
         def get_file_url(file_obj):
             if not file_obj:
                 return None
-            # Check if it's a string or object with name attribute
             file_path = str(file_obj.name) if hasattr(file_obj, 'name') else str(file_obj)
             return build_full_url(
                 request=request,
@@ -824,6 +832,25 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
         online = False
         if user2.last_active:
             online = (now - user2.last_active) <= timedelta(seconds=60)
+
+        # Get reactions for all messages in one query
+        message_ids = [m.id for m in msgs]
+        from creator_app.models import MessageReaction
+        
+        reactions_data = await sync_to_async(
+            lambda: list(MessageReaction.objects.filter(
+                message_id__in=message_ids
+            ).values('message_id', 'emoji', 'user_id'))
+        )()
+        
+        reactions_by_message = {}
+        for r in reactions_data:
+            msg_id = r['message_id']
+            if msg_id not in reactions_by_message:
+                reactions_by_message[msg_id] = {}
+            if r['emoji'] not in reactions_by_message[msg_id]:
+                reactions_by_message[msg_id][r['emoji']] = []
+            reactions_by_message[msg_id][r['emoji']].append(r['user_id'])
 
         formatted_messages = []
         for m in msgs:
@@ -849,9 +876,13 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
                     "status": "completed"
                 }
 
+            is_starred = await sync_to_async(
+                lambda: m.starred_by.filter(id=user1_id).exists()
+            )()
+
             formatted_messages.append({
                 "id": m.id,
-                "sender": m.sender.id,  # ✅ Now safe because we used select_related
+                "sender": m.sender.id,
                 "content": m.content,
                 "file_url": get_file_url(m.file),
                 "message_type": message_type,
@@ -859,18 +890,35 @@ async def get_messages(request: Request, user1_id: int, user2_id: int):
                 "is_seen": m.is_seen,
                 "created_at": m.created_at.isoformat(),
                 "call_data": call_data,
-                "edited": m.edited
+                "edited": m.edited,
+                "is_starred": is_starred,
+                "starred_count": m.starred_by.count(),
+                "reactions": reactions_by_message.get(m.id, {}),
             })
 
-        return {
+        response_data = {
             "conversation_id": convo.id,
             "other_user_online": online,
             "other_user_typing": (user2.is_typing and user2.typing_with == user1_id) if hasattr(user2, 'is_typing') else False,
-            "other_user_last_active": user2.last_active,
-            "messages": formatted_messages
+            "other_user_last_active": user2.last_active.isoformat() if user2.last_active else None,  # <-- FIXED
+            "messages": formatted_messages,
+            "updated_at": convo.updated_at.isoformat() if hasattr(convo, 'updated_at') else timezone.now().isoformat()
         }
+        
+        # Generate ETag
+        etag_data = json.dumps(response_data, sort_keys=True, default=str)
+        etag = hashlib.md5(etag_data.encode()).hexdigest()
+        
+        # Check if client has the latest version
+        if if_none_match and if_none_match == f'"{etag}"':
+            return Response(status_code=304)
+        
+        return JSONResponse(
+            content=response_data,
+            headers={"ETag": f'"{etag}"'}
+        )
+        
     except Exception as e:
-        #print(f"Error in get_messages: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1477,4 +1525,208 @@ async def get_conversation_by_id(
         raise
     except Exception as e:
         #print(f"❌ Error getting conversation by ID: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# ===================================================
+# STAR/UNSTAR MESSAGE ENDPOINTS
+# ===================================================
+
+@router.post("/message/{message_id}/star")
+async def star_message(message_id: int, payload: StarMessagePayload):
+    """
+    Star or unstar a message for a specific user.
+    """
+    try:
+        msg = await sync_to_async(Message.objects.filter(id=message_id).first)()
+        if not msg:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        user = await sync_to_async(UserData.objects.filter(id=payload.user_id).first)()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if user is part of the conversation
+        convo = await sync_to_async(lambda: msg.conversation)()
+        if convo.user1_id != payload.user_id and convo.user2_id != payload.user_id:
+            raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
+        
+        if payload.is_starred:
+            # Star the message
+            await sync_to_async(msg.starred_by.add)(user)
+            msg.is_starred = True
+            msg.starred_at = timezone.now()
+            await sync_to_async(msg.save)(update_fields=["is_starred", "starred_at"])
+            
+            # Notify other user
+            other_user_id = convo.user2_id if convo.user1_id == payload.user_id else convo.user1_id
+            await manager.send_personal_message({
+                "type": "message_starred",
+                "message_id": message_id,
+                "user_id": payload.user_id,
+                "is_starred": True
+            }, other_user_id)
+            
+        else:
+            # Unstar the message
+            await sync_to_async(msg.starred_by.remove)(user)
+            
+            # Check if any users have starred this message
+            remaining_stars = await sync_to_async(msg.starred_by.count)()
+            if remaining_stars == 0:
+                msg.is_starred = False
+                msg.starred_at = None
+                await sync_to_async(msg.save)(update_fields=["is_starred", "starred_at"])
+            
+            # Notify other user
+            other_user_id = convo.user2_id if convo.user1_id == payload.user_id else convo.user1_id
+            await manager.send_personal_message({
+                "type": "message_starred",
+                "message_id": message_id,
+                "user_id": payload.user_id,
+                "is_starred": False
+            }, other_user_id)
+        
+        return {
+            "status": "success",
+            "message_id": message_id,
+            "is_starred": payload.is_starred,
+            "user_id": payload.user_id
+        }
+        
+    except Exception as e:
+        print(f"❌ Error starring message: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/message/{message_id}/star-status")
+async def get_message_star_status(message_id: int, user_id: int = Query(...)):
+    """
+    Check if a message is starred by a specific user.
+    """
+    try:
+        msg = await sync_to_async(Message.objects.filter(id=message_id).first)()
+        if not msg:
+            raise HTTPException(status_code=404, detail="Message not found")
+        
+        is_starred = await sync_to_async(
+            lambda: msg.starred_by.filter(id=user_id).exists()
+        )()
+        
+        return {
+            "message_id": message_id,
+            "is_starred": is_starred,
+            "user_id": user_id
+        }
+        
+    except Exception as e:
+        #print(f"❌ Error getting star status: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/user/starred-messages")
+async def get_starred_messages(
+    request: Request,
+    user_id: int = Query(..., description="User ID"),
+    limit: int = Query(50, description="Max messages to return")
+):
+    """
+    Get all starred messages for a user.
+    """
+    try:
+        user = await sync_to_async(UserData.objects.filter(id=user_id).first)()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        starred_msgs = await sync_to_async(list)(
+            Message.objects.filter(
+                starred_by=user
+            ).select_related('sender', 'conversation')
+            .order_by('-starred_at', '-created_at')[:limit]
+        )
+        
+        result = []
+        for msg in starred_msgs:
+            # Get the other user in the conversation
+            convo = await sync_to_async(lambda: msg.conversation)()
+            other_user = convo.user2 if convo.user1_id == user_id else convo.user1
+            
+            # Build file URL if exists
+            file_url = None
+            if msg.file:
+                file_url = build_full_url(
+                    request=request,
+                    path=str(msg.file.name) if hasattr(msg.file, 'name') else str(msg.file),
+                    file_type="message"
+                )
+            
+            # Determine if message is from current user
+            is_from_user = msg.sender_id == user_id
+            
+            result.append({
+                "id": msg.id,
+                "content": msg.content,
+                "sender_id": msg.sender_id,
+                "sender_name": msg.sender.full_name or msg.sender.email,
+                "is_from_user": is_from_user,
+                "file_url": file_url,
+                "message_type": msg.message_type,
+                "created_at": msg.created_at.isoformat(),
+                "starred_at": msg.starred_at.isoformat() if msg.starred_at else None,
+                "conversation": {
+                    "id": convo.id,
+                    "other_user_id": other_user.id,
+                    "other_user_name": other_user.full_name or other_user.email,
+                    "other_user_email": other_user.email,
+                }
+            })
+        
+        return {
+            "status": "success",
+            "count": len(result),
+            "messages": result
+        }
+        
+    except Exception as e:
+        #print(f"❌ Error getting starred messages: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/messages/reactions/batch")
+async def get_messages_reactions_batch(
+    message_ids: list[int],
+    request: Request
+):
+    """
+    Get reactions for multiple messages in one request.
+    """
+    try:
+        from creator_app.models import MessageReaction
+        
+        if not message_ids:
+            return {"reactions": {}}
+        
+        # Get all reactions for these messages in one query
+        reactions_data = await sync_to_async(
+            lambda: list(MessageReaction.objects.filter(
+                message_id__in=message_ids
+            ).values('message_id', 'emoji', 'user_id'))
+        )()
+        
+        # Group by message_id
+        grouped_reactions = {}
+        for r in reactions_data:
+            msg_id = r['message_id']
+            if msg_id not in grouped_reactions:
+                grouped_reactions[msg_id] = {}
+            if r['emoji'] not in grouped_reactions[msg_id]:
+                grouped_reactions[msg_id][r['emoji']] = []
+            grouped_reactions[msg_id][r['emoji']].append(r['user_id'])
+        
+        return {"reactions": grouped_reactions}
+        
+    except Exception as e:
+        print(f"❌ Error getting batch reactions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

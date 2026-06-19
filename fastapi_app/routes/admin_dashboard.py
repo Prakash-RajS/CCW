@@ -1017,6 +1017,13 @@ def get_progress_chart(
         Q(status__iexact="pending") |
         Q(status__iexact="in_review")
     ).count()
+    
+    if total_contracts > 0:
+        growth_percentage = round(
+            (completed_contracts / total_contracts) * 100
+        )
+    else:
+        growth_percentage = 0
 
     return {
         "labels": labels,
@@ -1024,7 +1031,7 @@ def get_progress_chart(
         "all_task": total_contracts,
         "done": completed_contracts,
         "in_progress": in_progress_contracts,
-        "growth_percentage": 0
+        "growth_percentage": growth_percentage
     }
 
 @router.get("/dashboard/active-projects")

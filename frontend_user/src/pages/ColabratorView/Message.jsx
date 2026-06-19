@@ -25,7 +25,57 @@ const avatarPool = [User1, User2, User3, User4, User5];
 ---------------------------------- */
 const DEFAULT_QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢"];
 
+const MessageSkeleton = () => (
+  <div className="flex-1 flex flex-col h-full bg-gray-50">
+    {/* Header skeleton */}
+    <div className="h-14 sm:h-16 md:h-[72px] px-2 sm:px-3 md:px-5 flex items-center gap-2 sm:gap-3 border-b border-gray-200 bg-white flex-shrink-0">
+      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+      <div className="flex-1">
+        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+        <div className="h-3 w-24 bg-gray-200 rounded mt-1 animate-pulse" />
+      </div>
+    </div>
 
+    {/* Messages skeleton */}
+    <div className="flex-1 overflow-y-auto px-2 sm:px-3 md:px-5 py-3 md:py-5">
+      <div className="space-y-4 max-w-full mx-auto px-2 sm:px-3 md:px-4">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] md:max-w-[70%] ${i % 2 === 0 ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}>
+              <div className={`px-3 py-2 rounded-2xl ${i % 2 === 0 ? "bg-purple-200" : "bg-gray-200"} animate-pulse`}>
+                <div className="h-4 w-48 bg-gray-300 rounded" />
+                <div className="h-3 w-32 bg-gray-300 rounded mt-2" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+
+    {/* Input skeleton */}
+    <div className="p-2 sm:p-3 md:p-4 bg-white border-t border-gray-200 flex-shrink-0">
+      <div className="flex items-center gap-2 bg-gray-100 rounded-2xl p-1.5 sm:p-2">
+        <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+        <div className="flex-1 h-10 bg-gray-200 rounded animate-pulse" />
+        <div className="w-10 h-10 bg-gray-300 rounded-full animate-pulse" />
+      </div>
+    </div>
+  </div>
+);
+
+const UserListSkeleton = () => (
+  <div className="flex-1 overflow-y-auto px-2 sm:px-3 pb-3">
+    {[1, 2, 3, 4, 5].map((i) => (
+      <div key={i} className="flex items-center gap-3 px-3 py-3 rounded-xl">
+        <div className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
+        <div className="flex-1">
+          <div className="h-4 w-24 bg-gray-200 rounded animate-pulse" />
+          <div className="h-3 w-32 bg-gray-200 rounded mt-1 animate-pulse" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 /* ----------------------------------
    QUICK REACTIONS BAR WITH CUSTOM EMOJIS
@@ -412,14 +462,14 @@ const MobileMessageActions = ({ message, messageElement, onClose, onReply, onSta
         </button>
         
         <button
-          onClick={() => { onStar(message); onClose(); }}
-          className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200 ${
-            isStarred ? "text-amber-500" : "text-gray-600"
-          }`}
-        >
-          <span className="text-xl">⭐</span>
-          <span className="text-[10px] font-medium">Star</span>
-        </button>
+  onClick={() => { onStar(message); onClose(); }}
+  className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200 ${
+    isStarred ? "text-amber-500" : "text-gray-600"
+  }`}
+>
+  <span className="text-xl">{isStarred ? "⭐" : "☆"}</span>
+  <span className="text-[10px] font-medium">{isStarred ? "Unstar" : "Star"}</span>
+</button>
         
         <button
           onClick={(e) => { onContextMenu(message, e); onClose(); }}
@@ -973,6 +1023,7 @@ export default function Message() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [mobileActionMessage, setMobileActionMessage] = useState(null);
   const [mobileActionElement, setMobileActionElement] = useState(null);
+  const reactionsCache = useRef({});
   const [activeCall, setActiveCall] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callerProfileImage, setCallerProfileImage] = useState(null);
@@ -1215,7 +1266,15 @@ export default function Message() {
   }, [currentUserId, activeUserId, clearUnreadMessages]);
 
   const fetchMessages = useCallback(async (otherUserId) => {
-    if (!currentUserId || !otherUserId || !isMounted.current) return;
+  if (!currentUserId || !otherUserId || !isMounted.current) return;
+  
+  // ===== ADD THIS THROTTLE CHECK =====
+  const now = Date.now();
+  if (fetchMessages._lastFetch && (now - fetchMessages._lastFetch) < 3000) {
+    console.log('Throttling fetch - too soon');
+    return;
+  }
+  fetchMessages._lastFetch = now;
     setLoading(true);
     try {
       const response = await api.get(`/message/conversation/${currentUserId}/${otherUserId}`);
@@ -1249,11 +1308,22 @@ export default function Message() {
           is_seen: msg.is_seen,
           call_data: msg.call_data,
           edited: msg.edited || false,
+          is_starred: msg.is_starred || false, // <-- ADD THIS
         }));
         setMessages(formatted);
-        
+
+        // ===== ADD THIS: Initialize starredIds from API response =====
+        const initialStarredIds = new Set();
+        formatted.forEach(msg => {
+          if (msg.is_starred) {
+            initialStarredIds.add(msg.id);
+          }
+        });
+        setStarredIds(initialStarredIds);
+        // ===========================================================
+
         await loadAllReactions(formatted);
-        
+
         if (response.data.conversation_id) {
           const hasUnseen = formatted.some((m) => m.from === "other" && !m.is_seen);
           if (hasUnseen) await markMessagesAsSeen(response.data.conversation_id);
@@ -1267,19 +1337,64 @@ export default function Message() {
       setLoading(false);
     }
   }, [currentUserId, markMessagesAsSeen]);
+  
+  // ===== ADD THIS THROTTLE CHECK =====
+  
+        
 
   const loadAllReactions = useCallback(async (messagesList) => {
-    const allReactions = {};
-    for (const msg of messagesList) {
-      try {
-        const response = await api.get(`/message/message/${msg.id}/reactions`);
-        allReactions[msg.id] = response.data.reactions;
-      } catch (error) {
-        console.error(`Failed to load reactions for message ${msg.id}`, error);
+  if (!messagesList || messagesList.length === 0) {
+    setReactions({});
+    return;
+  }
+
+  try {
+    const messageIds = messagesList.map(msg => msg.id);
+    
+    // Check cache first
+    const cachedReactions = {};
+    const uncachedIds = [];
+    
+    messageIds.forEach(id => {
+      if (reactionsCache.current[id]) {
+        cachedReactions[id] = reactionsCache.current[id];
+      } else {
+        uncachedIds.push(id);
+      }
+    });
+    
+    // Only fetch uncached messages
+    if (uncachedIds.length > 0) {
+      const response = await api.post('/message/messages/reactions/batch', uncachedIds, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.data && response.data.reactions) {
+        // Update cache
+        Object.keys(response.data.reactions).forEach(id => {
+          reactionsCache.current[id] = response.data.reactions[id];
+        });
+        
+        // Merge with cached
+        setReactions({
+          ...cachedReactions,
+          ...response.data.reactions
+        });
+        return;
       }
     }
-    setReactions(allReactions);
-  }, []);
+    
+    // Use cached reactions
+    if (Object.keys(cachedReactions).length > 0) {
+      setReactions(cachedReactions);
+    } else {
+      setReactions({});
+    }
+  } catch (error) {
+    console.error('Failed to load reactions in batch:', error);
+    setReactions({});
+  }
+}, []);
 
   const sendHeartbeat = useCallback(async () => {
     if (!currentUserId) return;
@@ -1536,14 +1651,69 @@ export default function Message() {
     toast.success(pinnedMessage?.id === message.id ? "Message unpinned" : "Message pinned");
   }, [pinnedMessage]);
 
-  const handleStarMessage = useCallback((message) => {
-    setStarredIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(message.id)) { next.delete(message.id); toast.success("Message unstarred"); }
-      else { next.add(message.id); toast.success("Message starred ⭐"); }
-      return next;
-    });
-  }, []);
+  // Replace the existing handleStarMessage with this:
+
+const handleStarMessage = useCallback(async (message) => {
+    if (!currentUserId || !message) return;
+    
+    const currentStarred = starredIds.has(message.id);
+    
+    try {
+        // Update local state optimistically
+        setStarredIds(prev => {
+            const newSet = new Set(prev);
+            if (currentStarred) {
+                newSet.delete(message.id);
+            } else {
+                newSet.add(message.id);
+            }
+            return newSet;
+        });
+        
+        setMessages(prev => prev.map(msg => 
+            msg.id === message.id 
+                ? { ...msg, is_starred: !currentStarred }
+                : msg
+        ));
+        
+        // Call API
+        const response = await api.post(`/message/message/${message.id}/star`, {
+            user_id: currentUserId,
+            is_starred: !currentStarred
+        });
+        
+        if (response.data.status === 'success') {
+            toast.success(!currentStarred ? "Message starred ⭐" : "Message unstarred");
+            
+            // Update with server response
+            setMessages(prev => prev.map(msg => 
+                msg.id === message.id 
+                    ? { ...msg, is_starred: response.data.is_starred }
+                    : msg
+            ));
+        }
+    } catch (error) {
+        console.error("Failed to star message:", error);
+        toast.error("Failed to update star");
+        
+        // Revert on error
+        setStarredIds(prev => {
+            const newSet = new Set(prev);
+            if (currentStarred) {
+                newSet.add(message.id);
+            } else {
+                newSet.delete(message.id);
+            }
+            return newSet;
+        });
+        
+        setMessages(prev => prev.map(msg => 
+            msg.id === message.id 
+                ? { ...msg, is_starred: currentStarred }
+                : msg
+        ));
+    }
+}, [currentUserId, starredIds]);
 
   useEffect(() => {
     if (editingMessageId) {
@@ -1839,39 +2009,41 @@ export default function Message() {
 
   // Poll for new messages - fixed scroll behavior
   useEffect(() => {
-    if (activeUserId && currentUserId) {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = setInterval(() => {
-        const container = messagesContainerRef.current;
-        if (!container) return;
-        
-        const scrollTop = container.scrollTop;
-        const scrollHeight = container.scrollHeight;
-        const clientHeight = container.clientHeight;
-        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-        
-        // User is near bottom (within 100px) - considered "at bottom"
-        const isNearBottom = distanceFromBottom < 100;
-        
+  if (activeUserId && currentUserId) {
+    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    
+    // Use 30 seconds instead of 5 seconds
+    pollIntervalRef.current = setInterval(() => {
+      const container = messagesContainerRef.current;
+      if (!container) return;
+      
+      const scrollTop = container.scrollTop;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      
+      const isNearBottom = distanceFromBottom < 100;
+      
+      // Only fetch if user is at bottom or just sent a message
+      if (isNearBottom || scrollAfterSend.current) {
         fetchMessages(activeUserId).then(() => {
-          // If user was near bottom OR just sent a message, scroll to bottom
-          if (isNearBottom || scrollAfterSend.current) {
-            if (scrollAfterSend.current) {
-              scrollToBottom(true);
-              scrollAfterSend.current = false;
-            } else {
-              scrollToBottom(false);
-            }
-            shouldAutoScroll.current = true;
-            setUserScrolled(false);
+          if (scrollAfterSend.current) {
+            scrollToBottom(true);
+            scrollAfterSend.current = false;
+          } else {
+            scrollToBottom(false);
           }
+          shouldAutoScroll.current = true;
+          setUserScrolled(false);
         });
-      }, 5000);
-      return () => { 
-        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); 
-      };
-    }
-  }, [activeUserId, currentUserId, fetchMessages, scrollToBottom]);
+      }
+    }, 30000); // <-- CHANGE FROM 5000 TO 30000
+    
+    return () => { 
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); 
+    };
+  }
+}, [activeUserId, currentUserId, fetchMessages, scrollToBottom]);
 
   // Handle scroll to show/hide jump-to-bottom button
   const handleScroll = useCallback(() => {
@@ -2155,13 +2327,14 @@ export default function Message() {
     }
   };
 
+
   const renderMessage = useCallback((msg, index) => {
     const showDate = index === 0 || new Date(msg.timestamp).toDateString() !== new Date(messages[index - 1]?.timestamp).toDateString();
     const isOwn = msg.from === "me";
     const isEditing = editingMessageId === msg.id;
     const isHighlighted = highlightedMsgId === msg.id;
     const msgReactions = reactions[msg.id] || {};
-    const isStarred = starredIds.has(msg.id);
+    const isStarred = msg.is_starred || starredIds.has(msg.id);
 
     if (msg.message_type === "call") {
       return (
@@ -2193,9 +2366,9 @@ export default function Message() {
           ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
           className={`flex ${isOwn ? "justify-end" : "justify-start"} transition-all duration-300 ${isHighlighted ? "scale-[1.02]" : ""}`}
         >
-          {!isOwn && (
+          {/* {!isOwn && (
             <img src={activeUser?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full object-cover mr-2 mt-1 flex-shrink-0" alt="" />
-          )}
+          )} */}
           <div className={`relative group max-w-[85%] md:max-w-[70%] xl:max-w-[60%] 4k:max-w-[50%] ${isOwn ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}>
             {isStarred && (
               <div className={`absolute -top-2 ${isOwn ? "right-2" : "left-2"} z-10`}>
@@ -2404,12 +2577,12 @@ export default function Message() {
                 <span className="text-sm">↩️</span>
               </button>
               <button
-                onClick={() => handleStarMessage(msg)}
-                className={`p-1.5 bg-white rounded-full shadow-md transition-colors ${isStarred ? "text-amber-400" : "text-gray-400 hover:text-amber-400"}`}
-                title="Star"
-              >
-                <span className="text-sm">⭐</span>
-              </button>
+    onClick={() => handleStarMessage(msg)}
+    className={`p-1.5 bg-white rounded-full shadow-md transition-colors ${isStarred ? "text-amber-400" : "text-gray-400 hover:text-amber-400"}`}
+    title={isStarred ? "Unstar" : "Star"}
+>
+    <span className="text-sm">{isStarred ? "⭐" : "☆"}</span>
+</button>
               <button
                 onClick={(e) => openContextMenu(msg, e, e.currentTarget)}
                 className="p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
@@ -2551,26 +2724,24 @@ export default function Message() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-2 sm:px-3 pb-3">
-            {!initialLoadDone || isLoadingUsers ? (
-              <div className="flex justify-center py-12">
-                <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin" />
-              </div>
-            ) : displayedUsers.length === 0 ? (
-              <div className="text-center py-12 px-4">
-                <span className="text-4xl sm:text-5xl mb-3 block">💬</span>
-                <p className="text-gray-400 text-sm">
-                  {searchTerm.length >= 2 ? "No users match your search" : "No conversations yet"}
-                </p>
-                <p className="text-xs text-gray-300 mt-1">Start a chat by searching for users</p>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {displayedUsers.map((user) => (
-                  <UserListItem key={user.id} user={user} />
-                ))}
-              </div>
-            )}
-          </div>
+  {!initialLoadDone || isLoadingUsers ? (
+    <UserListSkeleton />
+  ) : displayedUsers.length === 0 ? (
+    <div className="text-center py-12 px-4">
+      <span className="text-4xl sm:text-5xl mb-3 block">💬</span>
+      <p className="text-gray-400 text-sm">
+        {searchTerm.length >= 2 ? "No users match your search" : "No conversations yet"}
+      </p>
+      <p className="text-xs text-gray-300 mt-1">Start a chat by searching for users</p>
+    </div>
+  ) : (
+    <div className="space-y-1">
+      {displayedUsers.map((user) => (
+        <UserListItem key={user.id} user={user} />
+      ))}
+    </div>
+  )}
+</div>
         </div>
 
         {/* RIGHT: CHAT AREA */}
@@ -2663,17 +2834,15 @@ export default function Message() {
             >
               <div className="space-y-2 max-w-full lg:max-w-7xl xl:max-w-[90%] 2xl:max-w-[1400px] mx-auto px-2 sm:px-3 md:px-4">
                 {loading && messages.length === 0 ? (
-                  <div className="flex justify-center items-center h-64">
-                    <div className="w-8 h-8 border-3 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                ) : messages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
-                      <span className="text-2xl sm:text-3xl">💬</span>
-                    </div>
-                    <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
-                  </div>
-                ) : (
+  <MessageSkeleton />
+) : messages.length === 0 ? (
+  <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
+    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
+      <span className="text-2xl sm:text-3xl">💬</span>
+    </div>
+    <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
+  </div>
+) : (
                   <>
                     {messages.map((msg, i) => renderMessage(msg, i))}
                     {isTyping && <TypingIndicator user={activeUser} />}

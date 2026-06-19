@@ -286,7 +286,7 @@ const TruncatedText = ({ text, className = "", style = {}, as: Tag = "span", isD
   );
 };
 
-// Revenue Chart Component - Fixed for Safari/iOS with proper X-axis labels
+// Revenue Chart Component - Fixed with proper scaling and top label matching
 const RevenueChart = ({ data, labels, isDarkMode }) => {
   const chartContainerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 100 });
@@ -314,30 +314,87 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
     );
   }
 
-  const maxVal = Math.max(...data, 1);
+  // Get max value from data
+  const rawMax = Math.max(...data, 1);
+  
+  // FIXED: Round UP to nearest nice number for Y-axis
+  let maxVal;
+  if (rawMax <= 100) {
+    maxVal = Math.ceil(rawMax / 10) * 10;
+  } else if (rawMax <= 500) {
+    maxVal = Math.ceil(rawMax / 50) * 50;
+  } else if (rawMax <= 1000) {
+    maxVal = Math.ceil(rawMax / 100) * 100;
+  } else if (rawMax <= 5000) {
+    maxVal = Math.ceil(rawMax / 500) * 500;
+  } else {
+    maxVal = Math.ceil(rawMax / 1000) * 1000;
+  }
+  
+  // Ensure maxVal is at least the raw max value (safety check)
+  if (maxVal < rawMax) {
+    maxVal = rawMax;
+  }
+  
+  // Ensure maxVal is at least 1
+  maxVal = Math.max(maxVal, 1);
+  
   const chartHeight = 100;
   const chartWidth = dimensions.width || 400;
   
-  // Calculate points for the line
+  // Calculate points for the line - FIXED: use chartHeight instead of 70
   const points = data.map((value, index) => {
     const x = (index / (data.length - 1)) * chartWidth;
-    const y = chartHeight - (value / maxVal) * 70;
+    // Use chartHeight directly for full height scaling
+    const y = chartHeight - (value / maxVal) * chartHeight;
     return `${x},${y}`;
   }).join(' L ');
   
   const linePath = `M ${points}`;
   const areaPath = `${linePath} L ${chartWidth},${chartHeight} L 0,${chartHeight} Z`;
 
+  // Helper function to format Y-axis labels
+  const formatYAxisLabel = (value) => {
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}k`;
+    }
+    return Math.round(value);
+  };
+
+  // Generate evenly distributed Y-axis labels with nice numbers
+  const getYAxisLabels = () => {
+    const labels = [];
+    // Create 5 evenly spaced values from 0 to maxVal
+    for (let i = 4; i >= 0; i--) {
+      const value = (maxVal / 4) * i;
+      // Round to nice numbers for display
+      let roundedValue;
+      if (maxVal <= 100) {
+        roundedValue = Math.round(value / 5) * 5;
+      } else if (maxVal <= 500) {
+        roundedValue = Math.round(value / 10) * 10;
+      } else if (maxVal <= 1000) {
+        roundedValue = Math.round(value / 25) * 25;
+      } else if (maxVal <= 5000) {
+        roundedValue = Math.round(value / 50) * 50;
+      } else {
+        roundedValue = Math.round(value / 100) * 100;
+      }
+      labels.push(roundedValue);
+    }
+    return labels;
+  };
+
+  const yAxisLabels = getYAxisLabels();
+
   return (
     <div className="w-full mt-4" ref={chartContainerRef}>
       {/* Y-axis labels */}
       <div className="relative h-[100px] w-full">
         <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-[9px] font-medium text-white/50 py-1">
-          <span>{Math.round(maxVal)}k</span>
-          <span>{Math.round(maxVal * 0.75)}k</span>
-          <span>{Math.round(maxVal * 0.5)}k</span>
-          <span>{Math.round(maxVal * 0.25)}k</span>
-          <span>0</span>
+          {yAxisLabels.map((value, index) => (
+            <span key={index}>{formatYAxisLabel(value)}</span>
+          ))}
         </div>
         
         {/* SVG Chart */}
@@ -349,19 +406,22 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
             preserveAspectRatio="none"
             style={{ overflow: 'visible' }}
           >
-            {/* Grid lines */}
-            {[0, 25, 50, 75, 100].map((y) => (
-              <line
-                key={y}
-                x1="0"
-                y1={chartHeight - (y / 100) * chartHeight}
-                x2={chartWidth}
-                y2={chartHeight - (y / 100) * chartHeight}
-                stroke="white"
-                strokeOpacity="0.15"
-                strokeWidth="0.8"
-              />
-            ))}
+            {/* Grid lines - evenly distributed */}
+            {yAxisLabels.map((value, index) => {
+              const yPosition = chartHeight - (value / maxVal) * chartHeight;
+              return (
+                <line
+                  key={index}
+                  x1="0"
+                  y1={yPosition}
+                  x2={chartWidth}
+                  y2={yPosition}
+                  stroke="white"
+                  strokeOpacity="0.15"
+                  strokeWidth="0.8"
+                />
+              );
+            })}
             
             {/* Area fill */}
             <path
@@ -382,7 +442,8 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
             {/* Data points */}
             {data.map((value, index) => {
               const x = (index / (data.length - 1)) * chartWidth;
-              const y = chartHeight - (value / maxVal) * 70;
+              // Use chartHeight directly for full height scaling
+              const y = chartHeight - (value / maxVal) * chartHeight;
               return (
                 <circle
                   key={index}
@@ -397,7 +458,7 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
         </div>
       </div>
       
-      {/* X-axis labels - fixed for Safari/iOS */}
+      {/* X-axis labels */}
       <div className="flex justify-between w-full mt-2 pl-8">
         {labels.map((label, index) => (
           <div 
@@ -1190,14 +1251,16 @@ const Dashboard = () => {
               {new Date().toLocaleString("default", { month: "long" })} {new Date().getFullYear()}
             </p>
             <div className="flex items-center gap-3 mt-2">
-              <h3 className="text-4xl font-bold">₹{(stats.total_revenue / 1000).toFixed(1)}k</h3>
-              <div className="flex items-center gap-0.5 text-white font-bold mt-auto">
-                <div className="w-2.5 h-2.5 rounded-full bg-gray-100 flex items-center justify-center">
-                  <TrendingUp size={5} className="text-[#3D1768]" />
-                </div>
-                <span className="text-[10px]">{revenueGrowth > 0 ? "+" : ""}{revenueGrowth}%</span>
-              </div>
-            </div>
+  <h3 className="text-4xl font-bold">₹{(stats.total_revenue / 1000).toFixed(1)}k</h3>
+  {revenueGrowth !== 0 && (
+    <div className="flex items-center gap-0.5 text-white font-bold mt-auto">
+      <div className="w-2.5 h-2.5 rounded-full bg-gray-100 flex items-center justify-center">
+        <TrendingUp size={5} className="text-[#3D1768]" />
+      </div>
+      <span className="text-[10px]">{revenueGrowth > 0 ? "+" : ""}{revenueGrowth}%</span>
+    </div>
+  )}
+</div>
           </div>
 
           {/* Revenue Chart with fixed X-axis labels */}

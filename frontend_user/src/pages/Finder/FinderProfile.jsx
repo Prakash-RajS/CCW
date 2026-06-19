@@ -580,6 +580,8 @@ const PortfolioMedia = ({ item, index, className = "" }) => {
 };
 
 /* ================= MAIN COMPONENT ================= */
+// ... (all imports remain the same)
+
 export default function FinderProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -620,8 +622,17 @@ export default function FinderProfile() {
 
         // Handle collaborator data
         if (collaboratorResponse.data) {
-          const data = collaboratorResponse.data;
-          setCollaboratorData({ ...data, id, skills: data.skills || data.skill_set || [] });
+  const data = collaboratorResponse.data;
+  setCollaboratorData({ 
+    ...data, 
+    id, 
+    skills: data.skills || data.skill_set || [],
+    // IMPORTANT: Make sure both fields are properly set
+    experience: data.experience || 0,  // From CollaboratorProfile table
+    experience_years: data.experience_years || 0,  // Calculated from work experiences
+    skills_rating: data.skills_rating || 0,
+    review_count: data.review_count || data.reviews?.length || 0
+  });
           
           if (data.portfolio_items?.length > 0) {
             setPortfolioItems(
@@ -648,17 +659,18 @@ export default function FinderProfile() {
           setWorkExperiences(data.work_experiences?.length > 0 ? data.work_experiences : []);
           if (data.reviews?.length > 0) setReviews(data.reviews);
         } else {
-          // Fallback data
+          // Fallback data - only used if API fails completely
           setCollaboratorData({ 
             id, 
             name: "Jenny", 
             skill_category: "UI/UX Designer", 
-            experience_years: 10, 
-            skills_rating: 4.9, 
+            experience_years: 0,
+            experience: 0,
+            skills_rating: 0, 
             about: "Experienced UI/UX designer.", 
             profile_picture_url: null, 
             pricing_amount: 50, 
-            review_count: 5, 
+            review_count: 0, 
             skills: [] 
           });
           setPortfolioItems([
@@ -667,6 +679,7 @@ export default function FinderProfile() {
             { id: 3, file_url: Ui3, title: "Brand Identity", file_type: "image", is_fallback: true }
           ]);
           setWorkExperiences([]);
+          setReviews([]);
         }
 
         // Now fetch jobs if user is logged in
@@ -771,48 +784,49 @@ export default function FinderProfile() {
     }
   };
 
- const openInvitePopup = () => {
-  // Log to debug
-  console.log("Jobs in FinderProfile:", jobs);
-  console.log("Jobs count:", jobs.length);
-  console.log("Jobs loading:", jobsLoading);
-  console.log("Job statuses:", jobs.map(j => ({ id: j.id, title: j.title, status: j.status })));
+  const openInvitePopup = () => {
+    // Log to debug
+    console.log("Jobs in FinderProfile:", jobs);
+    console.log("Jobs count:", jobs.length);
+    console.log("Jobs loading:", jobsLoading);
+    console.log("Job statuses:", jobs.map(j => ({ id: j.id, title: j.title, status: j.status })));
+    
+    // Check if jobs are still loading
+    if (jobsLoading) {
+      toast.info("Loading jobs... Please try again.");
+      return;
+    }
+    
+    // Check if we have any jobs
+    if (!jobs || jobs.length === 0) {
+      toast.info("Please create a job first before inviting collaborators");
+      navigate("/created");
+      return;
+    }
+    
+    // Check if we have any active jobs
+    const hasActiveJobs = jobs.some(
+      (j) => j.status === "posted" || j.status === "active",
+    );
+    
+    console.log("Has active jobs:", hasActiveJobs);
+    
+    if (!hasActiveJobs) {
+      toast.info("Please create a job first before inviting collaborators");
+      navigate("/created");
+      return;
+    }
+    
+    // Open the invite popup
+    setInvitePopup({ 
+      isOpen: true, 
+      collaborator: { 
+        ...collaboratorData, 
+        id: collaboratorData?.id || id 
+      } 
+    });
+  };
   
-  // Check if jobs are still loading
-  if (jobsLoading) {
-    toast.info("Loading jobs... Please try again.");
-    return;
-  }
-  
-  // Check if we have any jobs
-  if (!jobs || jobs.length === 0) {
-    toast.info("Please create a job first before inviting collaborators");
-    navigate("/created");
-    return;
-  }
-  
-  // Check if we have any active jobs (matching Home.js implementation)
-  const hasActiveJobs = jobs.some(
-    (j) => j.status === "posted" || j.status === "active",
-  );
-  
-  console.log("Has active jobs:", hasActiveJobs);
-  
-  if (!hasActiveJobs) {
-    toast.info("Please create a job first before inviting collaborators");
-    navigate("/created");
-    return;
-  }
-  
-  // Open the invite popup
-  setInvitePopup({ 
-    isOpen: true, 
-    collaborator: { 
-      ...collaboratorData, 
-      id: collaboratorData?.id || id 
-    } 
-  });
-};
   const closeInvitePopup = () => setInvitePopup({ isOpen: false, collaborator: null });
   const handleCollaborateRequest = () => {
     if (loggedInUser?.id) openInvitePopup();
@@ -820,25 +834,89 @@ export default function FinderProfile() {
   };
   const handleProfileClick = () => navigate("/pro-file");
 
+  // ========== UPDATED: Dynamic Star Rating ==========
   const getStarRating = () => {
-    // If we have review data, compute directly from reviews
+    // Priority 1: If user has reviews, show average review rating
     if (reviews && reviews.length > 0) {
       const total = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
       const avg = total / reviews.length;
       return Math.min(Math.max(avg, 0), 5);
     }
-    // No reviews → return 0 (or fallback to skills_rating only if explicitly set > 0)
-    // After backend fix, skills_rating will be 0 anyway, but keep this as safety
+    
+    // Priority 2: If no reviews, show skills_rating from database (self-rating)
     if (collaboratorData?.skills_rating && collaboratorData.skills_rating > 0) {
       return Math.min(Math.max(parseFloat(collaboratorData.skills_rating), 0), 5);
     }
+    
+    // Priority 3: No rating available - return 0
     return 0;
   };
 
-  const getExperienceDisplay = () => {
-    if (!collaboratorData?.experience_years || collaboratorData.experience_years === 0) return "Fresher";
-    const years = collaboratorData.experience_years;
-    return `${years} Year${years > 1 ? 's' : ''}`;
+ // ========== UPDATED: Dynamic Experience Display ==========
+const getExperienceDisplay = () => {
+  // Check if user has any work experiences
+  const hasWorkExperiences = workExperiences && workExperiences.length > 0;
+  
+  // If user has work experiences, use experience_years (calculated from work experiences)
+  if (hasWorkExperiences) {
+    const experienceValue = parseInt(collaboratorData?.experience_years) || 0;
+    
+    // If calculated experience is 0 or invalid, show "Fresher"
+    if (experienceValue === 0 || isNaN(experienceValue)) {
+      return "Fresher";
+    }
+    
+    // Show as "X Year" or "X Years"
+    return `${experienceValue} Year${experienceValue > 1 ? 's' : ''}`;
+  }
+  
+  // If NO work experiences, use the experience field from profile table AS-IS
+  // This could be "6 Years", "intermediate", "expert", "fresher", etc.
+  const profileExperience = collaboratorData?.experience;
+  
+  // If profile experience is null, undefined, or empty string, show "Fresher"
+  if (!profileExperience || profileExperience === "" || profileExperience === 0) {
+    return "Fresher";
+  }
+  
+  // If the experience is "intermediate" or "Intermediate", just show "intermediate"
+  if (profileExperience.toLowerCase() === "intermediate") {
+    return "intermediate";
+  }
+  
+  // If the experience is "expert" or "Expert", just show "expert"
+  if (profileExperience.toLowerCase() === "expert") {
+    return "expert";
+  }
+  
+  // For any other value (like "6 Years"), return it as-is
+  return profileExperience;
+};
+
+// ========== UPDATED: Check if user has experience ==========
+const hasExperience = () => {
+  const hasWorkExperiences = workExperiences && workExperiences.length > 0;
+  
+  if (hasWorkExperiences) {
+    // If they have work experiences, check experience_years
+    const expValue = parseInt(collaboratorData?.experience_years) || 0;
+    return expValue > 0;
+  }
+  
+  // If no work experiences, check if profile.experience exists and is not empty
+  const profileExperience = collaboratorData?.experience;
+  return profileExperience && profileExperience !== "" && profileExperience !== 0;
+};
+
+  // ========== Helper: Get review count ==========
+  const getReviewCount = () => {
+    // If user has reviews, show actual review count
+    if (reviews && reviews.length > 0) {
+      return reviews.length;
+    }
+    
+    // If no reviews, show 0
+    return 0;
   };
 
   if (loading) {
@@ -872,11 +950,13 @@ export default function FinderProfile() {
     );
   }
 
-  const currentItems = getCurrentItems();
-  const showCarouselControls = portfolioItems.length > 3;
+  // Get dynamic values
   const starRating = getStarRating();
   const experienceDisplay = getExperienceDisplay();
-  const isFresher = !collaboratorData?.experience_years || collaboratorData.experience_years === 0;
+  const isFresher = !hasExperience();
+  const reviewCount = getReviewCount();
+  const currentItems = getCurrentItems();
+  const showCarouselControls = portfolioItems.length > 3;
 
   return (
     <div className="w-full bg-white overflow-x-hidden edit-page">
@@ -930,19 +1010,19 @@ export default function FinderProfile() {
           <div className="absolute left-[25px] top-[440px] w-[328px] flex flex-col gap-[12px]">
             <div className="text-[#2A3442] text-[48px] leading-none font-bold">''</div>
             <p className="text-[#2A3442] text-[18px] leading-[26px] font-bold">
-              {collaboratorData?.skills_rating >= 4 ? (
-                <>{collaboratorData?.name || "Professional"}'s exceptional {collaboratorData?.skill_category?.toLowerCase() || "product design"}<br />ensures our website's success.<br />Highly Recommended</>
-              ) : collaboratorData?.skills_rating >= 3 ? (
-                <>{collaboratorData?.name || "Professional"}'s professional {collaboratorData?.skill_category?.toLowerCase() || "design"}<br />delivered quality work on time.<br />Would recommend</>
+              {starRating >= 4 ? (
+                <>{collaboratorData?.name?.split(' ')[0] || "Professional"}'s exceptional {collaboratorData?.skill_category?.toLowerCase() || "product design"}<br />ensures our website's success.<br />Highly Recommended</>
+              ) : starRating >= 3 ? (
+                <>{collaboratorData?.name?.split(' ')[0] || "Professional"}'s professional {collaboratorData?.skill_category?.toLowerCase() || "design"}<br />delivered quality work on time.<br />Would recommend</>
               ) : (
-                <>{collaboratorData?.name || "Professional"} completed the {collaboratorData?.skill_category?.toLowerCase() || "project"}<br />as per the requirements.<br />Satisfactory work</>
+                <>{collaboratorData?.name?.split(' ')[0] || "Professional"} completed the {collaboratorData?.skill_category?.toLowerCase() || "project"}<br />as per the requirements.<br />Satisfactory work</>
               )}
             </p>
           </div>
 
           {/* ===== RIGHT: STARS + EXPERIENCE LEVEL (SINGLE BLOCK) ===== */}
           <div className="absolute right-[20px] top-[520px] w-[169px] flex flex-col items-center gap-[16px]">
-            {/* Stars — only show if rated */}
+            {/* Stars — only show if rated (reviews OR skills_rating) */}
             {starRating > 0 && (
               <div className="flex gap-1">
                 {[...Array(5)].map((_, i) => (
@@ -955,7 +1035,7 @@ export default function FinderProfile() {
             )}
             {/* Single label: "Fresher" OR "X Year(s) Exp." */}
             <div className="text-center">
-              <h3 className="text-[40px] font-bold leading-none">{experienceDisplay}</h3>
+              <h3 className="text-[30px] font-bold leading-none">{experienceDisplay}</h3>
               {!isFresher && <p className="text-[18px] text-[#444] mt-1">Experience</p>}
             </div>
           </div>
@@ -973,13 +1053,13 @@ export default function FinderProfile() {
         )}
 
         {/* PORTFOLIO SECTION */}
-          <section className="relative w-full min-h-[600px] xl:min-h-[700px] 2xl:h-[900px] bg-cover bg-center rounded-[45px] -mt-4" style={{ backgroundImage: `url(${ServicesBG})` }}>
+        <section className="relative w-full min-h-[600px] xl:min-h-[700px] 2xl:h-[900px] bg-cover bg-center rounded-[45px] -mt-4" style={{ backgroundImage: `url(${ServicesBG})` }}>
           <div className="absolute top-[40px] left-0 w-full h-[3px] bg-gradient-to-r from-[#a96bff] via-[#d8baff] to-[#9b4dff] opacity-80 blur-[1px]" />
           <div className="absolute bottom-[150px] left-0 w-full h-[6px] bg-gradient-to-r from-[#6d2cff] to-[#b57eff] opacity-60 blur-[6px]" />
           <div className="flex items-center justify-between w-full max-w-[1299px] h-[52px] mb-[40px] mx-auto px-6 xl:px-8">
-          <h2 className="text-[32px] xl:text-[48px] mt-24 xl:mt-44 font-semibold text-white">
-  My <span className="ml-1 text-[#D8B4FE] drop-shadow-[0_0_10px_rgba(216,180,254,0.5)] [text-shadow:_0_0_20px_rgba(168,85,247,0.3)]">Portfolio</span>
-</h2>
+            <h2 className="text-[32px] xl:text-[48px] mt-24 xl:mt-44 font-semibold text-white">
+              My <span className="ml-1 text-[#D8B4FE] drop-shadow-[0_0_10px_rgba(216,180,254,0.5)] [text-shadow:_0_0_20px_rgba(168,85,247,0.3)]">Portfolio</span>
+            </h2>
           </div>
           <div className="relative w-full max-w-[1099px] mx-auto px-4 xl:px-0 mt-12 xl:mt-[190px]">
             {showCarouselControls && (
@@ -1112,7 +1192,7 @@ export default function FinderProfile() {
                 <path d="M12 2L19 6V14L12 18L5 14V6L12 2Z" stroke="#2A3442" strokeWidth="2" strokeLinejoin="round" />
                 <circle cx="12" cy="12" r="3" fill="#2A3442" />
               </svg>
-              <p className="text-[#2A3442] text-[20px] font-medium">{collaboratorData?.review_count || 0}+ Reviews</p>
+              <p className="text-[#2A3442] text-[20px] font-medium">{reviewCount}+ Reviews</p>
             </div>
             <div className="flex items-center gap-4">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
@@ -1144,22 +1224,22 @@ export default function FinderProfile() {
           </div>
 
           <div className="relative mt-8 flex justify-center px-4">
-           <div className="absolute left-2 top-[-50px] sm:top-[-40px] md:top-[-30px] lg:top-2 w-[110px] text-left z-20">
-  <div className="text-[24px] sm:text-[28px] md:text-[32px] font-bold leading-none text-[#2A3442] drop-shadow-sm">''</div>
-  <p className="text-[8px] xs:text-[9px] sm:text-[10px] md:text-[11px] leading-[10px] xs:leading-[11px] sm:leading-[13px] md:leading-[14px] font-bold text-[#2A3442] mt-0 bg-white/80 backdrop-blur-sm px-1 rounded">
-    {collaboratorData?.skills_rating >= 4
-      ? `${collaboratorData?.name?.split(' ')[0] || "Professional"}'s exceptional work`
-      : collaboratorData?.skills_rating >= 3
-        ? `${collaboratorData?.name?.split(' ')[0] || "Professional"}'s quality work`
-        : `Completed work satisfactorily`}
-  </p>
-</div>
+            <div className="absolute left-2 top-[-50px] sm:top-[-40px] md:top-[-30px] lg:top-2 w-[110px] text-left z-20">
+              <div className="text-[24px] sm:text-[28px] md:text-[32px] font-bold leading-none text-[#2A3442] drop-shadow-sm">''</div>
+              <p className="text-[8px] xs:text-[9px] sm:text-[10px] md:text-[11px] leading-[10px] xs:leading-[11px] sm:leading-[13px] md:leading-[14px] font-bold text-[#2A3442] mt-0 bg-white/80 backdrop-blur-sm px-1 rounded">
+                {starRating >= 4
+                  ? `${collaboratorData?.name?.split(' ')[0] || "Professional"}'s exceptional work`
+                  : starRating >= 3
+                    ? `${collaboratorData?.name?.split(' ')[0] || "Professional"}'s quality work`
+                    : `Completed work satisfactorily`}
+              </p>
+            </div>
             <div className="relative w-full h-[320px] flex justify-center">
-             <img 
-  src={HalfCircle} 
-  alt="half-circle" 
-  className="absolute bottom-[120px] w-[280px] sm:w-[300px] md:w-[310px] lg:w-[320px] h-[220px] sm:h-[240px] md:h-[250px] lg:h-[260px]" 
-/>
+              <img 
+                src={HalfCircle} 
+                alt="half-circle" 
+                className="absolute bottom-[120px] w-[280px] sm:w-[300px] md:w-[310px] lg:w-[320px] h-[220px] sm:h-[240px] md:h-[250px] lg:h-[260px]" 
+              />
               <img src={ManImg} alt="man" className="absolute w-[170px] bottom-[140px] z-20" />
             </div>
 
@@ -1217,9 +1297,9 @@ export default function FinderProfile() {
           <div className="absolute top-4 left-0 w-full h-[2px] bg-gradient-to-r from-[#a96bff] via-[#d8baff] to-[#9b4dff] opacity-70" />
           <div className="absolute bottom-[80px] left-0 w-full h-[4px] bg-gradient-to-r from-[#6d2cff] to-[#b57eff] opacity-60 blur-[4px]" />
           <div className="relative z-10 flex items-start justify-between text-white mb-6">
-           <h2 className="text-[26px] font-semibold">
-  My <span className="text-[#D8B4FE] drop-shadow-[0_0_10px_rgba(216,180,254,0.5)] [text-shadow:_0_0_20px_rgba(168,85,247,0.3)]">Portfolio</span>
-</h2>
+            <h2 className="text-[26px] font-semibold">
+              My <span className="text-[#D8B4FE] drop-shadow-[0_0_10px_rgba(216,180,254,0.5)] [text-shadow:_0_0_20px_rgba(168,85,247,0.3)]">Portfolio</span>
+            </h2>
           </div>
           <div className="relative z-10">
             <div className="flex overflow-x-auto pb-5 gap-4 snap-x snap-mandatory">
@@ -1310,7 +1390,7 @@ export default function FinderProfile() {
                 <path d="M12 2L19 6V14L12 18L5 14V6L12 2Z" stroke="#2A3442" strokeWidth="2" strokeLinejoin="round" />
                 <circle cx="12" cy="12" r="3" fill="#2A3442" />
               </svg>
-              <p className="text-[#2A3442] text-[11px] font-medium">{collaboratorData?.review_count || 0}+ Reviews</p>
+              <p className="text-[#2A3442] text-[11px] font-medium">{reviewCount}+ Reviews</p>
             </div>
             <div className="flex items-center gap-2">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">

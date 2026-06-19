@@ -1943,15 +1943,15 @@ async def edit_collaborator_profile(
             url="/ColabProfile"
         )
 
-    if skills_updated and profile.skills:
-        skills_display = ', '.join(profile.skills[:5]) if isinstance(profile.skills, list) else str(profile.skills)[:100]
-        await sync_to_async(create_notification)(
-            user=user,
-            notification_type="skills_updated",
-            title="Skills Updated",
-            message=f"Your skills have been updated: {skills_display}{'...' if len(str(profile.skills)) > 100 else ''}",
-            url="/ColabProfile"
-        )
+    # if skills_updated and profile.skills:
+    #     skills_display = ', '.join(profile.skills[:5]) if isinstance(profile.skills, list) else str(profile.skills)[:100]
+    #     await sync_to_async(create_notification)(
+    #         user=user,
+    #         notification_type="skills_updated",
+    #         title="Skills Updated",
+    #         message=f"Your skills have been updated: {skills_display}{'...' if len(str(profile.skills)) > 100 else ''}",
+    #         url="/ColabProfile"
+    #     )
 
     return {
         "status": "success",

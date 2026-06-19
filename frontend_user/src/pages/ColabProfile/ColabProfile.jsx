@@ -2691,18 +2691,38 @@ const getPortfolioImage = (item) => {
 
                         <div className="space-y-3 xs:space-y-4">
                           {/* Profile Picture */}
-                          <div>
-                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Profile Picture</label>
-                            <div className="flex items-center gap-3 xs:gap-4">
-                              <img src={getProfilePictureUrl()} className="w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-300" alt="profile" />
-                              <label className="cursor-pointer">
-                                <input type="file" accept="image/*" onChange={handleProfilePictureChange} className="hidden" />
-                                <div style={{ border: "2px solid #51218F", backgroundColor: "#ffffff", color: "#51218F" }} className="rounded-lg px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 text-[10px] xs:text-xs sm:text-sm font-medium">
-                                  Choose File
-                                </div>
-                              </label>
-                            </div>
-                          </div>
+                          {/* Edit Profile - Profile Picture section */}
+<div>
+  <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Profile Picture</label>
+  <div className="flex items-center gap-3 xs:gap-4">
+    <img src={getProfilePictureUrl()} className="w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-300" alt="profile" />
+    <label 
+      className="cursor-pointer px-3 xs:px-4 sm:px-6 py-1.5 xs:py-2 sm:py-2.5 rounded-lg text-[10px] xs:text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-105"
+      style={{
+        background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
+        color: 'white',
+        boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
+        border: 'none'
+      }}
+      onMouseEnter={(e) => {
+        e.target.style.transform = 'translateY(-1px)';
+        e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+      }}
+      onMouseLeave={(e) => {
+        e.target.style.transform = 'translateY(0)';
+        e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
+      }}
+    >
+      Choose File
+      <input 
+        type="file" 
+        accept="image/*" 
+        onChange={handleProfilePictureChange} 
+        className="hidden" 
+      />
+    </label>
+  </div>
+</div>
 
                           {/* Name with validation */}
                           <div>
@@ -3461,51 +3481,70 @@ const getPortfolioImage = (item) => {
                           <p className="text-[10px] text-gray-400 mt-1 text-right">{portfolioForm.heading.length}/50 characters</p>
                         </div>
 
-                        <div className="mb-3">
-                          <label className="block text-sm font-medium mb-2">Media File {!portfolioForm.id && <span className="text-red-500">*</span>}</label>
-                          <div style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }} className="w-full flex items-center px-4 py-2 gap-4 rounded-lg">
-                            <label className="border border-gray-400 px-5 py-2 rounded-full cursor-pointer text-sm hover:bg-gray-50 transition">
-                              Choose File
-                              <input
-  type="file"
-  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/jpg,image/png,image/webp"
-  className="hidden"
-  onChange={(e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const fileExtension = file.name.split('.').pop().toLowerCase();
-      const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
-      const maxSize = 5 * 1024 * 1024;
-      
-      if (!allowedExtensions.includes(fileExtension)) {
-        toast.error("Only JPG, JPEG, PNG, and WEBP images are allowed");
-        e.target.value = "";
-        setFileName("No file chosen");
-        setPortfolioValidationErrors(prev => ({ ...prev, file: "Only JPG, JPEG, PNG, and WEBP images are allowed" }));
-        return;
-      }
-      
-      if (file.size > maxSize) {
-        toast.error("Image size must be less than 5 MB");
-        e.target.value = "";
-        setFileName("No file chosen");
-        setPortfolioValidationErrors(prev => ({ ...prev, file: "Image size must be less than 5 MB" }));
-        return;
-      }
-      
-      setPortfolioForm({ ...portfolioForm, file });
-      setFileName(file.name);
-      setPortfolioValidationErrors(prev => ({ ...prev, file: "" }));
-    }
-  }}
-/>
-                            </label>
-                            <span className="text-gray-500 text-sm truncate flex-1">
-                              {portfolioForm.file?.name || (portfolioForm.id ? "Current file retained" : fileName)}
-                            </span>
-                          </div>
-                          {portfolioValidationErrors.file && <p className="text-red-500 text-xs mt-1">{portfolioValidationErrors.file}</p>}
-                        </div>
+                        {/* Portfolio Modal - Media File section */}
+<div className="mb-3">
+  <label className="block text-sm font-medium mb-2">
+    Media File {!portfolioForm.id && <span className="text-red-500">*</span>}
+  </label>
+  <div style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }} className="w-full flex items-center px-4 py-2 gap-4 rounded-lg">
+    <label 
+      className="px-5 py-2 rounded-full cursor-pointer text-sm font-medium transition-all duration-200 hover:scale-105"
+      style={{
+        background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
+        color: 'white',
+        boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
+        border: 'none'
+      }}
+      onMouseEnter={(e) => {
+        e.target.style.transform = 'translateY(-1px)';
+        e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+      }}
+      onMouseLeave={(e) => {
+        e.target.style.transform = 'translateY(0)';
+        e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
+      }}
+    >
+      Choose File
+      <input
+        type="file"
+        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/jpg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const fileExtension = file.name.split('.').pop().toLowerCase();
+            const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
+            const maxSize = 5 * 1024 * 1024;
+            
+            if (!allowedExtensions.includes(fileExtension)) {
+              toast.error("Only JPG, JPEG, PNG, and WEBP images are allowed");
+              e.target.value = "";
+              setFileName("No file chosen");
+              setPortfolioValidationErrors(prev => ({ ...prev, file: "Only JPG, JPEG, PNG, and WEBP images are allowed" }));
+              return;
+            }
+            
+            if (file.size > maxSize) {
+              toast.error("Image size must be less than 5 MB");
+              e.target.value = "";
+              setFileName("No file chosen");
+              setPortfolioValidationErrors(prev => ({ ...prev, file: "Image size must be less than 5 MB" }));
+              return;
+            }
+            
+            setPortfolioForm({ ...portfolioForm, file });
+            setFileName(file.name);
+            setPortfolioValidationErrors(prev => ({ ...prev, file: "" }));
+          }
+        }}
+      />
+    </label>
+    <span className="text-gray-500 text-sm truncate flex-1">
+      {portfolioForm.file?.name || (portfolioForm.id ? "Current file retained" : fileName)}
+    </span>
+  </div>
+  {portfolioValidationErrors.file && <p className="text-red-500 text-xs mt-1">{portfolioValidationErrors.file}</p>}
+</div>
 
                         <div className="mb-3">
                           <label className="block text-sm font-medium mb-2">Work Link (optional)</label>
