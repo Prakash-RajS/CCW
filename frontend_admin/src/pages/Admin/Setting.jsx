@@ -1366,7 +1366,7 @@ const Setting = () => {
               <div className={`p-5 rounded-xl border-2 transition-all duration-300 ${isDark ? 'bg-gray-800 border-gray-700 shadow-lg' : 'bg-gray-50 border-gray-200 shadow-sm'}`}>
                 <h3 className={`text-lg font-semibold mb-1 ${isDark ? 'text-white' : 'text-gray-800'}`}>Password & Security</h3>
                 <p className={`text-sm mb-5 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Manage your password and enable two-factor authentication
+                  Manage your password
                 </p>
                 <button
                   onClick={() => setShowPasswordModal(true)}

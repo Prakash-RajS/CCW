@@ -103,7 +103,7 @@ function ConfirmModal({ open, message, onConfirm, onCancel }) {
 
   const handleConfirm = () => {
     if (onConfirm) {
-      onConfirm(); // Call the function passed from parent
+      onConfirm();
     }
   };
 
@@ -112,17 +112,13 @@ function ConfirmModal({ open, message, onConfirm, onCancel }) {
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[999999]" onClick={onCancel} />
       <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4">
         <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-[420px] p-8 flex flex-col items-center gap-5 border border-purple-100">
-          {/* Icon */}
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
             <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
           </div>
-          {/* Title */}
           <h3 className="text-[20px] font-semibold text-[#2A1E17] text-center">Confirm Delete</h3>
-          {/* Message */}
           <p className="text-[14px] text-gray-500 text-center leading-relaxed">{message}</p>
-          {/* Buttons */}
           <div className="flex gap-3 w-full mt-1">
             <button
               onClick={onCancel}
@@ -184,6 +180,7 @@ export default function ColabProfile() {
   const [isSavingPortfolio, setIsSavingPortfolio] = useState(false);
   const [isSavingWork, setIsSavingWork] = useState(false);
   const [isSavingEducation, setIsSavingEducation] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
   // flags
   const formatLocation = (location) => {
@@ -213,7 +210,7 @@ export default function ColabProfile() {
   const [portfolioCurrentPage, setPortfolioCurrentPage] = useState(1);
   const [reviewsCurrentPage, setReviewsCurrentPage] = useState(1);
   const portfolioItemsPerPage = 6;
-  const reviewsItemsPerPage = 5; // Changed to 5 per page
+  const reviewsItemsPerPage = 5;
 
   // Data States
   const [profileData, setProfileData] = useState(null);
@@ -363,7 +360,6 @@ export default function ColabProfile() {
   });
 
   const validateTiming = (value) => {
-    // Add this check at the beginning
     if (!value || typeof value !== 'string') return "";
 
     if (!value.trim()) return "Timing is required";
@@ -398,7 +394,6 @@ export default function ColabProfile() {
   const getUserDisplayName = () => {
     if (!userData) return "User";
     if (userData.full_name && userData.full_name.trim()) {
-      // Truncate to 50 characters for display if needed
       const name = userData.full_name;
       return name.length > 50 ? name.substring(0, 47) + "..." : name;
     }
@@ -534,7 +529,6 @@ export default function ColabProfile() {
   const validateCompanyName = (value) => {
   if (!value.trim()) return "Company name is required";
 
-  // Allow alphabets, numbers, spaces, &, -, .
   if (!/^[A-Za-z0-9\s&.-]+$/.test(value)) {
     return "Only alphabets, numbers, spaces, &, -, and . are allowed";
   }
@@ -713,9 +707,6 @@ export default function ColabProfile() {
     };
   }, [showSuccessPopup]);
 
-  // Calculate total earnings
-  
-
   // Add body scroll lock when modal is open
   useEffect(() => {
     const modalOpen =
@@ -778,7 +769,7 @@ export default function ColabProfile() {
         pricing_unit: profileData.pricing_unit || "$",
         pricing_type: profileData.pricing_type || "hourly",
         availability: profileData.availability || "",
-        timing: profileData.timing || "",  // Ensure default empty string
+        timing: profileData.timing || "",
         badges: profileData.badges || "",
         collaboration_type: profileData.collaboration_type || "",
         followers: profileData.followers || "",
@@ -803,7 +794,6 @@ export default function ColabProfile() {
 
       setCurrentUser(res.data);
 
-      // Update the context
       if (updateUserData) {
         updateUserData(res.data);
       }
@@ -1206,32 +1196,6 @@ export default function ColabProfile() {
 
   // ========== API CALLS ==========
 
-  // const fetchCompletedProjects = async () => {
-  //   if (!userId) return 0;
-  //   try {
-  //     const response = await api.get(
-  //       `${API_BASE_URL}/collaborator/completed-projects/${userId}`,
-  //     );
-  //     setCompletedProjects(response.data.completed_projects || 0);
-  //     return response.data.completed_projects || 0;
-  //   } catch (err) {
-  //     console.error("Error fetching completed projects:", err);
-  //     return 0;
-  //   }
-  // };
-
-  // const updateCompletedProjects = async () => {
-  //   if (!userId) return;
-  //   try {
-  //     const response = await api.post(
-  //       `${API_BASE_URL}/collaborator/completed-projects/update/${userId}`,
-  //     );
-  //     setCompletedProjects(response.data.completed_projects || 0);
-  //   } catch (err) {
-  //     console.error("Error updating completed projects:", err);
-  //   }
-  // };
-
   const fetchProfileData = async () => {
     try {
       const response = await api.get(`/collaborator/get/${userId}`);
@@ -1347,21 +1311,6 @@ export default function ColabProfile() {
     );
     console.log("🔍 Full reviews response:", response.data);
     setReviews(response.data);
-    
-    // ✅ REMOVE the code that updates profileData.skills_rating
-    // The skills_rating should come from the profile, not be calculated from reviews
-    // if (response.data && response.data.length > 0) {
-    //   const totalRating = response.data.reduce(
-    //     (sum, review) => sum + review.rating,
-    //     0,
-    //   );
-    //   const avgRating = totalRating / response.data.length;
-    //   setProfileData((prev) => ({
-    //     ...prev,
-    //     skills_rating: avgRating, // ❌ REMOVE THIS
-    //     review_count: response.data.length,
-    //   }));
-    // }
   } catch (err) {
     console.error("Error fetching reviews:", err);
     setReviews([]);
@@ -1376,12 +1325,10 @@ export default function ColabProfile() {
       );
       console.log("Portfolio items from backend:", response.data);
 
-      // Map the response to ensure consistent field names
-      // Based on your backend, items should have 'heading' field
       const items = response.data.map(item => ({
         ...item,
-        heading: item.heading || item.title, // Use heading from backend
-        title: item.heading || item.title,   // For display compatibility
+        heading: item.heading || item.title,
+        title: item.heading || item.title,
         description: item.description || "",
       }));
       setPortfolioItems(items);
@@ -1429,9 +1376,6 @@ export default function ColabProfile() {
         setLoading(true);
         await fetchProfileData();
         await fetchAuthData();
-        // await fetchCompletedProjects().then((count) =>
-        //   setCompletedProjects(count),
-        // );
         await fetchPortfolioItems();
         await fetchWorkExperiences();
         await fetchEducations();
@@ -1487,16 +1431,25 @@ export default function ColabProfile() {
     return "🇺🇸";
   };
 
-  const getProfilePictureUrl = () => {
-    if (profilePicturePreview) return profilePicturePreview;
-    if (profileData?.profile_picture_url) {
-      return `${API_BASE_URL}${profileData.profile_picture_url}`;
+  // Replace the getProfilePictureUrl function with this:
+const getProfilePictureUrl = () => {
+  if (profilePicturePreview) return profilePicturePreview;
+  if (profileData?.profile_picture_url) {
+    // Check if it's already a full URL (S3)
+    if (profileData.profile_picture_url.startsWith('http')) {
+      return profileData.profile_picture_url;
     }
-    if (profileData?.profile_picture) {
+    // If it's a relative path, prepend API_BASE_URL
+    return `${API_BASE_URL}${profileData.profile_picture_url}`;
+  }
+  if (profileData?.profile_picture) {
+    if (profileData.profile_picture.startsWith('http')) {
       return profileData.profile_picture;
     }
-    return Rectangle;
-  };
+    return `${API_BASE_URL}${profileData.profile_picture}`;
+  }
+  return Rectangle;
+};
 
   const handleProfilePictureChange = (e) => {
     const file = e.target.files[0];
@@ -1530,20 +1483,16 @@ export default function ColabProfile() {
 
   if (!file) return;
 
-  // Clear previous file-related errors
   setPortfolioValidationErrors((prev) => ({
     ...prev,
     file: "",
   }));
 
-  // Get file extension
   const fileExtension = file.name.split('.').pop().toLowerCase();
   
-  // Define allowed file types and extensions
   const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
   const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
 
-  // Check by MIME type and extension
   if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
     const errorMessage = "Only JPG, JPEG, PNG, and WEBP image files are allowed";
     toast.error(errorMessage);
@@ -1555,7 +1504,6 @@ export default function ColabProfile() {
       file: errorMessage,
     }));
     
-    // Clear the file from form data
     setPortfolioForm((prev) => ({
       ...prev,
       file: null,
@@ -1564,7 +1512,6 @@ export default function ColabProfile() {
     return;
   }
 
-  // Maximum size: 5 MB
   const maxSize = 5 * 1024 * 1024;
 
   if (file.size > maxSize) {
@@ -1586,7 +1533,6 @@ export default function ColabProfile() {
     return;
   }
 
-  // Save valid file
   setPortfolioForm((prev) => ({
     ...prev,
     file,
@@ -1594,7 +1540,6 @@ export default function ColabProfile() {
 
   setFileName(file.name);
   
-  // Clear any previous file error
   setPortfolioValidationErrors((prev) => ({
     ...prev,
     file: "",
@@ -1754,7 +1699,6 @@ export default function ColabProfile() {
       }
     });
 
-    // Add email if changed and user doesn't already have one
     if (editFormData.email && editFormData.email !== profileData?.email) {
       formData.append("email", editFormData.email.trim().toLowerCase());
     }
@@ -1772,19 +1716,16 @@ export default function ColabProfile() {
       setProfilePictureFile(null);
       setProfilePicturePreview(null);
 
-      // Fetch fresh profile data
       await fetchProfileData();
-      await fetchUserData(); // This should update userData
+      await fetchUserData();
 
-      // CRITICAL: Manually update the userData context with the new name
       if (updateUserData) {
         updateUserData({
-          ...userData,  // Keep existing data
-          full_name: editFormData.name.trim()  // Update the name
+          ...userData,
+          full_name: editFormData.name.trim()
         });
       }
 
-      
       toast.success("Profile updated successfully!");
 
       window.dispatchEvent(new CustomEvent("refreshNotifications"));
@@ -1830,7 +1771,6 @@ export default function ColabProfile() {
   };
 
   const addSkill = (skill) => {
-    // Validate skill is not empty
     if (!skill || typeof skill !== 'string' || skill.trim() === "") {
       toast.error("Please enter a valid skill name");
       return;
@@ -1838,23 +1778,19 @@ export default function ColabProfile() {
 
     const trimmedSkill = skill.trim();
 
-    // Check for duplicates (case insensitive)
     if (selectedSkills.some(s => s.toLowerCase() === trimmedSkill.toLowerCase())) {
       toast.error(`"${trimmedSkill}" is already added`);
       return;
     }
 
-    // Check maximum limit
     if (selectedSkills.length >= 15) {
       toast.error("Maximum 15 skills allowed");
       return;
     }
 
-    // Add the skill (any skill is allowed)
     setSelectedSkills([...selectedSkills, trimmedSkill]);
     toast.success(`"${trimmedSkill}" added`);
 
-    // Clear the input
     setCurrentSkill("");
     setSearchQuery("");
     setSearchResults([]);
@@ -1871,7 +1807,6 @@ export default function ColabProfile() {
         return;
       }
 
-      // Allow adding ANY skill (no need to check against predefined list)
       addSkill(trimmed);
     } else if (e.key === "Escape") {
       setShowResults(false);
@@ -1887,14 +1822,11 @@ export default function ColabProfile() {
  const handleSaveSkills = async () => {
   if (!userId) return;
 
-  // Create a local variable to track skills after potential addition
   let updatedSkills = [...selectedSkills];
 
-  // FIRST: Check if there's text in the input field that hasn't been added
   if (currentSkill && currentSkill.trim() !== "") {
     const trimmedSkill = currentSkill.trim();
 
-    // Check if skill already exists
     if (updatedSkills.some(s => s.toLowerCase() === trimmedSkill.toLowerCase())) {
       toast.error(`"${trimmedSkill}" is already added`);
       setCurrentSkill("");
@@ -1904,15 +1836,13 @@ export default function ColabProfile() {
       return;
     }
 
-    // Check maximum limit
     if (updatedSkills.length >= 15) {
       toast.error("Maximum 15 skills allowed");
       return;
     }
 
-    // Add the skill to local array
     updatedSkills = [...updatedSkills, trimmedSkill];
-    setSelectedSkills(updatedSkills); // Update state
+    setSelectedSkills(updatedSkills);
     toast.success(`"${trimmedSkill}" added`);
     setCurrentSkill("");
     setSearchQuery("");
@@ -1920,30 +1850,25 @@ export default function ColabProfile() {
     setShowResults(false);
   }
 
-  // SECOND: Check if no skills are selected (empty array) - USE updatedSkills, not selectedSkills
   if (!updatedSkills || updatedSkills.length === 0) {
     toast.error("❌ Please add at least one skill before saving");
     return;
   }
 
-  // Get the original skills from profileData
   const originalSkills = profileData?.skills
     ? (typeof profileData.skills === "string" ? profileData.skills.split(",") : profileData.skills)
     : [];
 
-  // Compare if skills have actually changed
   const skillsChanged =
     updatedSkills.length !== originalSkills.length ||
     updatedSkills.some(skill => !originalSkills.includes(skill)) ||
     originalSkills.some(skill => !updatedSkills.includes(skill));
 
-  // If no changes, don't make the API call
   if (!skillsChanged) {
     toast.info("No changes to save");
     return;
   }
 
-  // ONLY PROCEED TO SAVE IF SKILLS HAVE CHANGED
   setIsSavingProfile(true);
 
   setEditFormData({ ...editFormData, skills: updatedSkills });
@@ -1970,7 +1895,6 @@ export default function ColabProfile() {
   const handleAddPortfolio = async (e) => {
     e.preventDefault();
 
-    // Validate using heading
     const titleError = validateWorkName(portfolioForm.heading);
     if (titleError) {
       toast.error(titleError);
@@ -1995,7 +1919,6 @@ export default function ColabProfile() {
       return;
     }
 
-    // Validate description length
     if (portfolioForm.description && portfolioForm.description.length > 200) {
       toast.error("Work description should be less than 200 characters");
       setPortfolioValidationErrors((prev) => ({ ...prev, title: "Work description should be less than 200 characters" }));
@@ -2077,7 +2000,6 @@ export default function ColabProfile() {
       return;
     }
 
-    // Validate description length
     if (portfolioForm.description && portfolioForm.description.length > 200) {
       toast.error("Work description should be less than 200 characters");
       setPortfolioValidationErrors((prev) => ({ ...prev, title: "Work description should be less than 200 characters" }));
@@ -2128,7 +2050,6 @@ export default function ColabProfile() {
 
   // ========== UPDATED DELETE HANDLERS using showConfirm ==========
 
-  // For Portfolio Delete
   const handleDeletePortfolio = () => {
     if (!portfolioForm.id) return;
     showConfirm("Are you sure you want to delete this portfolio item?", async () => {
@@ -2152,11 +2073,11 @@ export default function ColabProfile() {
         console.error("Error deleting portfolio:", err);
         toast.error("Failed to delete portfolio item");
       } finally {
-        closeConfirm(); // Always close modal after operation
+        closeConfirm();
       }
     });
   };
-  // For Work Experience Delete
+
   const handleDeleteWorkExperience = (itemId) => {
     showConfirm("Are you sure you want to delete this work experience?", async () => {
       try {
@@ -2174,7 +2095,6 @@ export default function ColabProfile() {
     });
   };
 
-  // For Education Delete
   const handleDeleteEducation = (itemId) => {
     showConfirm("Are you sure you want to delete this education?", async () => {
       try {
@@ -2204,15 +2124,24 @@ export default function ColabProfile() {
     setActiveModal("portfolio");
   };
 
-  const getPortfolioImage = (item) => {
-    if (item.file_url) {
-      return `${API_BASE_URL}${item.file_url}`;
+  // Replace the getPortfolioImage function with this:
+const getPortfolioImage = (item) => {
+  if (item.file_url) {
+    // Check if it's already a full URL (S3)
+    if (item.file_url.startsWith('http')) {
+      return item.file_url;
     }
-    if (item.media_link) {
+    // If it's a relative path, prepend API_BASE_URL
+    return `${API_BASE_URL}${item.file_url}`;
+  }
+  if (item.media_link) {
+    if (item.media_link.startsWith('http')) {
       return item.media_link;
     }
-    return Portfolio1;
-  };
+    return `${API_BASE_URL}${item.media_link}`;
+  }
+  return Portfolio1;
+};
 
   const openPortfolioLink = (item) => {
     if (item.media_link) {
@@ -2592,10 +2521,13 @@ export default function ColabProfile() {
                <div className="bg-white shadow-lg flex gap-6 w-full xl:w-[804px] rounded-[10px] p-6">
                   <div className="flex flex-col items-start w-[218px] flex-shrink-0">
                     <img
-                      src={getProfilePictureUrl()}
-                      alt="profile"
-                      className="w-[218px] h-[219px] rounded-[9px] object-cover"
-                    />
+  src={getProfilePictureUrl()}
+  alt="profile"
+  className="w-[218px] h-[219px] rounded-[9px] object-cover"
+  onError={(e) => {
+    e.target.src = Rectangle;
+  }}
+/>
                     <div className="flex items-center gap-2 mt-3">
                       <span className="text-lg">{getCountryFlag(profileData?.location)}</span>
                       <span className="text-[14px] font-medium">{formatLocation(profileData?.location)}</span>
@@ -2632,11 +2564,6 @@ export default function ColabProfile() {
                             </span>
                             <span className="text-xs text-gray-600">({reviews.length} Reviews)</span>
                           </div>
-                          {/* <div className="bg-gray-100 px-3 py-1 rounded-full">
-                            <span className="text-xs font-medium">
-                              {editFormData.pricing_unit === "₹" ? "₹" : "₹"}{editFormData.pricing_amount ? Number(editFormData.pricing_amount).toFixed(2) : "0.00"}/{getPricingAbbreviation(editFormData.pricing_type)}
-                            </span>
-                          </div> */}
                           <div className="bg-gray-100 px-3 py-1 rounded-full">
                             <span className="text-xs font-medium">
                               Total earnings: ₹{totalEarnings.toLocaleString()}
@@ -2717,9 +2644,6 @@ export default function ColabProfile() {
                       <span className="text-gray-500">({reviews.length} {reviews.length === 1 ? "review" : "reviews"})</span>
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
-                      {/* <span className="bg-gray-100 px-2 py-1 rounded-full">
-                        ₹{editFormData.pricing_amount ? Number(editFormData.pricing_amount).toFixed(2) : "0.00"}/{getPricingAbbreviation(editFormData.pricing_type)}
-                      </span> */}
                       <span className="bg-gray-100 px-2 py-1 rounded-full">
                         Earnings: ₹{totalEarnings.toLocaleString()}
                       </span>
@@ -2764,8 +2688,6 @@ export default function ColabProfile() {
                             ✕
                           </button>
                         </div>
-
-                        {/* ===== VALIDATION ERRORS SUMMARY REMOVED ===== */}
 
                         <div className="space-y-3 xs:space-y-4">
                           {/* Profile Picture */}
@@ -2975,7 +2897,7 @@ export default function ColabProfile() {
                               value={editFormData.availability}
                               onChange={(e) => {
                                 setEditFormData({ ...editFormData, availability: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, availability: validateAlphabetsSpacesHyphen(e.target.value, "Availability") });
+                                setEditFormErrors({ ...editFormErrors, availability: validateAlphabetsSpacesHyphen(e.target.value) });
                               }}
                               maxLength={50}
                               style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
@@ -3084,46 +3006,6 @@ export default function ColabProfile() {
                             {editFormErrors.skills_rating && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.skills_rating}</p>}
                           </div>
 
-                          {/* Pricing */}
-                          {/* <div>
-                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Pricing</label>
-                            <div className="flex gap-2 xs:gap-3">
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={editFormData.pricing_amount}
-                                onChange={(e) => {
-                                  const value = e.target.value;
-                                  if (value === "") {
-                                    setEditFormData({ ...editFormData, pricing_amount: "" });
-                                  } else {
-                                    const numValue = parseFloat(value);
-                                    if (!isNaN(numValue) && numValue >= 0) {
-                                      setEditFormData({ ...editFormData, pricing_amount: value });
-                                    }
-                                  }
-                                }}
-                                onKeyDown={(e) => { if (e.key === "-" || e.key === "Minus") e.preventDefault(); }}
-                                style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
-                                className="flex-1 px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
-                                placeholder="Amount"
-                              />
-                              <select
-                                value={editFormData.pricing_type}
-                                onChange={(e) => setEditFormData({ ...editFormData, pricing_type: e.target.value })}
-                                style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
-                                className="w-20 xs:w-24 sm:w-28 px-2 xs:px-3 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
-                              >
-                                <option value="hourly">Hourly</option>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="project">Project</option>
-                              </select>
-                            </div>
-                          </div> */}
-
                           {/* About with validation */}
                           <div>
                             <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">About</label>
@@ -3151,13 +3033,24 @@ export default function ColabProfile() {
                             <button
                               onClick={handleEditProfile}
                               disabled={isSavingProfile}
-                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${isSavingProfile
-                                ? "opacity-50 cursor-not-allowed bg-gray-400"
-                                : "bg-[#51218F] hover:bg-[#6D28D9]"
-                                }`}
+                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${
+                                isSavingProfile
+                                  ? "opacity-50 cursor-not-allowed bg-gray-400"
+                                  : "bg-[#51218F] hover:bg-[#6D28D9]"
+                              }`}
                             >
-                              <span className="font-montserrat font-bold text-[12px] leading-[100%] text-white whitespace-nowrap">
-                                {isSavingProfile ? "Saving..." : "Save Changes"}
+                              <span className="font-montserrat font-bold text-[12px] leading-[100%] text-white whitespace-nowrap flex items-center gap-2">
+                                {isSavingProfile ? (
+                                  <>
+                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Saving...
+                                  </>
+                                ) : (
+                                  "Save Changes"
+                                )}
                               </span>
                             </button>
 
@@ -3169,10 +3062,11 @@ export default function ColabProfile() {
                                 setProfilePicturePreview(null);
                               }}
                               disabled={isSavingProfile}
-                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${isSavingProfile
-                                ? "opacity-50 cursor-not-allowed bg-gray-400"
-                                : "bg-[#5B2D8B] hover:bg-[#4A2575] border border-[#6A3EA1]"
-                                }`}
+                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${
+                                isSavingProfile
+                                  ? "opacity-50 cursor-not-allowed bg-gray-400"
+                                  : "bg-[#5B2D8B] hover:bg-[#4A2575] border border-[#6A3EA1]"
+                              }`}
                             >
                               <span className="font-montserrat font-bold text-[12px] leading-[100%] text-white whitespace-nowrap">
                                 Cancel
@@ -3317,9 +3211,20 @@ export default function ColabProfile() {
                     <div className="flex items-center gap-2 xs:gap-3 flex-wrap justify-center">
                       <button
                         onClick={handleSaveSkills}
-                        className="!border border-[#51218F] px-3 xs:px-4 py-0.5 xs:py-1 rounded-full text-[#51218F] text-[11px] xs:text-[12px] hover:bg-[#51218F] hover:text-white transition-colors whitespace-nowrap"
+                        disabled={isSavingProfile}
+                        className="!border border-[#51218F] px-3 xs:px-4 py-0.5 xs:py-1 rounded-full text-[#51218F] text-[11px] xs:text-[12px] hover:bg-[#51218F] hover:text-white transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
-                        Save Skills
+                        {isSavingProfile ? (
+                          <>
+                            <svg className="animate-spin h-3 w-3 text-[#51218F]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Skills"
+                        )}
                       </button>
                       {selectedSkills.length > 0 && (
                         <p className="text-right text-[11px] xs:text-[12px] font-['Montserrat'] text-[#51218F] whitespace-nowrap">
@@ -3343,10 +3248,21 @@ export default function ColabProfile() {
     setFileName("No file chosen");
     setActiveModal("portfolio");
   }}
-  className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap"
+  className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
   style={{ border: '1px solid #51218F' }}
+  disabled={isSavingPortfolio}
 >
-  Add Portfolio
+  {isSavingPortfolio ? (
+    <>
+      <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Adding...
+    </>
+  ) : (
+    "Add Portfolio"
+  )}
 </button>
               </div>
               <div className="h-px bg-gray-200 my-4" />
@@ -3361,11 +3277,15 @@ export default function ColabProfile() {
                   >
                     <div className="relative h-48 overflow-hidden">
                       <img
-                        src={getPortfolioImage(item)}
-                        alt={item.heading || "portfolio"}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        onError={(e) => { e.target.src = index === 0 ? Portfolio1 : index === 1 ? Portfolio2 : Portfolio3; }}
-                      />
+  src={getPortfolioImage(item)}
+  alt={item.heading || "portfolio"}
+  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+  onError={(e) => {
+    // Try alternate images based on index
+    const index = portfolioItems.indexOf(item);
+    e.target.src = index === 0 ? Portfolio1 : index === 1 ? Portfolio2 : Portfolio3;
+  }}
+/>
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
@@ -3399,7 +3319,6 @@ export default function ColabProfile() {
                           </svg>
                         </div>
                       </div>
-                      {/* Overlay on hover */}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                         <span className="text-white text-sm font-semibold px-3 py-1 bg-black/50 rounded-full">
                           View Project
@@ -3451,7 +3370,6 @@ export default function ColabProfile() {
                           </svg>
                         </div>
                       </div>
-                      {/* Overlay on hover for mobile */}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                         <span className="text-white text-[10px] font-semibold px-2 py-0.5 bg-black/50 rounded-full">
                           View
@@ -3555,7 +3473,6 @@ export default function ColabProfile() {
   onChange={(e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type and size immediately
       const fileExtension = file.name.split('.').pop().toLowerCase();
       const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
       const maxSize = 5 * 1024 * 1024;
@@ -3627,19 +3544,28 @@ export default function ColabProfile() {
                         </div>
 
                         <div className="flex gap-4 justify-center mt-6">
-                          {/* Save Button */}
                           <button
                             type="submit"
-                            disabled={!!portfolioValidationErrors.title || (portfolioForm.id ? false : !!portfolioValidationErrors.file)}
-                            className={`w-[122px] h-[39px] rounded-[100px] font-montserrat font-bold text-[12px] leading-[100%] transition-all duration-200 cursor-pointer ${(portfolioValidationErrors.title || (!portfolioForm.id && portfolioValidationErrors.file))
-                              ? "opacity-50 cursor-not-allowed bg-gray-400 text-white"
-                              : "bg-[#51218F] hover:bg-[#6D28D9] text-white"
-                              }`}
+                            disabled={!!portfolioValidationErrors.title || (portfolioForm.id ? false : !!portfolioValidationErrors.file) || isSavingPortfolio}
+                            className={`w-[122px] h-[39px] rounded-[100px] font-montserrat font-bold text-[12px] leading-[100%] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 ${
+                              (portfolioValidationErrors.title || (!portfolioForm.id && portfolioValidationErrors.file) || isSavingPortfolio)
+                                ? "opacity-50 cursor-not-allowed bg-gray-400 text-white"
+                                : "bg-[#51218F] hover:bg-[#6D28D9] text-white"
+                            }`}
                           >
-                            Save
+                            {isSavingPortfolio ? (
+                              <>
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Saving...
+                              </>
+                            ) : (
+                              "Save"
+                            )}
                           </button>
 
-                          {/* Cancel Button */}
                           <button
                             type="button"
                             onClick={() => {
@@ -3653,7 +3579,6 @@ export default function ColabProfile() {
                             Cancel
                           </button>
 
-                          {/* Delete Button - only shows when editing */}
                           {portfolioForm.id && (
                             <button
                               type="button"
@@ -3689,7 +3614,6 @@ export default function ColabProfile() {
                         </button>
                       </div>
 
-                      {/* Vertical Scroll Container */}
                       <div
                         className="overflow-y-auto max-h-[70vh] pr-2"
                         style={{
@@ -3786,12 +3710,23 @@ export default function ColabProfile() {
                       setWorkFormErrors({ company_name: "", role: "", location: "", description: "", start_year: "", end_year: "", date_range: "" });
                       setActiveModal("experience");
                     }}
-                    className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap"
+                    className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
                     style={{
                       border: '1px solid #51218F'
                     }}
+                    disabled={isSavingWork}
                   >
-                    Add Experience
+                    {isSavingWork ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Adding...
+                      </>
+                    ) : (
+                      "Add Experience"
+                    )}
                   </button>
                 </div>
               </div>
@@ -4028,22 +3963,35 @@ export default function ColabProfile() {
                         <div className="flex gap-2 sm:gap-4 justify-center">
                           <button
                             type="submit"
-                            className="px-4 sm:px-8 py-2 sm:py-3 rounded-full font-bold text-white transition-all duration-300 text-sm sm:text-base"
+                            disabled={isSavingWork}
+                            className="px-4 sm:px-8 py-2 sm:py-3 rounded-full font-bold text-white transition-all duration-300 text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{
                               background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
                               boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
                               border: 'none'
                             }}
                             onMouseEnter={(e) => {
-                              e.target.style.transform = 'translateY(-1px)';
-                              e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+                              if (!isSavingWork) {
+                                e.target.style.transform = 'translateY(-1px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+                              }
                             }}
                             onMouseLeave={(e) => {
                               e.target.style.transform = 'translateY(0)';
                               e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
                             }}
                           >
-                            Save
+                            {isSavingWork ? (
+                              <>
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Saving...
+                              </>
+                            ) : (
+                              "Save"
+                            )}
                           </button>
 
                           <button
@@ -4095,12 +4043,23 @@ export default function ColabProfile() {
                       setEducationFormErrors({ institution_name: "", degree: "", field_of_study: "", location: "", description: "", start_year: "", end_year: "", date_range: "" });
                       setActiveModal("education");
                     }}
-                    className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap"
+                    className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
                     style={{
                       border: '1px solid #51218F'
                     }}
+                    disabled={isSavingEducation}
                   >
-                    Add Education
+                    {isSavingEducation ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Adding...
+                      </>
+                    ) : (
+                      "Add Education"
+                    )}
                   </button>
                 </div>
               </div>
@@ -4360,22 +4319,35 @@ export default function ColabProfile() {
                         <div className="flex gap-2 sm:gap-4 justify-center">
                           <button
                             type="submit"
-                            className="px-3 xs:px-4 sm:px-8 py-1.5 xs:py-2 sm:py-3 rounded-full font-bold text-white transition-all duration-300 text-[11px] xs:text-xs sm:text-sm"
+                            disabled={isSavingEducation}
+                            className="px-3 xs:px-4 sm:px-8 py-1.5 xs:py-2 sm:py-3 rounded-full font-bold text-white transition-all duration-300 text-[11px] xs:text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{
                               background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
                               boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
                               border: 'none'
                             }}
                             onMouseEnter={(e) => {
-                              e.target.style.transform = 'translateY(-1px)';
-                              e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+                              if (!isSavingEducation) {
+                                e.target.style.transform = 'translateY(-1px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+                              }
                             }}
                             onMouseLeave={(e) => {
                               e.target.style.transform = 'translateY(0)';
                               e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
                             }}
                           >
-                            Save
+                            {isSavingEducation ? (
+                              <>
+                                <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                Saving...
+                              </>
+                            ) : (
+                              "Save"
+                            )}
                           </button>
 
                           <button
@@ -4483,7 +4455,7 @@ export default function ColabProfile() {
 
       {/* ========== VERIFICATION POPUPS ========== */}
 
-      {/* Phone Input Popup - FIXED FOR MOBILE */}
+      {/* Phone Input Popup */}
       {showPhonePopup && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99998]" onClick={() => { setShowPhonePopup(false); setPhoneNumber(""); }} />
@@ -4514,7 +4486,6 @@ export default function ColabProfile() {
                 <div className="mb-6 md:mb-8 px-2 sm:px-0">
                   <label className="block text-xs sm:text-sm font-medium text-[#030303] mb-2 md:mb-3 poppins-font text-left">Phone Number</label>
 
-                  {/* Fixed: Country code and input with matching heights */}
                   <div className="flex items-stretch mb-3 md:mb-4">
                     <div className="flex-shrink-0">
                       <div className="h-[42px] sm:h-[48px] md:h-[52px] flex items-center px-3 sm:px-4 border border-r-0 border-gray-300 rounded-l-xl bg-gray-50/70 backdrop-blur-sm">
@@ -4550,12 +4521,15 @@ export default function ColabProfile() {
                   className="group relative overflow-hidden w-full max-w-[400px] sm:max-w-[500px] h-10 sm:h-12 md:h-[48px] rounded-[30px] bg-gradient-to-r from-[#3D1768] to-[#030303] px-4 sm:px-6 md:px-8 py-2 sm:py-3 text-white text-sm sm:text-base md:text-lg font-medium poppins-font border border-white/10 shadow-lg hover:border-white/30 hover:shadow-2xl hover:shadow-purple-900/50 active:scale-95 transition-all duration-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
                 >
                   <span className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 transition-transform duration-1000 ease-out group-hover:translate-x-[100%]" />
-                  <span className="relative z-10 group-hover:scale-105 transition-transform duration-300">
+                  <span className="relative z-10 group-hover:scale-105 transition-transform duration-300 flex items-center gap-2">
                     {isVerifying ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
                         <span className="text-xs sm:text-sm">Sending...</span>
-                      </div>
+                      </>
                     ) : "Send OTP"}
                   </span>
                 </button>
@@ -4565,7 +4539,7 @@ export default function ColabProfile() {
         </>
       )}
 
-      {/* Email Verification Popup - FIXED FOR MOBILE */}
+      {/* Email Verification Popup */}
       {showEmailPopup && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99998]" onClick={() => { if (!isVerifying) { setShowEmailPopup(false); setEmail(""); } }} />
@@ -4627,7 +4601,17 @@ export default function ColabProfile() {
                   className="group relative overflow-hidden w-full max-w-[554px] h-10 sm:h-12 md:h-[48px] rounded-[30px] bg-gradient-to-r from-[#3D1768] to-[#030303] px-4 sm:px-6 md:px-8 py-2 sm:py-3 text-white text-sm sm:text-base md:text-lg font-medium poppins-font border border-white/10 shadow-lg hover:border-white/30 hover:shadow-2xl hover:shadow-purple-900/50 active:scale-95 transition-all duration-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 transition-transform duration-1000 ease-out group-hover:translate-x-[100%]" />
-                  <span className="relative z-10 group-hover:scale-105 transition-transform duration-300">{isVerifying ? <div className="flex items-center gap-2"><div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span className="text-xs sm:text-sm">Sending...</span></div> : "Send OTP"}</span>
+                  <span className="relative z-10 group-hover:scale-105 transition-transform duration-300 flex items-center gap-2">
+                    {isVerifying ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-xs sm:text-sm">Sending...</span>
+                      </>
+                    ) : "Send OTP"}
+                  </span>
                 </button>
               </div>
             </div>
@@ -4635,7 +4619,7 @@ export default function ColabProfile() {
         </>
       )}
 
-      {/* OTP Verification Popup - FIXED FOR MOBILE */}
+      {/* OTP Verification Popup */}
       {showOTPPopup && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99998]" onClick={() => { setShowOTPPopup(false); setOtp(["", "", "", "", "", ""]); setResendTime(45); if (currentVerificationType === "phone") { setShowPhonePopup(true); } else { setShowEmailPopup(true); } }} />
@@ -4683,7 +4667,17 @@ export default function ColabProfile() {
                   className="group relative overflow-hidden w-full max-w-[554px] h-10 sm:h-12 md:h-[48px] rounded-[30px] bg-gradient-to-r from-[#3D1768] to-[#030303] px-4 sm:px-6 md:px-8 py-2 sm:py-3 text-white text-sm sm:text-base md:text-lg font-medium poppins-font border border-white/10 shadow-lg hover:border-white/30 hover:shadow-2xl hover:shadow-purple-900/50 active:scale-95 transition-all duration-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="absolute inset-0 translate-x-[-100%] bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 transition-transform duration-1000 ease-out group-hover:translate-x-[100%]" />
-                  <span className="relative z-10 group-hover:scale-105 transition-transform duration-300">{isVerifying ? <div className="flex items-center gap-2"><div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span className="text-xs sm:text-sm">Verifying...</span></div> : "Verify OTP"}</span>
+                  <span className="relative z-10 group-hover:scale-105 transition-transform duration-300 flex items-center gap-2">
+                    {isVerifying ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-xs sm:text-sm">Verifying...</span>
+                      </>
+                    ) : "Verify OTP"}
+                  </span>
                 </button>
                 <div className="mt-6 md:mt-8 text-center">
                   <p className="text-[#030303]/90 text-xs sm:text-sm md:text-base poppins-font mb-1">Didn't receive the code?</p>
@@ -4692,8 +4686,22 @@ export default function ColabProfile() {
                       Resend in <span className="font-bold text-red-500 font-mono">{String(Math.floor(resendTime / 60)).padStart(2, "0")}:{String(resendTime % 60).padStart(2, "0")}</span>
                     </p>
                   ) : (
-                    <button onClick={handleResendOTP} disabled={isVerifying || isResending} className="text-[#C22CA2] hover:text-[#3D1768] font-semibold text-xs sm:text-sm md:text-base poppins-font transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 mx-auto px-3 sm:px-4 py-1 sm:py-2 rounded-full group">
-                      {isResending ? <><svg className="animate-spin h-3 w-3 sm:h-4 sm:w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg><span>Sending OTP...</span></> : "Resend OTP"}
+                    <button 
+                      onClick={handleResendOTP} 
+                      disabled={isVerifying || isResending} 
+                      className="text-[#C22CA2] hover:text-[#3D1768] font-semibold text-xs sm:text-sm md:text-base poppins-font transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 mx-auto px-3 sm:px-4 py-1 sm:py-2 rounded-full group"
+                    >
+                      {isResending ? (
+                        <>
+                          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Sending...
+                        </>
+                      ) : (
+                        "Resend OTP"
+                      )}
                     </button>
                   )}
                 </div>
@@ -4703,7 +4711,7 @@ export default function ColabProfile() {
         </>
       )}
 
-      {/* Success Popup - FIXED FOR MOBILE */}
+      {/* Success Popup */}
       {showSuccessPopup && (
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99998]" onClick={() => setShowSuccessPopup(false)} />
@@ -4732,7 +4740,7 @@ export default function ColabProfile() {
         </>
       )}
 
-      {/* Reviews Popup Modal - 5 per page, responsive, no scrollbar */}
+      {/* Reviews Popup Modal - 5 per page */}
       {showReviewsPopup && (
         <>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999]" onClick={() => setShowReviewsPopup(false)} />
@@ -4832,7 +4840,6 @@ export default function ColabProfile() {
                   <div className="flex items-center gap-1">
                     {[...Array(reviewsTotalPages)].map((_, i) => {
                       const pageNum = i + 1;
-                      // Show max 5 page buttons
                       if (reviewsTotalPages > 5) {
                         if (
                           pageNum === 1 ||

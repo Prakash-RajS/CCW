@@ -74,13 +74,14 @@ const Contact = () => {
     }
 
     // Email
-    if (!form.email) {
-      newErrors.email = "Email is required";
-    } else if (form.email.length > 100) {
-      newErrors.email = "Email cannot exceed 100 characters";
-    } else if (!/\S+@\S+\.\S+/.test(form.email)) {
-      newErrors.email = "Enter a valid email address";
-    }
+    // Email - Updated to accept ONLY Gmail addresses
+if (!form.email) {
+  newErrors.email = "Email is required";
+} else if (form.email.length > 100) {
+  newErrors.email = "Email cannot exceed 100 characters";
+} else if (!/^[A-Za-z0-9._%+-]+@gmail\.com$/.test(form.email)) {
+  newErrors.email = "Only Gmail addresses are accepted (example@gmail.com)";
+}
 
     // Phone
     if (!form.phone) {
@@ -241,7 +242,7 @@ const Contact = () => {
                   value={form.email}
                   maxLength={100}
                   onChange={handleChange}
-                  placeholder="Enter valid email address"
+                  placeholder="Enter your Gmail address (example@gmail.com)"
                   className={`w-full !border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-lg pl-10 p-3 outline-none focus:border-purple-600`}
                 />
               </div>

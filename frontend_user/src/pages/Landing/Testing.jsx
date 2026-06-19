@@ -66,7 +66,7 @@ const CountUp = ({ end, duration = 2000, suffix = "", formatK = false }) => {
 
 const Testing = () => {
   const [hoveredCard, setHoveredCard] = useState(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  // const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const navigate = useNavigate();
@@ -270,13 +270,13 @@ const Testing = () => {
   };
 
   // ========== LOADING STATE ==========
-  if (isCheckingAuth) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-      </div>
-    );
-  }
+  // if (isCheckingAuth) {
+  //   return (
+  //     <div className="flex justify-center items-center h-screen">
+  //       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <>
@@ -320,7 +320,7 @@ const Testing = () => {
                 <div className="hidden sm:flex items-center gap-3 md:gap-4 z-[100] relative">
                   {isAuthenticated ? (
                     <button
-                      onClick={handleLogout}
+                      // onClick={handleLogout}
                       className="px-4 py-2 text-sm font-semibold rounded-full whitespace-nowrap transition-all duration-300 !border border-red-500 text-red-500 bg-white hover:bg-red-500 hover:text-white hover:shadow-md cursor-pointer"
                     >
                       Logout
@@ -354,7 +354,7 @@ const Testing = () => {
                   <div className="flex items-center gap-2 xs:gap-3">
                     {isAuthenticated ? (
                       <button
-                        onClick={handleLogout}
+                        // onClick={handleLogout}
                         className="px-2.5 py-1 xs:px-3 xs:py-1 text-[11px] xs:text-[12px] font-medium rounded-full whitespace-nowrap transition-all duration-300 !border border-red-500 text-red-500 bg-white hover:bg-red-500 hover:text-white hover:shadow-md"
                       >
                         Logout
