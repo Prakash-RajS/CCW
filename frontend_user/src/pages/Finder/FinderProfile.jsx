@@ -106,12 +106,14 @@ const InvitePopup = ({ isOpen, onClose, collaborator, currentUser, jobs, onInvit
   const [successData, setSuccessData] = useState({ collaboratorName: '', jobTitle: '' });
   const [jobSearch, setJobSearch] = useState("");
   const dropdownRef = useRef(null);
+  
 
-  const activeJobs = jobs.filter(
-    (job) =>
-      job.status === "posted" ||
-      job.status === "active"
-  );
+  // In the InvitePopup component, find this line:
+const activeJobs = jobs.filter(
+  (job) =>
+    job.status === "posted" ||
+    job.status === "active"
+);
 
   const searchableJobs = activeJobs.filter(
     (job) =>
@@ -590,41 +592,40 @@ export default function FinderProfile() {
   const [reviews, setReviews] = useState([]);
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
   const [invitePopup, setInvitePopup] = useState({ isOpen: false, collaborator: null });
 
+  // ========== FIX: Load everything in parallel ==========
   useEffect(() => {
-    const fetchLoggedInUser = async () => {
+    const fetchAllData = async () => {
+      setLoading(true);
+      setJobsLoading(true);
+      
       try {
-        const response = await api.get(`/auth/me`, { withCredentials: true });
-        setLoggedInUser(response.data);
-      } catch (err) { console.error("Error fetching logged in user:", err); }
-    };
-    fetchLoggedInUser();
-  }, []);
+        // Start all API calls in parallel
+        const [authResponse, collaboratorResponse] = await Promise.all([
+          api.get(`/auth/me`, { withCredentials: true }).catch(err => {
+            console.error("Error fetching logged in user:", err);
+            return { data: null };
+          }),
+          api.get(`/collaborator/get/${id}`).catch(err => {
+            console.error("Error fetching collaborator profile:", err);
+            return { data: null };
+          })
+        ]);
 
-  useEffect(() => {
-    const fetchUserJobs = async () => {
-      if (!loggedInUser?.id) return;
-      try {
-        const res = await api.get(`/jobs/my-jobs/${loggedInUser.id}`);
-        const rawJobs = res.data.jobs || res.data || [];
-        setJobs(rawJobs.map((job) => ({ ...job, proposals_count: job.proposals_count || 0 })));
-      } catch (err) { console.error("Failed to fetch user jobs", err); setJobs([]); }
-    };
-    fetchUserJobs();
-  }, [loggedInUser]);
+        // Handle logged in user
+        const userData = authResponse.data;
+        setLoggedInUser(userData);
 
-  useEffect(() => {
-    const fetchCollaboratorData = async () => {
-      try {
-        setLoading(true);
-        if (!id) throw new Error("No user ID provided");
-        const response = await api.get(`/collaborator/get/${id}`);
-        if (response.data) {
-          setCollaboratorData({ ...response.data, id, skills: response.data.skills || response.data.skill_set || [] });
-          if (response.data.portfolio_items?.length > 0) {
+        // Handle collaborator data
+        if (collaboratorResponse.data) {
+          const data = collaboratorResponse.data;
+          setCollaboratorData({ ...data, id, skills: data.skills || data.skill_set || [] });
+          
+          if (data.portfolio_items?.length > 0) {
             setPortfolioItems(
-              response.data.portfolio_items
+              data.portfolio_items
                 .sort((a, b) => (a.order || 0) - (b.order || 0))
                 .map((item, index) => ({
                   id: item.id,
@@ -643,23 +644,82 @@ export default function FinderProfile() {
               { id: 3, file_url: Ui3, title: "Brand Identity", file_type: "image", is_fallback: true }
             ]);
           }
-          setWorkExperiences(response.data.work_experiences?.length > 0 ? response.data.work_experiences : []);
-          if (response.data.reviews?.length > 0) setReviews(response.data.reviews);
+          
+          setWorkExperiences(data.work_experiences?.length > 0 ? data.work_experiences : []);
+          if (data.reviews?.length > 0) setReviews(data.reviews);
+        } else {
+          // Fallback data
+          setCollaboratorData({ 
+            id, 
+            name: "Jenny", 
+            skill_category: "UI/UX Designer", 
+            experience_years: 10, 
+            skills_rating: 4.9, 
+            about: "Experienced UI/UX designer.", 
+            profile_picture_url: null, 
+            pricing_amount: 50, 
+            review_count: 5, 
+            skills: [] 
+          });
+          setPortfolioItems([
+            { id: 1, file_url: Ui1, title: "UI/UX Design", file_type: "image", is_fallback: true },
+            { id: 2, file_url: Ui2, title: "Product Design", file_type: "image", is_fallback: true },
+            { id: 3, file_url: Ui3, title: "Brand Identity", file_type: "image", is_fallback: true }
+          ]);
+          setWorkExperiences([]);
         }
+
+        // Now fetch jobs if user is logged in
+        if (userData?.id) {
+          try {
+            const jobsResponse = await api.get(`/jobs/my-jobs/${userData.id}`);
+            console.log("FinderProfile - Jobs API response:", jobsResponse.data);
+            
+            let rawJobs = [];
+            if (jobsResponse.data.jobs) {
+              rawJobs = jobsResponse.data.jobs;
+            } else if (Array.isArray(jobsResponse.data)) {
+              rawJobs = jobsResponse.data;
+            } else if (jobsResponse.data.data) {
+              rawJobs = jobsResponse.data.data;
+            }
+            
+            console.log("FinderProfile - Raw jobs:", rawJobs);
+            
+            const mappedJobs = rawJobs.map((job) => ({
+              ...job,
+              status: job.status || job.job_status || 'posted',
+              proposals_count: job.proposals_count || 0,
+              has_contract: job.has_contract || false
+            }));
+            
+            console.log("FinderProfile - Mapped jobs:", mappedJobs.map(j => ({ 
+              id: j.id, 
+              title: j.title, 
+              status: j.status,
+              has_contract: j.has_contract 
+            })));
+            
+            setJobs(mappedJobs);
+          } catch (err) {
+            console.error("Failed to fetch user jobs", err);
+            setJobs([]);
+          }
+        }
+        
         setError(null);
       } catch (err) {
-        console.error("Error fetching collaborator profile:", err);
+        console.error("Error fetching data:", err);
         setError("Failed to load profile data. Please try again.");
-        setCollaboratorData({ id, name: "Jenny", skill_category: "UI/UX Designer", experience_years: 10, skills_rating: 4.9, about: "Experienced UI/UX designer.", profile_picture_url: null, pricing_amount: 50, review_count: 5, skills: [] });
-        setPortfolioItems([
-          { id: 1, file_url: Ui1, title: "UI/UX Design", file_type: "image", is_fallback: true },
-          { id: 2, file_url: Ui2, title: "Product Design", file_type: "image", is_fallback: true },
-          { id: 3, file_url: Ui3, title: "Brand Identity", file_type: "image", is_fallback: true }
-        ]);
-        setWorkExperiences([]);
-      } finally { setLoading(false); }
+      } finally {
+        setLoading(false);
+        setJobsLoading(false);
+      }
     };
-    fetchCollaboratorData();
+
+    if (id) {
+      fetchAllData();
+    }
   }, [id]);
 
   const nextSlide = () => {
@@ -711,11 +771,48 @@ export default function FinderProfile() {
     }
   };
 
-  const openInvitePopup = () => {
-    const hasActiveJobs = jobs.some(j => j.status === "posted" || j.status === "active");
-    if (!hasActiveJobs) { toast.info("Please create a job first before inviting collaborators"); navigate("/created"); return; }
-    setInvitePopup({ isOpen: true, collaborator: { ...collaboratorData, id: collaboratorData?.id || id } });
-  };
+ const openInvitePopup = () => {
+  // Log to debug
+  console.log("Jobs in FinderProfile:", jobs);
+  console.log("Jobs count:", jobs.length);
+  console.log("Jobs loading:", jobsLoading);
+  console.log("Job statuses:", jobs.map(j => ({ id: j.id, title: j.title, status: j.status })));
+  
+  // Check if jobs are still loading
+  if (jobsLoading) {
+    toast.info("Loading jobs... Please try again.");
+    return;
+  }
+  
+  // Check if we have any jobs
+  if (!jobs || jobs.length === 0) {
+    toast.info("Please create a job first before inviting collaborators");
+    navigate("/created");
+    return;
+  }
+  
+  // Check if we have any active jobs (matching Home.js implementation)
+  const hasActiveJobs = jobs.some(
+    (j) => j.status === "posted" || j.status === "active",
+  );
+  
+  console.log("Has active jobs:", hasActiveJobs);
+  
+  if (!hasActiveJobs) {
+    toast.info("Please create a job first before inviting collaborators");
+    navigate("/created");
+    return;
+  }
+  
+  // Open the invite popup
+  setInvitePopup({ 
+    isOpen: true, 
+    collaborator: { 
+      ...collaboratorData, 
+      id: collaboratorData?.id || id 
+    } 
+  });
+};
   const closeInvitePopup = () => setInvitePopup({ isOpen: false, collaborator: null });
   const handleCollaborateRequest = () => {
     if (loggedInUser?.id) openInvitePopup();

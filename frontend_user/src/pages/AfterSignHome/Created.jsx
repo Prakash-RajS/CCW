@@ -1237,6 +1237,7 @@ export default function Created() {
   });
   const [estimateLevel, setEstimateLevel] = useState("");
   const [estimateTime, setEstimateTime] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [durationUnit, setDurationUnit] = useState("");
   const [durationValue, setDurationValue] = useState("");
   const [isDurationValueOpen, setIsDurationValueOpen] = useState(false);
@@ -1791,95 +1792,101 @@ export default function Created() {
   // SUBMIT LOGIC
   // =========================================================
   const submitJob = async (status) => {
-    // Validate all fields before submission
-    const isValid = validateAllFields();
+  // Validate all fields before submission
+  const isValid = validateAllFields();
 
-    if (!isValid) {
-      // Show toast for the first error
-      if (titleError) {
-        toast.error(titleError);
-      } else if (descriptionError) {
-        toast.error(descriptionError);
-      } else if (skillsError) {
-        toast.error(skillsError);
-      } else if (estimateTimeError) {
-        toast.error(estimateTimeError);
-      } else if (durationUnitError) {
-        toast.error(durationUnitError);
-      } else if (durationValueError) {
-        toast.error(durationValueError);
-      } else if (estimateLevelError) {
-        toast.error(estimateLevelError);
-      } else if (budgetFromError) {
-        toast.error(budgetFromError);
-      } else if (budgetToError) {
-        toast.error(budgetToError);
-      } else if (attachmentsError) {
-        toast.error(attachmentsError);
-      }
-      return;
+  if (!isValid) {
+    // Show toast for the first error
+    if (titleError) {
+      toast.error(titleError);
+    } else if (descriptionError) {
+      toast.error(descriptionError);
+    } else if (skillsError) {
+      toast.error(skillsError);
+    } else if (estimateTimeError) {
+      toast.error(estimateTimeError);
+    } else if (durationUnitError) {
+      toast.error(durationUnitError);
+    } else if (durationValueError) {
+      toast.error(durationValueError);
+    } else if (estimateLevelError) {
+      toast.error(estimateLevelError);
+    } else if (budgetFromError) {
+      toast.error(budgetFromError);
+    } else if (budgetToError) {
+      toast.error(budgetToError);
+    } else if (attachmentsError) {
+      toast.error(attachmentsError);
+    }
+    return;
+  }
+
+  if (!userData?.id) {
+    toast.error("Authentication Error", "User not authenticated");
+    return;
+  }
+
+  // Set submitting state to true
+  setIsSubmitting(true);
+
+  const loadingToastId = toast.loading(jobId ? "Updating job..." : "Creating job...");
+
+  try {
+    const formData = new FormData();
+    formData.append("title", title.trim());
+    formData.append("description", description.trim());
+    formData.append("skills", skills.join(","));
+    formData.append("duration", durationValue);
+    formData.append("expertise_level", estimateLevel.trim().toLowerCase());
+    formData.append("budget_type", budgetType === "Fixed" ? "fixed" : "hourly");
+    formData.append("project_size", estimateTime.toLowerCase());
+
+    const budgetFrom = parseFloat(budget.from);
+    const budgetTo = budgetType === "Fixed" ? budgetFrom : parseFloat(budget.to);
+
+    formData.append("budget_from", String(budgetFrom));
+    formData.append("budget_to", String(budgetTo));
+    formData.append("status", status === "posted" ? "posted" : "draft");
+
+    if (files.length > 0) {
+      files.forEach((file) => {
+        if (file.size > 0) {
+          formData.append("attachments", file);
+        }
+      });
     }
 
-    if (!userData?.id) {
-      toast.error("Authentication Error", "User not authenticated");
-      return;
-    }
-
-    const loadingToastId = toast.loading(jobId ? "Updating job..." : "Creating job...");
-
-    try {
-      const formData = new FormData();
-      formData.append("title", title.trim());
-      formData.append("description", description.trim());
-      formData.append("skills", skills.join(","));
-      formData.append("duration", durationValue);
-      formData.append("expertise_level", estimateLevel.trim().toLowerCase());
-      formData.append("budget_type", budgetType === "Fixed" ? "fixed" : "hourly");
-      formData.append("project_size", estimateTime.toLowerCase());
-
-      const budgetFrom = parseFloat(budget.from);
-      const budgetTo = budgetType === "Fixed" ? budgetFrom : parseFloat(budget.to);
-
-      formData.append("budget_from", String(budgetFrom));
-      formData.append("budget_to", String(budgetTo));
-      formData.append("status", status === "posted" ? "posted" : "draft");
-
-      if (files.length > 0) {
-        files.forEach((file) => {
-          if (file.size > 0) {
-            formData.append("attachments", file);
-          }
-        });
-      }
-
-      if (jobId) {
-        await api.put(`/jobs/edit/${jobId}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        toast.dismiss(loadingToastId);
-        toast.success("Job updated", "Job updated successfully!");
+    if (jobId) {
+      await api.put(`/jobs/edit/${jobId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.dismiss(loadingToastId);
+      toast.success("Job updated", "Job updated successfully!");
+      navigate("/job-created");
+    } else {
+      await api.post(`/jobs/create/${userData.id}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.dismiss(loadingToastId);
+      if (status === "posted") {
+        toast.success("Job posted", "Job posted successfully!");
         navigate("/job-created");
       } else {
-        await api.post(`/jobs/create/${userData.id}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        toast.dismiss(loadingToastId);
-        if (status === "posted") {
-          toast.success("Job posted", "Job posted successfully!");
-          navigate("/job-created");
-        } else {
-          toast.success("Draft saved", "Job saved as draft successfully!");
-          navigate("/job-created");
-        }
+        toast.success("Draft saved", "Job saved as draft successfully!");
+        navigate("/job-created");
       }
-
-    } catch (err) {
-      toast.dismiss(loadingToastId);
-      console.error("Job submission failed", err);
-      const errorMsg = err.response?.data?.detail || "Failed to submit job";
-      toast.error("Submission Failed", typeof errorMsg === "string" ? errorMsg : "An error occurred");
     }
-  };
+
+  } catch (err) {
+    toast.dismiss(loadingToastId);
+    console.error("Job submission failed", err);
+    const errorMsg = err.response?.data?.detail || "Failed to submit job";
+    toast.error("Submission Failed", typeof errorMsg === "string" ? errorMsg : "An error occurred");
+  } finally {
+    // Reset submitting state
+    setIsSubmitting(false);
+  }
+};
 
   const handleFiles = (fileList) => {
     const newFiles = Array.from(fileList);
@@ -2439,17 +2446,33 @@ export default function Created() {
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 mt-6">
                 <button
-                  onClick={() => submitJob("posted")}
-                  className="w-full sm:w-[190px] h-[39px] cursor-pointer rounded-[100px] bg-gradient-to-r from-[#51218F] to-black text-white font-['Montserrat'] font-bold text-[14px] shadow-md hover:opacity-90 transition-opacity"
-                >
-                  {jobId ? "Update Job" : "Post job now"}
-                </button>
+  onClick={() => submitJob("posted")}
+  disabled={isSubmitting}
+  className={`w-full sm:w-[190px] h-[39px] cursor-pointer rounded-[100px] bg-gradient-to-r from-[#51218F] to-black text-white font-['Montserrat'] font-bold text-[14px] shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 ${
+    isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+  }`}
+>
+  {isSubmitting ? (
+    <>
+      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      {jobId ? "Updating..." : "Posting..."}
+    </>
+  ) : (
+    jobId ? "Update Job" : "Post job now"
+  )}
+</button>
                 <button
-                  onClick={() => submitJob("draft")}
-                  className="w-full sm:w-[190px] h-[39px] cursor-pointer rounded-[100px] !border !border-[rgba(38,50,56,1)] bg-white text-[rgba(38,50,56,1)] font-['Montserrat'] font-bold text-[14px] hover:bg-gray-50"
-                >
-                  {jobId ? "Save as Draft" : "Save as draft"}
-                </button>
+  onClick={() => submitJob("draft")}
+  disabled={isSubmitting}
+  className={`w-full sm:w-[190px] h-[39px] cursor-pointer rounded-[100px] !border !border-[rgba(38,50,56,1)] bg-white text-[rgba(38,50,56,1)] font-['Montserrat'] font-bold text-[14px] hover:bg-gray-50 ${
+    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+  }`}
+>
+  {jobId ? "Save as Draft" : "Save as draft"}
+</button>
               </div>
             </div>
           </div>
