@@ -889,69 +889,88 @@ def get_revenue_chart(
 @router.get("/dashboard/charts/project-status")
 def get_project_status_charts(
     time_range: str = "all",
-    admin: AdminUser = Depends(get_current_admin)  # ✅ Add authentication dependency
+    admin: AdminUser = Depends(get_current_admin)
 ):
     """
     Get project status distribution percentages for dashboard charts.
-    Protected endpoint - requires admin authentication.
     """
-    # ✅ Ensure database connection is alive before any DB operation
     ensure_db_connection()
-    
+
     try:
         now = django_timezone.now()
         base_query = Contract.objects.all()
-        
+
         # Apply time range filters
         if time_range == "today":
             base_query = base_query.filter(updated_at__date=now.date())
+
         elif time_range == "yesterday":
             base_query = base_query.filter(
                 updated_at__date=now.date() - timedelta(days=1)
             )
+
         elif time_range == "week":
             base_query = base_query.filter(
                 updated_at__gte=now - timedelta(days=7)
             )
+
         elif time_range == "month":
             base_query = base_query.filter(
                 updated_at__gte=now - timedelta(days=30)
             )
-        # "all" - no filter needed
-        
-        # Get counts for each status
-        completed = base_query.filter(status="completed").count()
-        on_hold = base_query.filter(
-            Q(status="pending") | Q(status="awaiting")
-        ).count()
-        in_progress = base_query.filter(status="in_progress").count()
+
+        # Total contracts
         total = base_query.count()
-        
+
+        # Completed projects
+        completed = base_query.filter(
+            status__iexact="completed"
+        ).count()
+
+        # On Hold projects
+        on_hold = base_query.filter(
+            Q(status__iexact="pending") |
+            Q(status__iexact="awaiting")
+        ).count()
+
+        # Everything else considered In Progress
+        in_progress = total - completed - on_hold
+
         # Calculate percentages
         if total > 0:
             completed_pct = round((completed / total) * 100)
             on_hold_pct = round((on_hold / total) * 100)
-            in_progress_pct = round((in_progress / total) * 100)
+
+            # Remaining percentage automatically goes to in_progress
+            in_progress_pct = 100 - completed_pct - on_hold_pct
         else:
-            completed_pct = on_hold_pct = in_progress_pct = 0
-        
+            completed_pct = 0
+            on_hold_pct = 0
+            in_progress_pct = 0
+
         return {
             "completed": completed_pct,
             "on_hold": on_hold_pct,
             "in_progress": in_progress_pct,
             "total": total,
-            "time_range": time_range  # ✅ Add this for debugging
+            "completed_count": completed,
+            "on_hold_count": on_hold,
+            "in_progress_count": in_progress,
+            "time_range": time_range
         }
-        
+
     except Exception as e:
-        # ✅ Add proper error handling
         import logging
-        logging.getLogger(__name__).error(f"Error in get_project_status_charts: {e}")
+        logging.getLogger(__name__).error(
+            f"Error in get_project_status_charts: {e}"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Failed to fetch project status data"
         )
-   
+        
+        
 @router.get("/dashboard/charts/progress")
 def get_progress_chart(
     filter: str = Query("Week", enum=["Week", "Month", "Year"]),

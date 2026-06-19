@@ -65,6 +65,7 @@ const JobCreated = () => {
   const [showEmailSetupPopup, setShowEmailSetupPopup] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [loadingContracts, setLoadingContracts] = useState(true);
   
   // NEW: Store OTP tokens for stateless verification
   const [otpToken, setOtpToken] = useState("");
@@ -232,47 +233,65 @@ const JobCreated = () => {
     fetchUserData();
   }, []);
 
-  const fetchContractStats = async () => {
-    if (!userData?.id) return;
+ const fetchContractStats = async () => {
+  if (!userData?.id) {
+    setLoadingContracts(false);
+    return;
+  }
 
-    try {
-      const response = await api.get("/contracts/status-counts", {
-        params: {
-          user_id: userData.id,
-        },
-      });
+  // Ensure loading is true before fetching
+  setLoadingContracts(true);
+  
+  try {
+    const response = await api.get("/contracts/status-counts", {
+      params: {
+        user_id: userData.id,
+      },
+    });
 
-      const data = response.data;
+    const data = response.data;
 
-      setContractStats({
-        total: data.total || 0,
-        pending: data.pending || 0,
-        active: data.in_progress || 0,
-        awaiting: data.awaiting || 0,
-        in_review: data.in_review || 0,
-        completed: data.completed || 0,
-        cancelled: data.cancelled || 0,
-      });
-    } catch (error) {
-      console.error("Error fetching contract stats:", error);
+    // Update all stats at once
+    const newStats = {
+      total: data.total || 0,
+      pending: data.pending || 0,
+      active: data.in_progress || 0,
+      awaiting: data.awaiting || 0,
+      in_review: data.in_review || 0,
+      completed: data.completed || 0,
+      cancelled: data.cancelled || 0,
+    };
+    
+    setContractStats(newStats);
+  } catch (error) {
+    console.error("Error fetching contract stats:", error);
+    setContractStats({
+      total: 0,
+      pending: 0,
+      active: 0,
+      awaiting: 0,
+      in_review: 0,
+      completed: 0,
+      cancelled: 0,
+    });
+  } finally {
+    // Small delay to ensure state updates are batched
+    setTimeout(() => {
+      setLoadingContracts(false);
+    }, 100);
+  }
+};
 
-      setContractStats({
-        total: 0,
-        pending: 0,
-        active: 0,
-        awaiting: 0,
-        in_review: 0,
-        completed: 0,
-        cancelled: 0,
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (userData?.id) {
-      fetchContractStats();
-    }
-  }, [userData?.id]);
+ useEffect(() => {
+  // Set loading to true when userData changes
+  if (userData?.id) {
+    // Reset loading to true before fetching
+    setLoadingContracts(true);
+    fetchContractStats();
+  } else {
+    setLoadingContracts(false);
+  }
+}, [userData?.id]);
 
   // ========== LOCK BODY SCROLL WHEN ANY POPUP IS OPEN ==========
   useEffect(() => {
@@ -325,97 +344,110 @@ const JobCreated = () => {
   const profilePercent = profileCompletion;
 
   /* ================= FETCH JOBS ================= */
-  useEffect(() => {
-    const fetchMyJobs = async () => {
-      try {
-        setLoading(true);
-        const employerId = userData?.id;
-        if (!employerId) return;
-
-        const res = await api.get(`/jobs/my-jobs/${employerId}?status=posted`);
-        const rawJobs = res.data.jobs || [];
-
-        const processedJobs = rawJobs.map((job) => {
-          const parseSkills = (skills) => {
-            if (!skills) return [];
-            if (Array.isArray(skills)) return skills;
-            try {
-              return JSON.parse(skills);
-            } catch {
-              if (typeof skills === "string") {
-                return skills
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter((s) => s);
-              }
-              return [];
-            }
-          };
-
-          const jobSkills = parseSkills(job.skills);
-          const postedTime = job.created_at
-            ? calculateTimeAgo(job.created_at)
-            : "Posted";
-
-          const formatExpertiseLevel = (level) => {
-            if (!level) return "Intermediate";
-            return level.charAt(0).toUpperCase() + level.slice(1);
-          };
-
-          const formatBudget = (job) => {
-            if (!job.budget_type) return "Budget not specified";
-            if (
-              job.budget_type?.toLowerCase() === "hourly" &&
-              job.budget_from &&
-              job.budget_to
-            ) {
-              return `₹${job.budget_from} – ₹${job.budget_to}/hr`;
-            } else if (
-              job.budget_type?.toLowerCase() === "hourly" &&
-              job.budget_from
-            ) {
-              return `₹${job.budget_from}/hr`;
-            } else if (
-              job.budget_type?.toLowerCase() === "fixed" &&
-              job.budget_from
-            ) {
-              return `₹${job.budget_from}`;
-            }
-            return "Budget not specified";
-          };
-
-          const ratingValue = job.rating || 0;
-          const reviewsValue = job.reviews_count || job.reviews || 0;
-
-          return {
-            ...job,
-            skills: jobSkills,
-            posted_time: postedTime,
-            city: job.city || "",
-            country: job.country || "",
-            country_code: job.country_code || "",
-            rating: ratingValue,
-            reviews: reviewsValue,
-            formatted_expertise: formatExpertiseLevel(job.expertise_level),
-            formatted_budget: formatBudget(job),
-            proposals_count: job.proposals_count || 0,
-            hired_count: job.hired_count || 0,
-            has_completed_contract: job.has_completed_contract || false,
-            posted_ago: postedTime,
-          };
-        });
-
-        setJobs(processedJobs);
-      } catch (err) {
-        console.error("Failed to fetch jobs", err);
-        setJobs([]);
-      } finally {
+  /* ================= FETCH JOBS ================= */
+useEffect(() => {
+  const fetchMyJobs = async () => {
+    try {
+      setLoading(true);
+      const employerId = userData?.id;
+      
+      // If no user ID, set loading to false and return
+      if (!employerId) {
         setLoading(false);
+        return;
       }
-    };
 
+      const res = await api.get(`/jobs/my-jobs/${employerId}?status=posted`);
+      const rawJobs = res.data.jobs || [];
+
+      const processedJobs = rawJobs.map((job) => {
+        const parseSkills = (skills) => {
+          if (!skills) return [];
+          if (Array.isArray(skills)) return skills;
+          try {
+            return JSON.parse(skills);
+          } catch {
+            if (typeof skills === "string") {
+              return skills
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s);
+            }
+            return [];
+          }
+        };
+
+        const jobSkills = parseSkills(job.skills);
+        const postedTime = job.created_at
+          ? calculateTimeAgo(job.created_at)
+          : "Posted";
+
+        const formatExpertiseLevel = (level) => {
+          if (!level) return "Intermediate";
+          return level.charAt(0).toUpperCase() + level.slice(1);
+        };
+
+        const formatBudget = (job) => {
+          if (!job.budget_type) return "Budget not specified";
+          if (
+            job.budget_type?.toLowerCase() === "hourly" &&
+            job.budget_from &&
+            job.budget_to
+          ) {
+            return `₹${job.budget_from} – ₹${job.budget_to}/hr`;
+          } else if (
+            job.budget_type?.toLowerCase() === "hourly" &&
+            job.budget_from
+          ) {
+            return `₹${job.budget_from}/hr`;
+          } else if (
+            job.budget_type?.toLowerCase() === "fixed" &&
+            job.budget_from
+          ) {
+            return `₹${job.budget_from}`;
+          }
+          return "Budget not specified";
+        };
+
+        const ratingValue = job.rating || 0;
+        const reviewsValue = job.reviews_count || job.reviews || 0;
+
+        return {
+          ...job,
+          skills: jobSkills,
+          posted_time: postedTime,
+          city: job.city || "",
+          country: job.country || "",
+          country_code: job.country_code || "",
+          rating: ratingValue,
+          reviews: reviewsValue,
+          formatted_expertise: formatExpertiseLevel(job.expertise_level),
+          formatted_budget: formatBudget(job),
+          proposals_count: job.proposals_count || 0,
+          hired_count: job.hired_count || 0,
+          has_completed_contract: job.has_completed_contract || false,
+          posted_ago: postedTime,
+        };
+      });
+
+      setJobs(processedJobs);
+    } catch (err) {
+      console.error("Failed to fetch jobs", err);
+      setJobs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Only fetch if userData exists
+  if (userData?.id) {
     fetchMyJobs();
-  }, [userData]);
+  } else {
+    // If no userData yet, keep loading true until userData loads
+    // The fetch will be triggered when userData changes
+    setLoading(true);
+  }
+}, [userData]);
 
   // Helper function to calculate time ago
   const calculateTimeAgo = (dateString) => {
@@ -1425,81 +1457,91 @@ const JobCreated = () => {
                   </div>
                 </div>
 
-                {/* All Contract Stats Card - Mobile */}
-                <div className="w-1/2 bg-white rounded-[10px] shadow-[0px_3px_20px_0px_#0000001A] p-3">
-                  <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-montserrat font-medium text-[14px] text-[#2A1E17]">
-                      Contracts
-                    </h3>
-                    <div className="flex items-center gap-0.5">
-                      <span className="text-[10px] text-[#2A1E17]">Total:</span>
-                      <span className="font-bold text-[13px] text-[#2A1E17]">
-                        {contractStats.total}
-                      </span>
-                    </div>
-                  </div>
+{/* All Contract Stats Card - Mobile */}
+<div className="w-1/2 bg-white rounded-[10px] shadow-[0px_3px_20px_0px_#0000001A] p-3">
+  <div className="flex justify-between items-center mb-2">
+    <h3 className="font-montserrat font-medium text-[14px] text-[#2A1E17]">
+      Contracts
+    </h3>
+    <div className="flex items-center gap-0.5">
+      <span className="text-[10px] text-[#2A1E17]">Total:</span>
+      {loadingContracts ? (
+        <div className="w-4 h-4 border-2 border-[#51218F] border-t-transparent rounded-full animate-spin"></div>
+      ) : (
+        <span className="font-bold text-[13px] text-[#2A1E17]">
+          {contractStats.total}
+        </span>
+      )}
+    </div>
+  </div>
 
-                  <div className="space-y-1.5 mb-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <svg
-                          className="w-[12px] h-[12px] mr-1.5 text-gray-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
-                        </svg>
-                        <p className="text-[10px] text-[#2A1E17E5]">Pending:</p>
-                      </div>
-                      <span className="font-medium text-[10px]">{contractStats.pending}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <img src={Folder} className="w-[12px] h-[12px] mr-1.5" alt="Active" />
-                        <p className="text-[10px] text-[#2A1E17E5]">Active:</p>
-                      </div>
-                      <span className="font-medium text-[10px]">{contractStats.active}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <svg
-                          className="w-[12px] h-[12px] mr-1.5 text-yellow-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
-                        </svg>
-                        <p className="text-[10px] text-[#2A1E17E5]">Awaiting:</p>
-                      </div>
-                      <span className="font-medium text-[10px]">{contractStats.awaiting}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <img src={Cloud} className="w-[12px] h-[12px] mr-1.5" alt="Completed" />
-                        <p className="text-[10px] text-[#2A1E17E5]">Completed:</p>
-                      </div>
-                      <span className="font-medium text-[10px]">{contractStats.completed}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <img src={Cancel} className="w-[12px] h-[12px] mr-1.5" alt="Canceled" />
-                        <p className="text-[10px] text-[#2A1E17E5]">Cancelled:</p>
-                      </div>
-                      <span className="font-medium text-[10px]">{contractStats.cancelled}</span>
-                    </div>
-                  </div>
+  {loadingContracts ? (
+    <div className="text-center py-4">
+      <p className="text-gray-500 text-[11px]">Loading contracts...</p>
+    </div>
+  ) : (
+    <div className="space-y-1.5 mb-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <svg
+            className="w-[12px] h-[12px] mr-1.5 text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          <p className="text-[10px] text-[#2A1E17E5]">Pending:</p>
+        </div>
+        <span className="font-medium text-[10px]">{contractStats.pending}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <img src={Folder} className="w-[12px] h-[12px] mr-1.5" alt="Active" />
+          <p className="text-[10px] text-[#2A1E17E5]">Active:</p>
+        </div>
+        <span className="font-medium text-[10px]">{contractStats.active}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <svg
+            className="w-[12px] h-[12px] mr-1.5 text-yellow-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          <p className="text-[10px] text-[#2A1E17E5]">Awaiting:</p>
+        </div>
+        <span className="font-medium text-[10px]">{contractStats.awaiting}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <img src={Cloud} className="w-[12px] h-[12px] mr-1.5" alt="Completed" />
+          <p className="text-[10px] text-[#2A1E17E5]">Completed:</p>
+        </div>
+        <span className="font-medium text-[10px]">{contractStats.completed}</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <img src={Cancel} className="w-[12px] h-[12px] mr-1.5" alt="Canceled" />
+          <p className="text-[10px] text-[#2A1E17E5]">Cancelled:</p>
+        </div>
+        <span className="font-medium text-[10px]">{contractStats.cancelled}</span>
+      </div>
+    </div>
+  )}
 
-                  <div className="flex justify-center mt-1">
-                    <button
-                      onClick={() => navigate("/activecontracts")}
-                      className="w-[75px] h-[26px] rounded-full flex items-center justify-center bg-[#51218F] text-white text-[9px] font-medium hover:opacity-90 transition"
-                    >
-                      View all
-                    </button>
-                  </div>
-                </div>
+  <div className="flex justify-center mt-1">
+    <button
+      onClick={() => navigate("/activecontracts")}
+      className="w-[75px] h-[26px] rounded-full flex items-center justify-center bg-[#51218F] text-white text-[9px] font-medium hover:opacity-90 transition"
+    >
+      View all
+    </button>
+  </div>
+</div>
               </div>
 
               {/* Tabs */}
@@ -1960,171 +2002,183 @@ const JobCreated = () => {
                 </div>
               </button>
 
-              {/* All Contracts Card - Desktop */}
-              <div className="w-full h-auto rounded-[10px] bg-white shadow-lg p-6">
-                <div className="flex flex-wrap justify-between items-center mb-6">
-                  <h3 className="font-montserrat font-medium text-[20px] leading-[100%] text-[#2A1E17]">
-                    All Contracts
-                  </h3>
-                  <div className="flex items-center gap-1">
-                    <span className="font-montserrat font-medium text-[16px] leading-[100%] text-[#2A1E17]">
-                      Total:
-                    </span>
-                    <span className="font-montserrat font-bold text-[20px] leading-[100%] text-[#2A1E17]">
-                      {contractStats.total}
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-4 mb-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
-                        <svg
-                          className="w-4 h-4 text-gray-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                          <path
-                            d="M12 6v6l4 2"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                        </svg>
-                      </div>
-                      <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
-                        <span className="font-bold">Pending:</span>
-                      </p>
-                    </div>
-                    <span className="font-montserrat font-semibold text-[#2A1E17]">
-                      {contractStats.pending}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
-                        <img
-                          src={Folder}
-                          alt="Active contracts"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
-                        <span className="font-bold">Active:</span>
-                      </p>
-                    </div>
-                    <span className="font-montserrat font-semibold text-[#2A1E17]">
-                      {contractStats.active}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
-                        <svg
-                          className="w-4 h-4 text-yellow-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                          <path
-                            d="M12 8v4l3 3"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                        </svg>
-                      </div>
-                      <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
-                        <span className="font-bold">Awaiting:</span>
-                      </p>
-                    </div>
-                    <span className="font-montserrat font-semibold text-[#2A1E17]">
-                      {contractStats.awaiting}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
-                        <svg
-                          className="w-4 h-4 text-orange-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                          />
-                        </svg>
-                      </div>
-                      <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
-                        <span className="font-bold">In Review:</span>
-                      </p>
-                    </div>
-                    <span className="font-montserrat font-semibold text-[#2A1E17]">
-                      {contractStats.in_review}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
-                        <img
-                          src={Cloud}
-                          alt="Completed contracts"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
-                        <span className="font-bold">Completed:</span>
-                      </p>
-                    </div>
-                    <span className="font-montserrat font-semibold text-[#2A1E17]">
-                      {contractStats.completed}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
-                        <img
-                          src={Cancel}
-                          alt="Canceled contracts"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
-                        <span className="font-bold">Cancelled:</span>
-                      </p>
-                    </div>
-                    <span className="font-montserrat font-semibold text-[#2A1E17]">
-                      {contractStats.cancelled}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex justify-center mt-2">
-                  <button
-                    onClick={() => navigate("/activecontracts")}
-                    className="w-[122px] h-[39px] rounded-[100px] flex items-center justify-center bg-[#51218F] text-white hover:opacity-90 transition-all duration-200 cursor-pointer"
-                  >
-                    <span className="font-montserrat font-bold text-[12px] whitespace-nowrap">
-                      View All
-                    </span>
-                  </button>
-                </div>
-              </div>
+ {/* All Contracts Card - Desktop */}
+<div className="w-full h-auto rounded-[10px] bg-white shadow-lg p-6">
+  <div className="flex flex-wrap justify-between items-center mb-6">
+    <h3 className="font-montserrat font-medium text-[20px] leading-[100%] text-[#2A1E17]">
+      All Contracts
+    </h3>
+    <div className="flex items-center gap-1">
+      <span className="font-montserrat font-medium text-[16px] leading-[100%] text-[#2A1E17]">
+        Total:
+      </span>
+      {loadingContracts ? (
+        <div className="w-5 h-5 border-2 border-[#51218F] border-t-transparent rounded-full animate-spin"></div>
+      ) : (
+        <span className="font-montserrat font-bold text-[20px] leading-[100%] text-[#2A1E17]">
+          {contractStats.total}
+        </span>
+      )}
+    </div>
+  </div>
+
+  {loadingContracts ? (
+    <div className="text-center py-8">
+      <p className="text-gray-500">Loading contracts...</p>
+    </div>
+  ) : (
+    <div className="space-y-4 mb-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
+            <svg
+              className="w-4 h-4 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M12 6v6l4 2"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </div>
+          <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
+            <span className="font-bold">Pending:</span>
+          </p>
+        </div>
+        <span className="font-montserrat font-semibold text-[#2A1E17]">
+          {contractStats.pending}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
+            <img
+              src={Folder}
+              alt="Active contracts"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
+            <span className="font-bold">Active:</span>
+          </p>
+        </div>
+        <span className="font-montserrat font-semibold text-[#2A1E17]">
+          {contractStats.active}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
+            <svg
+              className="w-4 h-4 text-yellow-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M12 8v4l3 3"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </div>
+          <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
+            <span className="font-bold">Awaiting:</span>
+          </p>
+        </div>
+        <span className="font-montserrat font-semibold text-[#2A1E17]">
+          {contractStats.awaiting}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
+            <svg
+              className="w-4 h-4 text-orange-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </div>
+          <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
+            <span className="font-bold">In Review:</span>
+          </p>
+        </div>
+        <span className="font-montserrat font-semibold text-[#2A1E17]">
+          {contractStats.in_review}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
+            <img
+              src={Cloud}
+              alt="Completed contracts"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
+            <span className="font-bold">Completed:</span>
+          </p>
+        </div>
+        <span className="font-montserrat font-semibold text-[#2A1E17]">
+          {contractStats.completed}
+        </span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <div className="w-[20px] h-[19px] mr-3 flex items-center justify-center">
+            <img
+              src={Cancel}
+              alt="Canceled contracts"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <p className="font-montserrat text-[15px] text-[#2A1E17E5]">
+            <span className="font-bold">Cancelled:</span>
+          </p>
+        </div>
+        <span className="font-montserrat font-semibold text-[#2A1E17]">
+          {contractStats.cancelled}
+        </span>
+      </div>
+    </div>
+  )}
+
+  <div className="flex justify-center mt-2">
+    <button
+      onClick={() => navigate("/activecontracts")}
+      className="w-[122px] h-[39px] rounded-[100px] flex items-center justify-center bg-[#51218F] text-white hover:opacity-90 transition-all duration-200 cursor-pointer"
+    >
+      <span className="font-montserrat font-bold text-[12px] whitespace-nowrap">
+        View All
+      </span>
+    </button>
+  </div>
+</div>
             </aside>
           </div>
         </div>

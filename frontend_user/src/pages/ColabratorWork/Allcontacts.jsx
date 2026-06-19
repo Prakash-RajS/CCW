@@ -3430,6 +3430,10 @@ const Allcontacts = () => {
   const handleSubmitClick = async () => {
     if (!selectedContract) return;
     if (selectedStatus === "completed") {
+      if (!workDescription.trim()) {
+        toast.error("Work Description is required");
+        return;
+      }
       const oversizedFile = selectedFiles.find((f) => f.size > MAX_FILE_SIZE);
       if (oversizedFile) {
         toast.error(`${oversizedFile.name} exceeds 25MB.`);
@@ -3615,27 +3619,27 @@ const Allcontacts = () => {
   };
 
   useEffect(() => {
-  if (!userData?.id) return;
+    if (!userData?.id) return;
 
-  const loadPageData = async () => {
-    try {
-      setPageLoading(true);
+    const loadPageData = async () => {
+      try {
+        setPageLoading(true);
 
-      await Promise.all([
-        fetchProposals(),
-        fetchInvitations(),
-        fetchAllContracts(),
-        fetchReviewedContracts(),
-      ]);
-    } catch (error) {
-      console.error("Error loading page data:", error);
-    } finally {
-      setPageLoading(false);
-    }
-  };
+        await Promise.all([
+          fetchProposals(),
+          fetchInvitations(),
+          fetchAllContracts(),
+          fetchReviewedContracts(),
+        ]);
+      } catch (error) {
+        console.error("Error loading page data:", error);
+      } finally {
+        setPageLoading(false);
+      }
+    };
 
-  loadPageData();
-}, [userData?.id]);
+    loadPageData();
+  }, [userData?.id]);
 
   const getContractsByStatus = (status) =>
     allContracts.filter((contract) => {
@@ -4194,17 +4198,17 @@ const Allcontacts = () => {
   ];
 
   if (pageLoading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-14 h-14 border-4 border-purple-200 border-t-[#51218F] rounded-full animate-spin" />
-        <p className="text-[#51218F] font-medium">
-          Loading contracts...
-        </p>
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-14 h-14 border-4 border-purple-200 border-t-[#51218F] rounded-full animate-spin" />
+          <p className="text-[#51218F] font-medium">
+            Loading contracts...
+          </p>
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
   // ---------- Main render ----------
   return (
@@ -5122,7 +5126,10 @@ const Allcontacts = () => {
               {selectedStatus === "completed" && (
                 <>
                   <div>
-                    <label className={labelClasses}>Work Description</label>
+                    <label className={labelClasses}>
+                      Work Description
+                      <span className="text-red-500 ml-0.5">*</span>
+                    </label>
                     <textarea
                       placeholder="Describe the work you're submitting..."
                       value={workDescription}
@@ -5148,7 +5155,10 @@ const Allcontacts = () => {
               )}
               {selectedStatus === "completed" && (
                 <div>
-                  <label className={labelClasses}>Attachments</label>
+                  <label className={labelClasses}>
+                    Attachments
+                    <span className="text-red-500 ml-0.5">*</span>
+                  </label>
 
                   <div className="mt-2">
                     <FileDropZone inputId="file-upload-input" />
@@ -5219,7 +5229,10 @@ const Allcontacts = () => {
 
             <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
               <div>
-                <label className={labelClasses}>Work Description</label>
+                <label className={labelClasses}>
+                  Work Description
+                  <span className="text-red-500 ml-0.5">*</span>
+                </label>
                 <textarea
                   value={workDescription}
                   onChange={(e) => setWorkDescription(e.target.value)}

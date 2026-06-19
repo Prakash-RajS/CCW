@@ -277,6 +277,8 @@ export default function ColabProfile() {
     badges: "",
     about: "",
     location: "",
+    collaboration_type: "",
+    followers: "",
     skills_rating: "",
     phone_number: "",
     address: "",
@@ -296,6 +298,8 @@ export default function ColabProfile() {
     about: "",
     skill_category: "",
     badges: "",
+    collaboration_type: "",
+    followers: "",
     skills_rating: "",
     phone_number: "",
     email: "",
@@ -377,6 +381,16 @@ export default function ColabProfile() {
     return "";
   };
 
+  const validateAlphabetsSpacesHyphen = (value) => {
+  if (!value.trim()) return "";
+ 
+  if (!/^[A-Za-z\s-]+$/.test(value)) {
+    return "Only alphabets, spaces, and hyphens (-) are allowed";
+  }
+ 
+  return "";
+};
+
   // Get user ID from context
   const userId = userData?.id;
 
@@ -415,16 +429,6 @@ export default function ColabProfile() {
     if (!/^[A-Za-z\s]+$/.test(value)) {
       return "Only alphabets and spaces are allowed";
     }
-    return "";
-  };
-
-  const validateAlphabetsSpacesHyphen = (value) => {
-    if (!value.trim()) return "";
-
-    if (!/^[A-Za-z\s-]+$/.test(value)) {
-      return "Only alphabets, spaces, and hyphens (-) are allowed";
-    }
-
     return "";
   };
 
@@ -528,20 +532,20 @@ export default function ColabProfile() {
   };
 
   const validateCompanyName = (value) => {
-    if (!value.trim()) return "Company name is required";
+  if (!value.trim()) return "Company name is required";
 
-    // Allow alphabets, numbers, spaces, &, -, .
-    if (!/^[A-Za-z0-9\s&.-]+$/.test(value)) {
-      return "Only alphabets, numbers, spaces, &, -, and . are allowed";
-    }
+  // Allow alphabets, numbers, spaces, &, -, .
+  if (!/^[A-Za-z0-9\s&.-]+$/.test(value)) {
+    return "Only alphabets, numbers, spaces, &, -, and . are allowed";
+  }
 
-    if (value.length > 50) {
-      return "Company name should be less than 50 characters";
-    }
+  if (value.length > 50) {
+    return "Company name should be less than 50 characters";
+  }
 
-    return "";
-  };
-
+  return "";
+};
+ 
 
   const validateRole = (value) => {
     if (!value.trim()) return "Role is required";
@@ -608,62 +612,62 @@ export default function ColabProfile() {
 
   // Email validation with Levenshtein suggestions
   const validateEmailWithSuggestions = (emailValue) => {
-    if (!emailValue || emailValue.trim() === "") {
-      return {
-        isValid: false,
-        error: "Email is required",
-        suggestion: null,
-      };
-    }
-
-    const trimmedEmail = emailValue.trim().toLowerCase();
-
-    const emailRegex =
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-    const commonDomains = [
-      "gmail.com",
-      "yahoo.com",
-      "hotmail.com",
-      "outlook.com",
-      "protonmail.com",
-    ];
-
-    const [localPart, domain] = trimmedEmail.split("@");
-
-    // Basic format validation
-    if (!emailRegex.test(trimmedEmail)) {
-      return {
-        isValid: false,
-        error: "Please enter a valid email address",
-        suggestion: null,
-      };
-    }
-
-    // Levenshtein typo detection
-    if (domain) {
-      for (const commonDomain of commonDomains) {
-        const distance = levenshteinDistance(
-          domain,
-          commonDomain
-        );
-
-        if (distance > 0 && distance <= 2) {
-          return {
-            isValid: false,
-            error: `Did you mean ${localPart}@${commonDomain}?`,
-            suggestion: `${localPart}@${commonDomain}`,
-          };
-        }
-      }
-    }
-
+  if (!emailValue || emailValue.trim() === "") {
     return {
-      isValid: true,
-      error: "",
+      isValid: false,
+      error: "Email is required",
       suggestion: null,
     };
+  }
+
+  const trimmedEmail = emailValue.trim().toLowerCase();
+
+  const emailRegex =
+    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  const commonDomains = [
+    "gmail.com",
+    "yahoo.com",
+    "hotmail.com",
+    "outlook.com",
+    "protonmail.com",
+  ];
+
+  const [localPart, domain] = trimmedEmail.split("@");
+
+  // Basic format validation
+  if (!emailRegex.test(trimmedEmail)) {
+    return {
+      isValid: false,
+      error: "Please enter a valid email address",
+      suggestion: null,
+    };
+  }
+
+  // Levenshtein typo detection
+  if (domain) {
+    for (const commonDomain of commonDomains) {
+      const distance = levenshteinDistance(
+        domain,
+        commonDomain
+      );
+
+      if (distance > 0 && distance <= 2) {
+        return {
+          isValid: false,
+          error: `Did you mean ${localPart}@${commonDomain}?`,
+          suggestion: `${localPart}@${commonDomain}`,
+        };
+      }
+    }
+  }
+
+  return {
+    isValid: true,
+    error: "",
+    suggestion: null,
   };
+};
   // Track screen width
   useEffect(() => {
     const handleResize = () => {
@@ -710,7 +714,7 @@ export default function ColabProfile() {
   }, [showSuccessPopup]);
 
   // Calculate total earnings
-
+  
 
   // Add body scroll lock when modal is open
   useEffect(() => {
@@ -776,7 +780,8 @@ export default function ColabProfile() {
         availability: profileData.availability || "",
         timing: profileData.timing || "",  // Ensure default empty string
         badges: profileData.badges || "",
-
+        collaboration_type: profileData.collaboration_type || "",
+        followers: profileData.followers || "",
         skills_rating: profileData.skills_rating || "",
       });
 
@@ -1276,7 +1281,8 @@ export default function ColabProfile() {
         availability: profile.availability || "",
         timing: profile.timing || "",
         badges: profile.badges || "",
-
+        collaboration_type: profile.collaboration_type || "",
+        followers: profile.followers || "",
         skills_rating: profile.skills_rating || "",
       });
 
@@ -1334,33 +1340,33 @@ export default function ColabProfile() {
   };
 
   const fetchReviews = async () => {
-    if (!userId) return;
-    try {
-      const response = await api.get(
-        `${API_BASE_URL}/collaborator/reviews/list/${userId}`,
-      );
-      console.log("🔍 Full reviews response:", response.data);
-      setReviews(response.data);
-
-      // ✅ REMOVE the code that updates profileData.skills_rating
-      // The skills_rating should come from the profile, not be calculated from reviews
-      // if (response.data && response.data.length > 0) {
-      //   const totalRating = response.data.reduce(
-      //     (sum, review) => sum + review.rating,
-      //     0,
-      //   );
-      //   const avgRating = totalRating / response.data.length;
-      //   setProfileData((prev) => ({
-      //     ...prev,
-      //     skills_rating: avgRating, // ❌ REMOVE THIS
-      //     review_count: response.data.length,
-      //   }));
-      // }
-    } catch (err) {
-      console.error("Error fetching reviews:", err);
-      setReviews([]);
-    }
-  };
+  if (!userId) return;
+  try {
+    const response = await api.get(
+      `${API_BASE_URL}/collaborator/reviews/list/${userId}`,
+    );
+    console.log("🔍 Full reviews response:", response.data);
+    setReviews(response.data);
+    
+    // ✅ REMOVE the code that updates profileData.skills_rating
+    // The skills_rating should come from the profile, not be calculated from reviews
+    // if (response.data && response.data.length > 0) {
+    //   const totalRating = response.data.reduce(
+    //     (sum, review) => sum + review.rating,
+    //     0,
+    //   );
+    //   const avgRating = totalRating / response.data.length;
+    //   setProfileData((prev) => ({
+    //     ...prev,
+    //     skills_rating: avgRating, // ❌ REMOVE THIS
+    //     review_count: response.data.length,
+    //   }));
+    // }
+  } catch (err) {
+    console.error("Error fetching reviews:", err);
+    setReviews([]);
+  }
+};
 
   const fetchPortfolioItems = async () => {
     if (!userId) return;
@@ -1480,52 +1486,17 @@ export default function ColabProfile() {
     }
     return "🇺🇸";
   };
-const getReviewerProfilePic = (review, index) => {
-    // Safety check - if review is undefined or null, return default
-    if (!review) {
-        return index % 2 === 0 ? ReviewUser1 : ReviewUser2;
-    }
-    
-    // Check if reviewer_profile_picture exists
-    if (review.reviewer_profile_picture) {
-        const pic = review.reviewer_profile_picture;
-        // Check if it's already a full URL
-        if (pic.startsWith('http://') || pic.startsWith('https://')) {
-            return pic;
-        }
-        // Otherwise build relative path
-        if (pic.includes("/media/")) {
-            return `${API_BASE_URL}${pic}`;
-        }
-        return `${API_BASE_URL}/media${pic}`;
-    }
-    // Fallback based on index
-    return index % 2 === 0 ? ReviewUser1 : ReviewUser2;
-};
+
   const getProfilePictureUrl = () => {
     if (profilePicturePreview) return profilePicturePreview;
-    
     if (profileData?.profile_picture_url) {
-        // Check if it's already a full URL (S3 presigned URL)
-        if (profileData.profile_picture_url.startsWith('http://') || 
-            profileData.profile_picture_url.startsWith('https://')) {
-            return profileData.profile_picture_url;
-        }
-        // Otherwise, it's a relative path
-        return `${API_BASE_URL}${profileData.profile_picture_url}`;
+      return `${API_BASE_URL}${profileData.profile_picture_url}`;
     }
-    
     if (profileData?.profile_picture) {
-        if (profileData.profile_picture.startsWith('http://') || 
-            profileData.profile_picture.startsWith('https://')) {
-            return profileData.profile_picture;
-        }
-        return `${API_BASE_URL}${profileData.profile_picture}`;
+      return profileData.profile_picture;
     }
-    
     return Rectangle;
-};
-
+  };
 
   const handleProfilePictureChange = (e) => {
     const file = e.target.files[0];
@@ -1554,81 +1525,81 @@ const getReviewerProfilePic = (review, index) => {
     }
   };
 
-  const handlePortfolioFileChange = (e) => {
-    const file = e.target.files[0];
+ const handlePortfolioFileChange = (e) => {
+  const file = e.target.files[0];
 
-    if (!file) return;
+  if (!file) return;
 
-    // Clear previous file-related errors
+  // Clear previous file-related errors
+  setPortfolioValidationErrors((prev) => ({
+    ...prev,
+    file: "",
+  }));
+
+  // Get file extension
+  const fileExtension = file.name.split('.').pop().toLowerCase();
+  
+  // Define allowed file types and extensions
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
+
+  // Check by MIME type and extension
+  if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
+    const errorMessage = "Only JPG, JPEG, PNG, and WEBP image files are allowed";
+    toast.error(errorMessage);
+    e.target.value = "";
+    setFileName("No file chosen");
+    
     setPortfolioValidationErrors((prev) => ({
       ...prev,
-      file: "",
+      file: errorMessage,
     }));
-
-    // Get file extension
-    const fileExtension = file.name.split('.').pop().toLowerCase();
-
-    // Define allowed file types and extensions
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
-
-    // Check by MIME type and extension
-    if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
-      const errorMessage = "Only JPG, JPEG, PNG, and WEBP image files are allowed";
-      toast.error(errorMessage);
-      e.target.value = "";
-      setFileName("No file chosen");
-
-      setPortfolioValidationErrors((prev) => ({
-        ...prev,
-        file: errorMessage,
-      }));
-
-      // Clear the file from form data
-      setPortfolioForm((prev) => ({
-        ...prev,
-        file: null,
-      }));
-
-      return;
-    }
-
-    // Maximum size: 5 MB
-    const maxSize = 5 * 1024 * 1024;
-
-    if (file.size > maxSize) {
-      const errorMessage = "Image size must be less than 5 MB";
-      toast.error(errorMessage);
-      e.target.value = "";
-      setFileName("No file chosen");
-
-      setPortfolioValidationErrors((prev) => ({
-        ...prev,
-        file: errorMessage,
-      }));
-
-      setPortfolioForm((prev) => ({
-        ...prev,
-        file: null,
-      }));
-
-      return;
-    }
-
-    // Save valid file
+    
+    // Clear the file from form data
     setPortfolioForm((prev) => ({
       ...prev,
-      file,
+      file: null,
     }));
+    
+    return;
+  }
 
-    setFileName(file.name);
+  // Maximum size: 5 MB
+  const maxSize = 5 * 1024 * 1024;
 
-    // Clear any previous file error
+  if (file.size > maxSize) {
+    const errorMessage = "Image size must be less than 5 MB";
+    toast.error(errorMessage);
+    e.target.value = "";
+    setFileName("No file chosen");
+    
     setPortfolioValidationErrors((prev) => ({
       ...prev,
-      file: "",
+      file: errorMessage,
     }));
-  };
+    
+    setPortfolioForm((prev) => ({
+      ...prev,
+      file: null,
+    }));
+    
+    return;
+  }
+
+  // Save valid file
+  setPortfolioForm((prev) => ({
+    ...prev,
+    file,
+  }));
+
+  setFileName(file.name);
+  
+  // Clear any previous file error
+  setPortfolioValidationErrors((prev) => ({
+    ...prev,
+    file: "",
+  }));
+};
 
 
   const validateEditForm = () => {
@@ -1651,8 +1622,10 @@ const getReviewerProfilePic = (review, index) => {
           : "",
       skill_category: validateAlphabetsOnly(editFormData.skill_category),
       badges: validateAlphabetsNumbersSpaces(editFormData.badges),
-      
-      
+      collaboration_type: validateAlphabetsNumbersSpaces(
+        editFormData.collaboration_type,
+      ),
+      followers: validateNumbersOnly(editFormData.followers),
       skills_rating: validateDecimalNumbers(editFormData.skills_rating),
       phone_number: editFormData.phone_number
         ? validatePhoneNumber(editFormData.phone_number)
@@ -1711,8 +1684,8 @@ const getReviewerProfilePic = (review, index) => {
         availability: profileData.availability || "",
         timing: profileData.timing || "",
         badges: profileData.badges || "",
-        
-       
+        collaboration_type: profileData.collaboration_type || "",
+        followers: profileData.followers || "",
         skills_rating: profileData.skills_rating || "",
       });
 
@@ -1736,7 +1709,8 @@ const getReviewerProfilePic = (review, index) => {
         about: "",
         skill_category: "",
         badges: "",
-
+        collaboration_type: "",
+        followers: "",
         skills_rating: "",
         phone_number: "",
         email: "",
@@ -1761,6 +1735,7 @@ const getReviewerProfilePic = (review, index) => {
       name: editFormData.name?.trim(),
       language: editFormData.language?.trim(),
       location: editFormData.location?.trim(),
+      followers: editFormData.followers ? parseInt(editFormData.followers) : 0,
       skills_rating: editFormData.skills_rating ? parseFloat(editFormData.skills_rating) : 0,
       pricing_amount: editFormData.pricing_amount ? parseFloat(editFormData.pricing_amount) : 0,
       phone_number: editFormData.phone_number || "",
@@ -1809,7 +1784,7 @@ const getReviewerProfilePic = (review, index) => {
         });
       }
 
-
+      
       toast.success("Profile updated successfully!");
 
       window.dispatchEvent(new CustomEvent("refreshNotifications"));
@@ -1909,86 +1884,86 @@ const getReviewerProfilePic = (review, index) => {
     toast.success(`Skill "${skillToRemove}" removed`);
   };
 
-  const handleSaveSkills = async () => {
-    if (!userId) return;
+ const handleSaveSkills = async () => {
+  if (!userId) return;
 
-    // Create a local variable to track skills after potential addition
-    let updatedSkills = [...selectedSkills];
+  // Create a local variable to track skills after potential addition
+  let updatedSkills = [...selectedSkills];
 
-    // FIRST: Check if there's text in the input field that hasn't been added
-    if (currentSkill && currentSkill.trim() !== "") {
-      const trimmedSkill = currentSkill.trim();
+  // FIRST: Check if there's text in the input field that hasn't been added
+  if (currentSkill && currentSkill.trim() !== "") {
+    const trimmedSkill = currentSkill.trim();
 
-      // Check if skill already exists
-      if (updatedSkills.some(s => s.toLowerCase() === trimmedSkill.toLowerCase())) {
-        toast.error(`"${trimmedSkill}" is already added`);
-        setCurrentSkill("");
-        setSearchQuery("");
-        setSearchResults([]);
-        setShowResults(false);
-        return;
-      }
-
-      // Check maximum limit
-      if (updatedSkills.length >= 15) {
-        toast.error("Maximum 15 skills allowed");
-        return;
-      }
-
-      // Add the skill to local array
-      updatedSkills = [...updatedSkills, trimmedSkill];
-      setSelectedSkills(updatedSkills); // Update state
-      toast.success(`"${trimmedSkill}" added`);
+    // Check if skill already exists
+    if (updatedSkills.some(s => s.toLowerCase() === trimmedSkill.toLowerCase())) {
+      toast.error(`"${trimmedSkill}" is already added`);
       setCurrentSkill("");
       setSearchQuery("");
       setSearchResults([]);
       setShowResults(false);
-    }
-
-    // SECOND: Check if no skills are selected (empty array) - USE updatedSkills, not selectedSkills
-    if (!updatedSkills || updatedSkills.length === 0) {
-      toast.error("❌ Please add at least one skill before saving");
       return;
     }
 
-    // Get the original skills from profileData
-    const originalSkills = profileData?.skills
-      ? (typeof profileData.skills === "string" ? profileData.skills.split(",") : profileData.skills)
-      : [];
-
-    // Compare if skills have actually changed
-    const skillsChanged =
-      updatedSkills.length !== originalSkills.length ||
-      updatedSkills.some(skill => !originalSkills.includes(skill)) ||
-      originalSkills.some(skill => !updatedSkills.includes(skill));
-
-    // If no changes, don't make the API call
-    if (!skillsChanged) {
-      toast.info("No changes to save");
+    // Check maximum limit
+    if (updatedSkills.length >= 15) {
+      toast.error("Maximum 15 skills allowed");
       return;
     }
 
-    // ONLY PROCEED TO SAVE IF SKILLS HAVE CHANGED
-    setIsSavingProfile(true);
+    // Add the skill to local array
+    updatedSkills = [...updatedSkills, trimmedSkill];
+    setSelectedSkills(updatedSkills); // Update state
+    toast.success(`"${trimmedSkill}" added`);
+    setCurrentSkill("");
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowResults(false);
+  }
 
-    setEditFormData({ ...editFormData, skills: updatedSkills });
+  // SECOND: Check if no skills are selected (empty array) - USE updatedSkills, not selectedSkills
+  if (!updatedSkills || updatedSkills.length === 0) {
+    toast.error("❌ Please add at least one skill before saving");
+    return;
+  }
 
-    const formData = new FormData();
-    formData.append("skills", updatedSkills.join(","));
+  // Get the original skills from profileData
+  const originalSkills = profileData?.skills
+    ? (typeof profileData.skills === "string" ? profileData.skills.split(",") : profileData.skills)
+    : [];
 
-    try {
-      await api.put(`${API_BASE_URL}/collaborator/edit/${userId}`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      toast.success(`${updatedSkills.length} skill(s) updated successfully!`);
-      await fetchProfileData();
-    } catch (err) {
-      console.error("Error saving skills:", err);
-      toast.error("Failed to save skills");
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
+  // Compare if skills have actually changed
+  const skillsChanged =
+    updatedSkills.length !== originalSkills.length ||
+    updatedSkills.some(skill => !originalSkills.includes(skill)) ||
+    originalSkills.some(skill => !updatedSkills.includes(skill));
+
+  // If no changes, don't make the API call
+  if (!skillsChanged) {
+    toast.info("No changes to save");
+    return;
+  }
+
+  // ONLY PROCEED TO SAVE IF SKILLS HAVE CHANGED
+  setIsSavingProfile(true);
+
+  setEditFormData({ ...editFormData, skills: updatedSkills });
+
+  const formData = new FormData();
+  formData.append("skills", updatedSkills.join(","));
+
+  try {
+    await api.put(`${API_BASE_URL}/collaborator/edit/${userId}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    toast.success(`${updatedSkills.length} skill(s) updated successfully!`);
+    await fetchProfileData();
+  } catch (err) {
+    console.error("Error saving skills:", err);
+    toast.error("Failed to save skills");
+  } finally {
+    setIsSavingProfile(false);
+  }
+};
 
   // ========== PORTFOLIO CRUD ==========
 
@@ -2231,20 +2206,13 @@ const getReviewerProfilePic = (review, index) => {
 
   const getPortfolioImage = (item) => {
     if (item.file_url) {
-        // Check if it's already a full URL (S3 presigned URL)
-        if (item.file_url.startsWith('http://') || item.file_url.startsWith('https://')) {
-            return item.file_url;
-        }
-        // Otherwise, it's a relative path
-        return `${API_BASE_URL}${item.file_url}`;
+      return `${API_BASE_URL}${item.file_url}`;
     }
     if (item.media_link) {
-        return item.media_link;
+      return item.media_link;
     }
-    // Use a fallback image based on index if available
     return Portfolio1;
-};
-
+  };
 
   const openPortfolioLink = (item) => {
     if (item.media_link) {
@@ -2605,7 +2573,7 @@ const getReviewerProfilePic = (review, index) => {
 
       <div className="flex-1 w-full sm:max-w-none max-sm:w-full max-sm:bg-white max-sm:shadow-xl">
         {/* BANNER + HEADER */}
-        <div className="relative w-full h-[582px] max-sm:h-[260px]">
+       <div className="relative w-full h-[582px] max-sm:h-[260px] sm:h-[380px] xl:h-[582px]">
           <img src={TopBanner} alt="banner" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute top-0 left-0 w-full z-[100] sm:top-[24px] sm:left-1/2 sm:-translate-x-1/2 sm:max-w-[1280px] sm:px-6">
             <div className="flex items-center justify-between text-white px-4 sm:px-0">
@@ -2616,12 +2584,12 @@ const getReviewerProfilePic = (review, index) => {
 
         {/* MAIN CONTENT */}
         <div className="origin-top transition-all duration-300">
-          <div className="max-w-[1280px] mx-auto mt-[-260px] max-sm:mt-0 relative max-sm:px-3">
+        <div className="max-w-[1280px] mx-auto mt-[-260px] max-sm:mt-0 relative px-3 sm:px-4 md:px-6 xl:px-0">
             {/* PROFILE SECTION */}
-            <div className="grid grid-cols-[804px_392px] max-sm:grid-cols-1 gap-[31px] lg:gap-[24px] xl:gap-[31px] mt-6">
+     <div className="grid grid-cols-1 xl:grid-cols-[804px_392px] gap-[31px] mt-6">
               {/* DESKTOP PROFILE */}
-              <div className="hidden sm:block">
-                <div className="bg-white shadow-lg flex gap-6 w-[804px] lg:w-[680px] xl:w-[804px] rounded-[10px] p-6">
+             <div className="hidden xl:block">
+               <div className="bg-white shadow-lg flex gap-6 w-full xl:w-[804px] rounded-[10px] p-6">
                   <div className="flex flex-col items-start w-[218px] flex-shrink-0">
                     <img
                       src={getProfilePictureUrl()}
@@ -2694,7 +2662,12 @@ const getReviewerProfilePic = (review, index) => {
                               <span className="font-medium">Timing:</span> {profileData.timing}
                             </div>
                           )}
-            
+                          {editFormData.followers !== undefined && editFormData.followers !== null && editFormData.followers !== "" && (
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Followers:</span>
+                              {parseInt(editFormData.followers).toLocaleString()}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <button
@@ -2718,7 +2691,7 @@ const getReviewerProfilePic = (review, index) => {
                 </div>
               </div>
               {/* MOBILE PROFILE */}
-              <div className="block sm:hidden bg-white rounded-[16px] shadow-lg p-4">
+             <div className="block xl:hidden bg-white rounded-[16px] shadow-lg p-4">
                 <div className="flex gap-3">
                   <div className="relative">
                     <img src={getProfilePictureUrl()} className="w-[82px] h-[132px] rounded-lg object-cover" alt="profile" />
@@ -2797,46 +2770,17 @@ const getReviewerProfilePic = (review, index) => {
                         <div className="space-y-3 xs:space-y-4">
                           {/* Profile Picture */}
                           <div>
-  <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-3">
-    Profile Picture
-  </label>
-
-  <div className="flex justify-center">
-    <div className="relative">
-      <img
-        src={getProfilePictureUrl()}
-        alt="profile"
-        className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-2 border-gray-300"
-      />
-
-      <label className="absolute bottom-1 right-1 cursor-pointer">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleProfilePictureChange}
-          className="hidden"
-        />
-
-        <div className="w-8 h-8 rounded-full bg-[#51218F] text-white flex items-center justify-center shadow-lg hover:scale-105 transition">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="w-4 h-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15.232 5.232l3.536 3.536M9 13l6.768-6.768a2.5 2.5 0 113.536 3.536L12.536 16.536A4 4 0 019.707 17.707L8 18l.293-1.707A4 4 0 019 13z"
-            />
-          </svg>
-        </div>
-      </label>
-    </div>
-  </div>
-</div>
+                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Profile Picture</label>
+                            <div className="flex items-center gap-3 xs:gap-4">
+                              <img src={getProfilePictureUrl()} className="w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-300" alt="profile" />
+                              <label className="cursor-pointer">
+                                <input type="file" accept="image/*" onChange={handleProfilePictureChange} className="hidden" />
+                                <div style={{ border: "2px solid #51218F", backgroundColor: "#ffffff", color: "#51218F" }} className="rounded-lg px-2 xs:px-3 sm:px-4 py-1 xs:py-1.5 sm:py-2 text-[10px] xs:text-xs sm:text-sm font-medium">
+                                  Choose File
+                                </div>
+                              </label>
+                            </div>
+                          </div>
 
                           {/* Name with validation */}
                           <div>
@@ -3007,7 +2951,7 @@ const getReviewerProfilePic = (review, index) => {
 
                           {/* Experience with validation */}
                           <div>
-                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Expertise Level <span className="text-red-500">*</span></label>
+                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Experience <span className="text-red-500">*</span></label>
                             <input
                               type="text"
                               value={editFormData.experience}
@@ -3076,6 +3020,23 @@ const getReviewerProfilePic = (review, index) => {
                             {editFormErrors.badges && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.badges}</p>}
                           </div>
 
+                          {/* Collaboration Type with validation */}
+                          <div>
+                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Collaboration Type</label>
+                            <input
+                              type="text"
+                              value={editFormData.collaboration_type}
+                              onChange={(e) => {
+                                setEditFormData({ ...editFormData, collaboration_type: e.target.value });
+                                setEditFormErrors({ ...editFormErrors, collaboration_type: validateAlphabetsSpacesHyphen(e.target.value) });
+                              }}
+                              maxLength={50}
+                              style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
+                              className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
+                              placeholder="e.g., Remote, On-site"
+                            />
+                            {editFormErrors.collaboration_type && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.collaboration_type}</p>}
+                          </div>
 
                           {/* Projects Completed - Read Only */}
                           <div>
@@ -3089,7 +3050,22 @@ const getReviewerProfilePic = (review, index) => {
                             <p className="text-[9px] xs:text-[10px] sm:text-xs text-gray-500 mt-1">Auto-calculated from completed contracts</p>
                           </div>
 
-      
+                          {/* Followers with validation */}
+                          <div>
+                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Followers/Audience</label>
+                            <input
+                              type="text"
+                              value={editFormData.followers}
+                              onChange={(e) => {
+                                setEditFormData({ ...editFormData, followers: e.target.value });
+                                setEditFormErrors({ ...editFormErrors, followers: e.target.value ? validateNumbersOnly(e.target.value) : "" });
+                              }}
+                              style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
+                              className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
+                              placeholder="e.g., 15000"
+                            />
+                            {editFormErrors.followers && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.followers}</p>}
+                          </div>
 
                           {/* Skills Rating with validation */}
                           <div>
@@ -3211,9 +3187,9 @@ const getReviewerProfilePic = (review, index) => {
               )}
 
               {/* RIGHT SIDEBAR */}
-              <div className="w-full max-w-[392px] lg:max-w-none lg:w-[320px] xl:w-[392px] 
-                  space-y-4 sm:space-y-6 px-3 sm:px-0 lg:px-0 
-                  lg:-ml-32 xl:ml-4 lg:relative">
+          <div className="w-full xl:w-[392px] xl:max-w-[392px]
+    space-y-4 sm:space-y-6 px-3 sm:px-0
+    xl:ml-4 xl:relative">
                 {/* Verification Section */}
                 <div className="bg-white rounded-xl shadow p-4 sm:p-6">
                   <div className="flex items-center mb-4">
@@ -3357,21 +3333,21 @@ const getReviewerProfilePic = (review, index) => {
             </div>
 
             {/* PORTFOLIO SECTION */}
-            <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full max-w-[804px] lg:w-[680px] xl:w-[804px]">
+          <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base xs:text-lg sm:text-xl font-semibold">My Portfolio</h3>
                 <button
-                  onClick={() => {
-                    setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
-                    setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
-                    setFileName("No file chosen");
-                    setActiveModal("portfolio");
-                  }}
-                  className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap"
-                  style={{ border: '1px solid #51218F' }}
-                >
-                  Add Portfolio
-                </button>
+  onClick={() => {
+    setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
+    setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
+    setFileName("No file chosen");
+    setActiveModal("portfolio");
+  }}
+  className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap"
+  style={{ border: '1px solid #51218F' }}
+>
+  Add Portfolio
+</button>
               </div>
               <div className="h-px bg-gray-200 my-4" />
 
@@ -3570,61 +3546,42 @@ const getReviewerProfilePic = (review, index) => {
                         <div className="mb-3">
                           <label className="block text-sm font-medium mb-2">Media File {!portfolioForm.id && <span className="text-red-500">*</span>}</label>
                           <div style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }} className="w-full flex items-center px-4 py-2 gap-4 rounded-lg">
-                            <label
-                              className="
-    border-2
-    border-gray-500
-    bg-gray-200
-    text-gray-800
-    px-5
-    py-2
-    rounded-full
-    cursor-pointer
-    text-sm
-    font-medium
-    hover:bg-gray-300
-    transition
-    inline-flex
-    items-center
-    justify-center
-    shadow-sm
-  "
-                            >
+                            <label className="border border-gray-400 px-5 py-2 rounded-full cursor-pointer text-sm hover:bg-gray-50 transition">
                               Choose File
                               <input
-                                type="file"
-                                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/jpg,image/png,image/webp"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files[0];
-                                  if (file) {
-                                    // Validate file type and size immediately
-                                    const fileExtension = file.name.split('.').pop().toLowerCase();
-                                    const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
-                                    const maxSize = 5 * 1024 * 1024;
-
-                                    if (!allowedExtensions.includes(fileExtension)) {
-                                      toast.error("Only JPG, JPEG, PNG, and WEBP images are allowed");
-                                      e.target.value = "";
-                                      setFileName("No file chosen");
-                                      setPortfolioValidationErrors(prev => ({ ...prev, file: "Only JPG, JPEG, PNG, and WEBP images are allowed" }));
-                                      return;
-                                    }
-
-                                    if (file.size > maxSize) {
-                                      toast.error("Image size must be less than 5 MB");
-                                      e.target.value = "";
-                                      setFileName("No file chosen");
-                                      setPortfolioValidationErrors(prev => ({ ...prev, file: "Image size must be less than 5 MB" }));
-                                      return;
-                                    }
-
-                                    setPortfolioForm({ ...portfolioForm, file });
-                                    setFileName(file.name);
-                                    setPortfolioValidationErrors(prev => ({ ...prev, file: "" }));
-                                  }
-                                }}
-                              />
+  type="file"
+  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/jpg,image/png,image/webp"
+  className="hidden"
+  onChange={(e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type and size immediately
+      const fileExtension = file.name.split('.').pop().toLowerCase();
+      const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
+      const maxSize = 5 * 1024 * 1024;
+      
+      if (!allowedExtensions.includes(fileExtension)) {
+        toast.error("Only JPG, JPEG, PNG, and WEBP images are allowed");
+        e.target.value = "";
+        setFileName("No file chosen");
+        setPortfolioValidationErrors(prev => ({ ...prev, file: "Only JPG, JPEG, PNG, and WEBP images are allowed" }));
+        return;
+      }
+      
+      if (file.size > maxSize) {
+        toast.error("Image size must be less than 5 MB");
+        e.target.value = "";
+        setFileName("No file chosen");
+        setPortfolioValidationErrors(prev => ({ ...prev, file: "Image size must be less than 5 MB" }));
+        return;
+      }
+      
+      setPortfolioForm({ ...portfolioForm, file });
+      setFileName(file.name);
+      setPortfolioValidationErrors(prev => ({ ...prev, file: "" }));
+    }
+  }}
+/>
                             </label>
                             <span className="text-gray-500 text-sm truncate flex-1">
                               {portfolioForm.file?.name || (portfolioForm.id ? "Current file retained" : fileName)}
@@ -3814,7 +3771,7 @@ const getReviewerProfilePic = (review, index) => {
             )}
 
             {/* WORK EXPERIENCE SECTION */}
-            <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full max-w-[804px] lg:w-[680px] xl:w-[804px]">
+           <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Work Experience</h3>
                 <div className="flex items-center gap-2">
@@ -4123,7 +4080,7 @@ const getReviewerProfilePic = (review, index) => {
             )}
 
             {/* EDUCATION SECTION */}
-            <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full max-w-[804px] lg:w-[680px] xl:w-[804px]">
+          <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Education</h3>
                 <div className="flex items-center gap-2">
@@ -4451,60 +4408,60 @@ const getReviewerProfilePic = (review, index) => {
             )}
 
             {/* REVIEWS SECTION */}
-            <div className="mt-8 mb-4 bg-white shadow-lg rounded-xl p-6 w-full max-w-[804px] lg:w-[680px] xl:w-[804px]">
+            <div className="mt-8 mb-4 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Reviews</h3>
               </div>
               <div className="h-px bg-gray-200 my-4" />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {displayedReviews.map((review, index) => {
-    // Safety check - if review is undefined or null, skip rendering
-    if (!review) {
-        return null;
-    }
-    
-    const profilePic = getReviewerProfilePic(review, index);
-    
-    const getReviewerName = () => {
-        if (review.reviewer_name) return review.reviewer_name;
-        if (review.reviewer?.full_name) return review.reviewer.full_name;
-        if (review.reviewer?.name) return review.reviewer.name;
-        return `User ${index + 1}`;
-    };
+                  const getReviewerProfilePic = () => {
+                    if (review.reviewer_profile_picture) {
+                      if (review.reviewer_profile_picture.startsWith("http")) return review.reviewer_profile_picture;
+                      if (review.reviewer_profile_picture.includes("/media/")) return `${API_BASE_URL}${review.reviewer_profile_picture}`;
+                      return `${API_BASE_URL}/media${review.reviewer_profile_picture}`;
+                    }
+                    return index % 2 === 0 ? ReviewUser1 : ReviewUser2;
+                  };
 
-    return (
-        <div key={review.id || index} className="bg-[#F3F3F3] border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-                <img
-                    src={profilePic}
-                    className="w-10 h-10 rounded-full object-cover"
-                    alt={getReviewerName()}
-                    onError={(e) => { 
-                        e.target.src = index % 2 === 0 ? ReviewUser1 : ReviewUser2; 
-                    }}
-                />
-                <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                        <span className="font-semibold">{getReviewerName()}</span>
-                        <span className="text-xs text-gray-500">{review.date || "Recent"}</span>
-                    </div>
-                    <div className="flex items-center mt-1">
-                        <span className="text-[#5B2D8B] mr-1">{review.rating?.toFixed(1) || "0.0"}</span>
-                        <div className="flex">
-                            {Array(5).fill(0).map((_, star) => (
+                  const getReviewerName = () => {
+                    if (review.reviewer_name) return review.reviewer_name;
+                    if (review.reviewer?.full_name) return review.reviewer.full_name;
+                    if (review.reviewer?.name) return review.reviewer.name;
+                    return `User ${index + 1}`;
+                  };
+
+                  return (
+                    <div key={index} className="bg-[#F3F3F3] border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={getReviewerProfilePic()}
+                          className="w-10 h-10 rounded-full object-cover"
+                          alt={getReviewerName()}
+                          onError={(e) => { e.target.src = index % 2 === 0 ? ReviewUser1 : ReviewUser2; }}
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold">{getReviewerName()}</span>
+                            <span className="text-xs text-gray-500">{review.date || "Recent"}</span>
+                          </div>
+                          <div className="flex items-center mt-1">
+                            <span className="text-[#5B2D8B] mr-1">{review.rating?.toFixed(1) || "0.0"}</span>
+                            <div className="flex">
+                              {Array(5).fill(0).map((_, star) => (
                                 <svg key={star} className={`w-4 h-4 ${star + 1 <= (review.rating || 0) ? "text-[#5B2D8B]" : "text-gray-300"}`} fill="currentColor" viewBox="0 0 20 20">
-                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                 </svg>
-                            ))}
+                              ))}
+                            </div>
+                            <span className="text-xs text-gray-500 ml-1">/5</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-2">{review.comment || review.review_text || "No comment provided"}</p>
                         </div>
-                        <span className="text-xs text-gray-500 ml-1">/5</span>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-600 mt-2">{review.comment || review.review_text || "No comment provided"}</p>
-                </div>
-            </div>
-        </div>
-    );
-})}
+                  );
+                })}
               </div>
               {reviews.length === 0 && <p className="text-center text-gray-500 py-4">No reviews yet.</p>}
               {reviews.length > 0 && (
@@ -4797,61 +4754,57 @@ const getReviewerProfilePic = (review, index) => {
               {/* Scrollable reviews list - hidden scrollbar */}
               <div className="flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-6 py-4">
                 <div className="space-y-4">
-    {paginatedReviews.map((review, index) => {
-        const globalIndex = (reviewsCurrentPage - 1) * reviewsItemsPerPage + index;
-        
-        // ✅ Safety check - if review is undefined or null, return null
-        if (!review) {
-            return null;
-        }
-        
-        // ✅ Call the function with review and index parameters
-        const profilePic = getReviewerProfilePic(review, globalIndex);
-        
-        const getReviewerName = () => {
-            if (review.reviewer_name) return review.reviewer_name;
-            if (review.reviewer?.full_name) return review.reviewer.full_name;
-            if (review.reviewer?.name) return review.reviewer.name;
-            return `User ${globalIndex + 1}`;
-        };
-        
-        return (
-            <div key={globalIndex} className="bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow duration-200">
-                <div className="flex items-start gap-3">
-                    <img
-                        src={profilePic}
-                        className="w-10 h-10 rounded-full object-cover ring-2 ring-purple-100 flex-shrink-0"
-                        alt={getReviewerName()}
-                        onError={(e) => { 
-                            e.target.src = globalIndex % 2 === 0 ? ReviewUser1 : ReviewUser2; 
-                        }}
-                    />
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                            <span className="font-semibold text-gray-900 truncate">{getReviewerName()}</span>
-                            <span className="text-xs text-gray-400 flex-shrink-0">{review.date || "Recent"}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1.5">
-                            <div className="flex items-center">
+                  {paginatedReviews.map((review, index) => {
+                    const globalIndex = (reviewsCurrentPage - 1) * reviewsItemsPerPage + index;
+                    const getReviewerProfilePic = () => {
+                      if (review.reviewer_profile_picture) {
+                        if (review.reviewer_profile_picture.startsWith("http")) return review.reviewer_profile_picture;
+                        if (review.reviewer_profile_picture.includes("/media/")) return `${API_BASE_URL}${review.reviewer_profile_picture}`;
+                        return `${API_BASE_URL}/media${review.reviewer_profile_picture}`;
+                      }
+                      return globalIndex % 2 === 0 ? ReviewUser1 : ReviewUser2;
+                    };
+                    const getReviewerName = () => {
+                      if (review.reviewer_name) return review.reviewer_name;
+                      if (review.reviewer?.full_name) return review.reviewer.full_name;
+                      if (review.reviewer?.name) return review.reviewer.name;
+                      return `User ${globalIndex + 1}`;
+                    };
+                    return (
+                      <div key={globalIndex} className="bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow duration-200">
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={getReviewerProfilePic()}
+                            className="w-10 h-10 rounded-full object-cover ring-2 ring-purple-100 flex-shrink-0"
+                            alt={getReviewerName()}
+                            onError={(e) => { e.target.src = globalIndex % 2 === 0 ? ReviewUser1 : ReviewUser2; }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <span className="font-semibold text-gray-900 truncate">{getReviewerName()}</span>
+                              <span className="text-xs text-gray-400 flex-shrink-0">{review.date || "Recent"}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex items-center">
                                 <span className="text-sm font-semibold text-purple-700 mr-1">{review.rating?.toFixed(1) || "0.0"}</span>
                                 <div className="flex">
-                                    {[...Array(5)].map((_, star) => (
-                                        <svg key={star} className={`w-3.5 h-3.5 ${star + 1 <= (review.rating || 0) ? "text-yellow-400" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                        </svg>
-                                    ))}
+                                  {[...Array(5)].map((_, star) => (
+                                    <svg key={star} className={`w-3.5 h-3.5 ${star + 1 <= (review.rating || 0) ? "text-yellow-400" : "text-gray-200"}`} fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                  ))}
                                 </div>
+                              </div>
+                              <span className="text-xs text-gray-400">·</span>
+                              <span className="text-xs text-gray-500">{review.rating === 5 ? "Excellent" : review.rating >= 4 ? "Very Good" : review.rating >= 3 ? "Good" : "Average"}</span>
                             </div>
-                            <span className="text-xs text-gray-400">·</span>
-                            <span className="text-xs text-gray-500">{review.rating === 5 ? "Excellent" : review.rating >= 4 ? "Very Good" : review.rating >= 3 ? "Good" : "Average"}</span>
+                            <p className="text-sm text-gray-600 mt-2.5 leading-relaxed">{review.comment || review.review_text || "No comment provided"}</p>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-600 mt-2.5 leading-relaxed">{review.comment || review.review_text || "No comment provided"}</p>
-                    </div>
+                      </div>
+                    );
+                  })}
                 </div>
-            </div>
-        );
-    })}
-</div>
 
                 {reviews.length === 0 && (
                   <div className="text-center py-12">
