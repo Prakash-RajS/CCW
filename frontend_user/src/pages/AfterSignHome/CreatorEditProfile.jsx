@@ -65,6 +65,7 @@ export default function CreatorEditProfile() {
   const [editingPortfolioItem, setEditingPortfolioItem] = useState(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPortfolio, setIsSavingPortfolio] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false); 
   const [rateLimitError, setRateLimitError] = useState("");
 
   // Confirm modal state
@@ -1807,21 +1808,24 @@ if (formData.email && formData.email.trim() !== "") {
 
   // UPDATED: Delete handler with custom confirm modal
   const handleDeletePortfolio = (itemId) => {
-    showConfirm("Are you sure you want to delete this portfolio item?", async () => {
-      closeConfirm();
-      try {
-        await api.delete(`/portfolio/delete/${itemId}`);
-        await fetchPortfolioItems();
-        setShowEdit(false);
-        setEditingPortfolioItem(null);
-        setShowPortfolioPopup(false);
-        toast.success("Portfolio item deleted successfully!");
-      } catch (error) {
-        console.error("Error deleting portfolio:", error);
-        toast.error("Failed to delete portfolio item");
-      }
-    });
-  };
+  showConfirm("Are you sure you want to delete this portfolio item?", async () => {
+    closeConfirm();
+    setIsDeleting(true); // Add this
+    try {
+      await api.delete(`/portfolio/delete/${itemId}`);
+      await fetchPortfolioItems();
+      setShowEdit(false);
+      setEditingPortfolioItem(null);
+      setShowPortfolioPopup(false);
+      toast.success("Portfolio item deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting portfolio:", error);
+      toast.error("Failed to delete portfolio item");
+    } finally {
+      setIsDeleting(false); // Add this
+    }
+  });
+};
 
  const handleFileChange = (e, setFormData, setFileNameState) => {
   const file = e.target.files[0];
@@ -3453,15 +3457,26 @@ if (formData.email && formData.email.trim() !== "") {
 
                       <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                         <button
-                          onClick={() => handleEditPortfolio(editPortfolioForm)}
-                          disabled={
-                            !!portfolioValidationErrors.title ||
-                            !!portfolioValidationErrors.file
-                          }
-                          className={`bg-[#51218F] text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-semibold hover:opacity-90 transition w-full sm:w-auto min-w-[100px] text-[14px] sm:text-[15px] order-1 sm:order-none ${portfolioValidationErrors.title || portfolioValidationErrors.file ? "opacity-50 cursor-not-allowed" : ""}`}
-                        >
-                          Save
-                        </button>
+  onClick={() => handleEditPortfolio(editPortfolioForm)}
+  disabled={
+    isSavingPortfolio ||
+    !!portfolioValidationErrors.title ||
+    !!portfolioValidationErrors.file
+  }
+  className={`bg-[#51218F] text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-semibold hover:opacity-90 transition w-full sm:w-auto min-w-[100px] text-[14px] sm:text-[15px] order-1 sm:order-none ${isSavingPortfolio || portfolioValidationErrors.title || portfolioValidationErrors.file ? "opacity-50 cursor-not-allowed" : ""}`}
+>
+  {isSavingPortfolio ? (
+    <div className="flex items-center justify-center gap-2">
+      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span>Saving...</span>
+    </div>
+  ) : (
+    "Save"
+  )}
+</button>
                         <CancelButton
                           onClick={() => {
                             setShowEdit(false);
@@ -3481,13 +3496,22 @@ if (formData.email && formData.email.trim() !== "") {
                           }}
                         />
                         <button
-                          onClick={() =>
-                            handleDeletePortfolio(editingPortfolioItem.id)
-                          }
-                          className="bg-red-600 text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-semibold hover:bg-red-700 transition w-full sm:w-auto min-w-[100px] text-[14px] sm:text-[15px] order-3 sm:order-none"
-                        >
-                          Delete
-                        </button>
+  onClick={() => handleDeletePortfolio(editingPortfolioItem.id)}
+  disabled={isDeleting}
+  className={`bg-red-600 text-white px-4 sm:px-8 py-2.5 sm:py-3 rounded-full font-semibold hover:bg-red-700 transition w-full sm:w-auto min-w-[100px] text-[14px] sm:text-[15px] order-3 sm:order-none ${isDeleting ? "opacity-50 cursor-not-allowed" : ""}`}
+>
+  {isDeleting ? (
+    <div className="flex items-center justify-center gap-2">
+      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span>Deleting...</span>
+    </div>
+  ) : (
+    "Delete"
+  )}
+</button>
                       </div>
                     </div>
                   </div>

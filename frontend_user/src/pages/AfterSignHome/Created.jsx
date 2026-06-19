@@ -1792,8 +1792,12 @@ export default function Created() {
   // SUBMIT LOGIC
   // =========================================================
   const submitJob = async (status) => {
+  console.log("submitJob called with status:", status);
+  console.log("isSubmitting before:", isSubmitting);
+  
   // Validate all fields before submission
   const isValid = validateAllFields();
+  console.log("Validation result:", isValid);
 
   if (!isValid) {
     // Show toast for the first error
@@ -1828,6 +1832,7 @@ export default function Created() {
 
   // Set submitting state to true
   setIsSubmitting(true);
+  console.log("isSubmitting set to true");
 
   const loadingToastId = toast.loading(jobId ? "Updating job..." : "Creating job...");
 
@@ -1856,6 +1861,8 @@ export default function Created() {
       });
     }
 
+    console.log("Submitting form data...");
+    
     if (jobId) {
       await api.put(`/jobs/edit/${jobId}`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -1884,6 +1891,7 @@ export default function Created() {
     toast.error("Submission Failed", typeof errorMsg === "string" ? errorMsg : "An error occurred");
   } finally {
     // Reset submitting state
+    console.log("Resetting isSubmitting to false");
     setIsSubmitting(false);
   }
 };
@@ -1935,6 +1943,20 @@ export default function Created() {
 
   return (
     <div className="w-full min-h-screen bg-[#F5F5F5]">
+      <style>{`
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      
+      .animate-spin {
+        animation: spin 1s linear infinite;
+      }
+    `}</style>
       <div className="absolute top-0 left-0 w-full z-50">
         <Header />
       </div>
@@ -2445,35 +2467,46 @@ export default function Created() {
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 mt-6">
-                <button
-  onClick={() => submitJob("posted")}
-  disabled={isSubmitting}
-  className={`w-full sm:w-[190px] h-[39px] cursor-pointer rounded-[100px] bg-gradient-to-r from-[#51218F] to-black text-white font-['Montserrat'] font-bold text-[14px] shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2 ${
-    isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-  }`}
->
-  {isSubmitting ? (
-    <>
-      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      {jobId ? "Updating..." : "Posting..."}
-    </>
-  ) : (
-    jobId ? "Update Job" : "Post job now"
-  )}
-</button>
-                <button
-  onClick={() => submitJob("draft")}
-  disabled={isSubmitting}
-  className={`w-full sm:w-[190px] h-[39px] cursor-pointer rounded-[100px] !border !border-[rgba(38,50,56,1)] bg-white text-[rgba(38,50,56,1)] font-['Montserrat'] font-bold text-[14px] hover:bg-gray-50 ${
-    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-  }`}
->
-  {jobId ? "Save as Draft" : "Save as draft"}
-</button>
-              </div>
+  <button
+    onClick={() => submitJob("posted")}
+    disabled={isSubmitting}
+    className={`w-full sm:w-[190px] h-[45px] cursor-pointer rounded-[100px] bg-gradient-to-r from-[#51218F] to-black text-white font-['Montserrat'] font-bold text-[14px] shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-3 ${
+      isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+    }`}
+  >
+    {isSubmitting ? (
+      <>
+        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>{jobId ? "Updating..." : "Posting..."}</span>
+      </>
+    ) : (
+      jobId ? "Update Job" : "Post job now"
+    )}
+  </button>
+  
+  <button
+    onClick={() => submitJob("draft")}
+    disabled={isSubmitting}
+    className={`w-full sm:w-[190px] h-[45px] cursor-pointer rounded-[100px] !border !border-[rgba(38,50,56,1)] bg-white text-[rgba(38,50,56,1)] font-['Montserrat'] font-bold text-[14px] hover:bg-gray-50 transition-colors flex items-center justify-center gap-3 ${
+      isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+    }`}
+  >
+    {isSubmitting ? (
+      <>
+        <svg className="animate-spin h-5 w-5 text-[rgba(38,50,56,1)]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>Saving...</span>
+      </>
+    ) : (
+      jobId ? "Save as Draft" : "Save as draft"
+    )}
+  </button>
+</div>
             </div>
           </div>
         </div>

@@ -108,6 +108,41 @@ const Steps = () => {
           opacity: 1 !important;
         }
 
+        /* Fix for tablet (768px - 1023px) text hiding / overflow */
+        @media screen and (min-width: 768px) and (max-width: 1023px) {
+          .step-card {
+            height: 130px !important;
+          }
+          .step-card .step-icon {
+            width: 48px !important;
+            height: 48px !important;
+            left: 32px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+          }
+          .step-card[style*="rotate(-180deg)"] .step-icon {
+            transform: translateY(-50%) rotate(180deg) !important;
+          }
+          .step-card .content-number {
+            font-size: 116px !important;
+            left: 88px !important;
+            width: 76px !important;
+            height: 100px !important;
+          }
+          .step-card .step-content {
+            left: 176px !important;
+            right: 24px !important;
+            width: auto !important;
+          }
+          .step-card .step-content h3 {
+            font-size: 18px !important;
+          }
+          .step-card .step-content p {
+            font-size: 12px !important;
+            line-height: 140% !important;
+          }
+        }
+
         /* Fix for 1024px text hiding */
         @media screen and (min-width: 1024px) and (max-width: 1279px) {
           .step-card .content-number {
@@ -154,13 +189,13 @@ const Steps = () => {
         </div>
 
         {/* Dynamic proportional gaps and max-width added for 2xl */}
-        <div className="flex flex-col gap-4 2xl:gap-[1.1vw] mt-1 md:mt-4 2xl:mt-[1vw] w-full max-w-[1278px] 2xl:max-w-[88.75vw] px-4">
+        <div className="flex flex-col gap-4 2xl:gap-[1.1vw] mt-1 md:mt-4   2xl:mt-[1vw] w-full max-w-[1278px] 2xl:max-w-[88.75vw] px-4">
           
           {/* Div 1 - Step 1 */}
           <div 
             ref={(el) => stepRefs.current[0] = el}
             onClick={handleStepClick}
-            className="step-card relative rounded-[50px] md:rounded-[100px] 2xl:rounded-[7vw] mx-auto w-full max-w-[330px] md:max-w-full h-[80px] md:h-[161px] 2xl:h-[11.2vw]"
+            className="step-card relative rounded-[50px]  md:rounded-[100px] 2xl:rounded-[7vw] mx-auto w-full max-w-[330px] md:max-w-full h-[80px] md:h-[161px] 2xl:h-[11.2vw]"
             style={{ background: 'linear-gradient(90deg, #683CA1 0%, #5D2484 49.52%, #391651 100%)' }}
           >
             {/* Step logo */}

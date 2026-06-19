@@ -5,26 +5,49 @@ import Card3 from "../../assets/Landing/Card3.png";
 import Card4 from "../../assets/Landing/Card4.png";
 import Card5 from "../../assets/Landing/Card5.png";
 import Card6 from "../../assets/Landing/Card6.png";
-
+ 
 const Slide = () => {
   const [activeIndex, setActiveIndex] = useState(2);
   const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
   const [isUltraWide, setIsUltraWide] = useState(false);
-
+ 
   // Handle Resize to switch views safely
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 1024);
-      setIsUltraWide(window.innerWidth >= 1536); // Track 2xl screens
+      const w = window.innerWidth;
+      setIsMobile(w < 1024);
+      setIsTablet(w >= 768 && w < 1024); // tablet band only; does NOT change isMobile
+      setIsUltraWide(w >= 1536); // Track 2xl screens
     };
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  // Helper to scale pixel values to vw on ultra-wide screens based on 1440px reference
-  const uw = (val) => (isUltraWide ? `${(val / 1440) * 100}vw` : `${val}px`);
-
+ 
+  // 4K / ultrawide fill-scaling: pure vw, NO px cap.
+  //
+  // Below ~1600px viewport width this returns exactly the same value the old capped version did
+  // (the vw branch always won under 1600), so mobile / tablet / normal-desktop layouts are
+  // completely unchanged. Above ~1600px the difference kicks in: the old version froze every
+  // size at a fixed px (the 1600px reference), which is what left the coverflow centered with
+  // dead-space gaps at the left/right screen edges on 4K. Now both the card *sizes* AND the
+  // side-card `left` offsets (which also use uw()) keep growing with the viewport, in lockstep —
+  // so the cards stay touching/overlapping (no gaps between them) AND the whole row scales up to
+  // fill the screen edge-to-edge (no gaps at the start/end). It's a uniform zoom of the exact
+  // same composition, at any width.
+  //
+  // The only reason this used to be capped was that the section + cards containers have a
+  // max-height; past 1600px the cards outgrew them and the active card's glow, the ground
+  // shadow, and the side arrows got clipped by `overflow-hidden` into a flat box. That's now
+  // handled by letting those containers keep growing on 2xl (`2xl:max-h-none`), so the glow,
+  // shadow, and arrows stay fully visible.
+  const uw = (val) => `${((val / 1113) * 100).toFixed(3)}vw`;
+ 
+  // Identical to uw() now (both uncapped vw). Kept only so the four side-card `left` calls below
+  // still resolve; unused otherwise and safe to delete.
+  const uwOffset = (val) => `${((val / 1113) * 100).toFixed(3)}vw`;
+ 
   const [cards] = useState([
     {
       id: 1,
@@ -77,19 +100,19 @@ const Slide = () => {
       rating: 4.7
     }
   ]);
-
+ 
   const handleNext = () => {
     setActiveIndex((prev) => (prev + 1) % cards.length);
   };
-
+ 
   const handlePrev = () => {
     setActiveIndex((prev) => (prev - 1 + cards.length) % cards.length);
   };
-
+ 
   const handleCardClick = (index) => {
     setActiveIndex(index);
   };
-
+ 
   /**
    * CORE LOGIC: Determines style based on Mobile vs Desktop vs UltraWide
    */
@@ -97,9 +120,98 @@ const Slide = () => {
     let diff = index - activeIndex;
     if (diff > cards.length / 2) diff -= cards.length;
     if (diff < -cards.length / 2) diff += cards.length;
-
+ 
     // --- MOBILE STYLES (COMPLETELY UNCHANGED) ---
     if (isMobile) {
+      // --- TABLET STYLES (768px–1023px ONLY) ---
+      // Tighter, larger coverflow so the cards don't spread apart on wide tablets.
+      // Phones (<768px) skip this block entirely and use the original mobile math below.
+      if (isTablet) {
+        const baseTablet = {
+          top: '0px',
+          borderRadius: '24px',
+          border: '1px solid rgba(255,255,255,0.1)',
+          transition: 'all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1)',
+        };
+ 
+        if (diff === 0) {
+          return {
+            ...baseTablet,
+            width: '210px',
+            height: '390px',        // was 420px
+            top: '0px',
+            left: '50%',
+            zIndex: 20,
+            opacity: 1,
+            transform: 'translateX(-50%) scale(1) rotateY(0deg)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            boxShadow: '0 10px 25px -8px rgba(0,0,0,0.4)',
+          };
+        } else if (diff === -1) {
+          return {
+            ...baseTablet,
+            width: '190px',
+            height: '360px',        // was 390px
+            top: '20px',
+            left: '26%',            // was 24%
+            zIndex: 10,
+            opacity: 0.92,
+            transform: 'translateX(-50%) scale(0.9) rotateY(50deg)',
+            filter: 'brightness(0.65)',
+            boxShadow: '0 5px 15px -5px rgba(0,0,0,0.3)',
+          };
+        } else if (diff === 1) {
+          return {
+            ...baseTablet,
+            width: '190px',
+            height: '360px',        // was 390px
+            top: '20px',
+            left: '74%',            // was 76%
+            zIndex: 10,
+            opacity: 0.92,
+            transform: 'translateX(-50%) scale(0.9) rotateY(-50deg)',
+            filter: 'brightness(0.65)',
+            boxShadow: '0 5px 15px -5px rgba(0,0,0,0.3)',
+          };
+        } else if (diff === -2) {
+          return {
+            ...baseTablet,
+            width: '150px',
+            height: '320px',        // was 350px
+            top: '45px',
+            left: '10%',            // was 7%
+            zIndex: 5,
+            opacity: 0.55,
+            transform: 'translateX(-50%) scale(0.82) rotateY(66deg)',
+            filter: 'brightness(0.45)',
+            boxShadow: '0 3px 10px -3px rgba(0,0,0,0.2)',
+          };
+        } else if (diff === 2) {
+          return {
+            ...baseTablet,
+            width: '150px',
+            height: '320px',        // was 350px
+            top: '45px',
+            left: '90%',            // was 93%
+            zIndex: 5,
+            opacity: 0.55,
+            transform: 'translateX(-50%) scale(0.82) rotateY(-66deg)',
+            filter: 'brightness(0.45)',
+            boxShadow: '0 3px 10px -3px rgba(0,0,0,0.2)',
+          };
+        } else {
+          return {
+            ...baseTablet,
+            width: '210px',
+            height: '390px',
+            left: '50%',
+            opacity: 0,
+            transform: 'translateX(-50%) scale(0)',
+            pointerEvents: 'none'
+          };
+        }
+      }
+ 
       const baseMobile = {
         top: '0px',
         width: '180px',
@@ -108,7 +220,7 @@ const Slide = () => {
         border: '1px solid rgba(255,255,255,0.1)',
         transition: 'all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1)',
       };
-
+ 
       if (diff === 0) {
         return {
           ...baseMobile,
@@ -171,14 +283,19 @@ const Slide = () => {
         };
       }
     }
-
-    // --- DESKTOP / ULTRA-WIDE STYLES ---
+ 
+    // --- DESKTOP / ULTRA-WIDE STYLES (>= 1024px) ---
+    // Side cards use percentage-derived `left` offsets from center. The cards container is
+    // full-width with no max-width cap. Both the card *sizes* AND the side cards' `left` offsets
+    // use uw() (capped at the 1600px reference) so they grow together and the coverflow stays
+    // touching/overlapping with no gaps. Past 1600px viewport width the whole layout freezes at
+    // the 1600px look (centered, margin at the edges) rather than fanning the cards apart.
     const len = cards.length;
     const prevIndex = (activeIndex - 1 + len) % len;
     const prevPrevIndex = (activeIndex - 2 + len) % len;
     const nextIndex = (activeIndex + 1) % len;
     const nextNextIndex = (activeIndex + 2) % len;
-
+ 
     if (index === activeIndex) {
       return {
         left: '50%',
@@ -196,7 +313,7 @@ const Slide = () => {
       };
     } else if (index === prevIndex) {
       return {
-        left: '18%',
+        left: `calc(50% - ${uw(340)})`,
         width: uw(188),
         height: uw(400),
         top: uw(48),
@@ -211,7 +328,7 @@ const Slide = () => {
       };
     } else if (index === prevPrevIndex) {
       return {
-        left: '1%',
+        left: `calc(50% - ${uw(500)})`,
         width: uw(188),
         height: uw(400),
         top: uw(48),
@@ -226,7 +343,7 @@ const Slide = () => {
       };
     } else if (index === nextIndex) {
       return {
-        left: '68%',
+        left: `calc(50% + ${uw(172)})`,
         width: uw(188),
         height: uw(400),
         top: uw(48),
@@ -241,7 +358,7 @@ const Slide = () => {
       };
     } else if (index === nextNextIndex) {
       return {
-        left: '85%',
+        left: `calc(50% + ${uw(325)})`,
         width: uw(188),
         height: uw(400),
         top: uw(48),
@@ -267,7 +384,7 @@ const Slide = () => {
       };
     }
   };
-
+ 
   // --- 3D Star Rating Component ---
   const StarRating = ({ rating, className, size }) => {
     const fullStars = Math.floor(rating);
@@ -280,14 +397,14 @@ const Slide = () => {
       <div className={className} style={{ display: 'flex', alignItems: 'center', gap: starSpacing }}>
         {Array(fullStars).fill(0).map((_, i) => (
           <svg key={`full-${i}`} width={size} height={size} viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))' }}>
-            <path 
-              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
-              fill="url(#goldGradient)" 
-              stroke="#B8860B" 
-              strokeWidth="0.5" 
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+              fill="url(#goldGradient)"
+              stroke="#B8860B"
+              strokeWidth="0.5"
             />
-            <path 
-              d="M12 4l2.5 5.1L20 9.8l-4 3.9.9 5.3L12 16.5l-4.9 2.5.9-5.3-4-3.9 5.5-.7L12 4z" 
+            <path
+              d="M12 4l2.5 5.1L20 9.8l-4 3.9.9 5.3L12 16.5l-4.9 2.5.9-5.3-4-3.9 5.5-.7L12 4z"
               fill="rgba(255, 255, 255, 0.3)"
             />
             <defs>
@@ -314,39 +431,39 @@ const Slide = () => {
                 <stop offset="100%" stopColor="transparent" />
               </linearGradient>
             </defs>
-            <path 
-              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
-              fill={`url(#${uniqueId})`} 
-              stroke="#B8860B" 
-              strokeWidth="0.5" 
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+              fill={`url(#${uniqueId})`}
+              stroke="#B8860B"
+              strokeWidth="0.5"
             />
-            <path 
-              d="M12 4l2.5 5.1L20 9.8l-4 3.9.9 5.3L12 16.5l-4.9 2.5.9-5.3-4-3.9 5.5-.7L12 4z" 
-              fill={`url(#halfHighlight-${uniqueId})`} 
+            <path
+              d="M12 4l2.5 5.1L20 9.8l-4 3.9.9 5.3L12 16.5l-4.9 2.5.9-5.3-4-3.9 5.5-.7L12 4z"
+              fill={`url(#halfHighlight-${uniqueId})`}
             />
           </svg>
         )}
         {Array(emptyStars).fill(0).map((_, i) => (
           <svg key={`empty-${i}`} width={size} height={size} viewBox="0 0 24 24" style={{ filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2))' }}>
-            <path 
-              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" 
-              fill="rgba(255, 215, 0, 0.1)" 
-              stroke="#DAA520" 
-              strokeWidth="0.8" 
+            <path
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+              fill="rgba(255, 215, 0, 0.1)"
+              stroke="#DAA520"
+              strokeWidth="0.8"
             />
-            <path 
-              d="M12 4l2.5 5.1L20 9.8l-4 3.9.9 5.3L12 16.5l-4.9 2.5.9-5.3-4-3.9 5.5-.7L12 4z" 
-              fill="rgba(255, 215, 0, 0.05)" 
+            <path
+              d="M12 4l2.5 5.1L20 9.8l-4 3.9.9 5.3L12 16.5l-4.9 2.5.9-5.3-4-3.9 5.5-.7L12 4z"
+              fill="rgba(255, 215, 0, 0.05)"
             />
           </svg>
         ))}
       </div>
     );
   };
-
+ 
   return (
     <section className="
-      w-full h-auto md:h-[870px] 2xl:h-[60.4vw] flex flex-col items-center justify-start
+      w-full h-auto md:h-[750px] lg:h-[76vw] lg:max-h-[1260px] 2xl:max-h-none flex flex-col items-center justify-start
       mt-[20px] md:mt-0 pt-0 md:pt-[40px] 2xl:pt-[2.7vw] px-4 relative overflow-hidden
     ">
      
@@ -361,16 +478,16 @@ const Slide = () => {
     </p>
   </div>
 </div>
-
+ 
       {/* ================= CARDS CONTAINER ================= */}
       <div
-        className="relative w-full max-w-[1299px] 2xl:max-w-[90.2vw] h-[420px] md:h-[600px] 2xl:h-[41.6vw] mt-4 md:mt-10 2xl:mt-[2.7vw] mx-auto"
-        style={{ perspective: isMobile ? '1000px' : isUltraWide ? '83vw' : '1200px' }}
+        className="relative w-full h-[420px] md:h-[480px] lg:h-[46vw] lg:max-h-[740px] 2xl:max-h-none mt-4 md:mt-10 2xl:mt-[2.7vw] mx-auto"
+        style={{ perspective: isMobile ? '1000px' : '90vw' }}
       >
         {cards.map((card, index) => {
           const style = getCardStyle(index);
           const isActive = index === activeIndex;
-
+ 
           return (
             <div
               key={card.id}
@@ -410,7 +527,7 @@ const Slide = () => {
                   borderRadius: style.borderRadius
                 }}
               />
-
+ 
               {/* Image with perspective correction */}
               <div style={{
                 position: 'absolute',
@@ -431,14 +548,14 @@ const Slide = () => {
                   }}
                 />
               </div>
-
+ 
               {/* Dark Overlay Gradient - Desktop specific */}
               {!isMobile && (
                 <div
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: isActive 
+                    background: isActive
                       ? 'linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 50%, rgba(0, 0, 0, 0) 100%)'
                       : 'linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)',
                     zIndex: 2,
@@ -446,7 +563,7 @@ const Slide = () => {
                   }}
                 />
               )}
-
+ 
               {/* Mobile Dark Overlay */}
               {isMobile && (
                 <div
@@ -458,7 +575,7 @@ const Slide = () => {
                   }}
                 />
               )}
-
+ 
               {/* ================= STARS ================= */}
               {!isMobile && isActive && (
                 <div style={{
@@ -474,20 +591,20 @@ const Slide = () => {
                   <StarRating rating={card.rating} size={isUltraWide ? `${(22 / 1440) * 100}vw` : "22"} />
                 </div>
               )}
-
+ 
               {(isActive && isMobile) && (
-                <div style={{ 
-                  position: 'absolute', 
-                  top: '24px', 
-                  width: '100%', 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  zIndex: 10 
+                <div style={{
+                  position: 'absolute',
+                  top: '24px',
+                  width: '100%',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  zIndex: 10
                 }}>
                   <StarRating rating={card.rating} size="22" />
                 </div>
               )}
-
+ 
               {/* Content */}
               <div
                 style={{
@@ -495,7 +612,7 @@ const Slide = () => {
                   bottom: 0,
                   left: 0,
                   right: 0,
-                  padding: !isMobile 
+                  padding: !isMobile
                     ? (isActive ? uw(32) : uw(16))
                     : (isMobile ? '24px 16px' : '16px'),
                   textAlign: 'center',
@@ -504,7 +621,7 @@ const Slide = () => {
                   alignItems: 'center',
                   gap: !isMobile ? (isActive ? uw(12) : uw(8)) : '6px',
                   zIndex: 20,
-                  background: !isMobile && isActive 
+                  background: !isMobile && isActive
                     ? 'linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 50%, rgba(0, 0, 0, 0) 100%)'
                     : !isMobile && !isActive
                       ? 'linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0) 100%)'
@@ -528,7 +645,7 @@ const Slide = () => {
                 >
                   {card.heading}
                 </h3>
-
+ 
                 {/* Desktop Paragraph */}
                 {!isMobile && isActive && (
                   <p
@@ -547,7 +664,7 @@ const Slide = () => {
                     {card.paragraph}
                   </p>
                 )}
-
+ 
                 {/* Mobile Paragraph */}
                 {isMobile && (isActive || style.opacity > 0.6) && (
                   <p
@@ -563,7 +680,7 @@ const Slide = () => {
                     {card.paragraph}
                   </p>
                 )}
-
+ 
                 {/* Desktop Category Badge */}
                 {!isMobile && !isActive && (
                   <span
@@ -586,7 +703,7 @@ const Slide = () => {
                   </span>
                 )}
               </div>
-
+ 
               {/* Desktop Direction Indicator */}
               {!isMobile && !isActive && (
                 <div style={{
@@ -607,7 +724,7 @@ const Slide = () => {
             </div>
           );
         })}
-
+ 
         {/* ================= GROUND SHADOW ================= */}
       <div
   className="absolute"
@@ -618,7 +735,7 @@ const Slide = () => {
     bottom: isMobile ? '25px' : 'auto',
     left: '50%',
     transform: 'translateX(-50%)' + (isMobile ? '' : ' scaleY(0.3)'),
-    background: isMobile 
+    background: isMobile
       ? 'radial-gradient(ellipse at center, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.4) 40%, transparent 80%)'
       : '#444444CC',
     filter: `blur(${isMobile ? '6px' : uw(8)})`,
@@ -630,7 +747,7 @@ const Slide = () => {
   }}
 />
       </div>
-
+ 
       {/* ================= NAVIGATION CONTROLS ================= */}
      <div className="flex items-center justify-center gap-4 sm:gap-12 2xl:gap-[3.3vw] z-50 -mt-4 md:mt-0 md:absolute md:bottom-[7px] 2xl:bottom-[0.5vw] md:left-1/2 md:transform md:-translate-x-1/2">
   <style>{`
@@ -693,7 +810,7 @@ const Slide = () => {
       transform: scale(0.95);
     }
   `}</style>
-
+ 
   <div className="flex items-center gap-4 sm:gap-12 2xl:gap-[3.3vw]">
     <button
       onClick={handlePrev}
@@ -712,14 +829,14 @@ const Slide = () => {
           key={index}
           onClick={() => handleCardClick(index)}
           className={`transition-all duration-300 ${
-            index === activeIndex 
-              ? 'rounded-full shadow-md' 
+            index === activeIndex
+              ? 'rounded-full shadow-md'
               : 'bg-gray-400 hover:bg-gray-300 rounded-full'
           }`}
           style={{
             width: index === activeIndex ? '20px' : '10px',
             height: '3px',
-            background: index === activeIndex 
+            background: index === activeIndex
               ? 'linear-gradient(180deg, rgba(81, 33, 143, 0.8) 0%, rgba(23, 9, 41, 0.8) 100%)'
               : undefined
           }}
@@ -743,5 +860,5 @@ const Slide = () => {
     </section>
   );
 };
-
+ 
 export default Slide;

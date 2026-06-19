@@ -135,8 +135,10 @@ const Skill = () => {
         </p>
 
         {/* Scaled grid padding and gaps for 2xl */}
-        <div className="w-full pt-[60px] xs:pt-[70px] sm:pt-20 lg:pt-[136px] 2xl:pt-[9.5vw]">
-          <div className="flex flex-wrap justify-center gap-x-3 xs:gap-x-4 lg:gap-x-6 xl:gap-x-8 2xl:gap-x-[2.2vw] gap-y-20 xs:gap-y-20 sm:gap-y-24 2xl:gap-y-[9vw] place-items-center">
+        {/* TABLET FIX: sm:pt-[24vw] scales top space with viewport so first-row images clear the description. lg:pt-[136px] keeps laptop unchanged. */}
+        <div className="w-full pt-[60px] xs:pt-[70px] sm:pt-[24vw] lg:pt-[136px] 2xl:pt-[9.5vw]">
+          {/* TABLET FIX: sm:gap-y-[24vw] scales the row gap with viewport so second-row images never overlap first-row cards. lg:gap-y-24 restores the original laptop spacing. */}
+          <div className="flex flex-wrap justify-center gap-x-3 xs:gap-x-4 lg:gap-x-6 xl:gap-x-8 2xl:gap-x-[2.2vw] gap-y-20 xs:gap-y-20 sm:gap-y-[24vw] lg:gap-y-24 2xl:gap-y-[9vw] place-items-center">
             {categoriesData[activeCategory].map((item, idx) => (
               <SkillBox
                 key={item.id}
