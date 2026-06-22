@@ -852,11 +852,48 @@ async def save_collaborator_profile(
         # print(f"❌ Error saving collaborator profile: {e}")
         raise HTTPException(status_code=500, detail=f"Profile save error: {str(e)}")
 
-    # ========== UPDATE USER ROLE ==========
+       # ========== UPDATE USER ROLE ==========
     if user.role != "collaborator":
         user.role = "collaborator"
         await sync_to_async(user.save)()
-        # ... rest of the code
+
+    # 🔽 ADD SUBSCRIPTION CREATION HERE 🔽
+    basic_plan = await sync_to_async(get_or_create_basic_plan)("collaborator")
+    subscription_exists = await sync_to_async(
+        lambda: UserSubscription.objects.filter(user=user).exists()
+    )()
+    if not subscription_exists:
+        now = datetime.now()
+        subscription = await sync_to_async(UserSubscription.objects.create)(
+            user=user,
+            email=user.email or "",
+            current_plan=basic_plan.name,
+            plan_name=basic_plan.name,
+            duration=basic_plan.duration.capitalize(),
+            plan_price=basic_plan.price,
+            plan_start_date=now,
+            plan_end_date=now + timedelta(days=30),
+            renewal_date=now + timedelta(days=30),
+            status="active",
+            is_trial=False,
+        )
+        await sync_to_async(SubscriptionHistory.objects.create)(
+            user=user,
+            email=user.email or "",
+            plan_name=basic_plan.name,
+            duration=basic_plan.duration,
+            plan_price=basic_plan.price,
+            start_date=now,
+            end_date=subscription.plan_end_date,
+            status="active",
+            action="created",
+            plan_id=basic_plan.id,
+            stripe_subscription_id=subscription.stripe_subscription_id,
+        )
+
+    # ========== NOTIFICATIONS ==========
+    notification_type = "profile_created" if created else "profile_updated"
+
 
     # ========== NOTIFICATIONS ==========
     notification_type = "profile_created" if created else "profile_updated"
@@ -885,6 +922,7 @@ async def save_collaborator_profile(
         "profile_id": profile.id,
         "user_id": user.id,
     }
+ 
 
 
 # ==============================================================================

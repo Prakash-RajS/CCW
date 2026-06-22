@@ -28,28 +28,31 @@ function levenshtein(a, b) {
 }
 
 const Overview = () => {
-  const { userData } = useUser();
+  const { userData, updateUserData } = useUser();
   const [activeTab, setActiveTab] = useState('available');
   const navigate = useNavigate();
-  
-  // Helper: does user have a phone number?
-  const hasPhone = userData && (userData.phone || userData.mobile || userData.phone_number);
-  // Helper: does user have an email?
-  const hasEmail = userData && userData.email && userData.email.trim() !== "";
-  
+
+  // ---------- NEW: local user data (refreshed on mount) ----------
+  const [localUserData, setLocalUserData] = useState(null);
+
+  // ---------- Helper: use fresh local data if available, otherwise fallback to context ----------
+  const effectiveUser = localUserData || userData;
+  const hasPhone = effectiveUser && (effectiveUser.phone || effectiveUser.mobile || effectiveUser.phone_number);
+  const hasEmail = effectiveUser && effectiveUser.email && effectiveUser.email.trim() !== "";
+
   // Wallet states
   const [walletBalance, setWalletBalance] = useState(0);
   const [loadingWallet, setLoadingWallet] = useState(true);
-  
+
   // Contract states
   const [workInProgressContracts, setWorkInProgressContracts] = useState([]);
   const [inReviewContracts, setInReviewContracts] = useState([]);
   const [loadingContracts, setLoadingContracts] = useState(true);
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
-  
+
   // Cashfree Wallet Status
   const [walletStatus, setWalletStatus] = useState({
     isReady: false,
@@ -61,11 +64,11 @@ const Overview = () => {
     loading: true,
     error: null
   });
-  
+
   // Withdrawal methods
   const [withdrawalMethods, setWithdrawalMethods] = useState([]);
   const [selectedMethod, setSelectedMethod] = useState(null);
-  
+
   // Modal States
   const [showWithdrawPopup, setShowWithdrawPopup] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -75,7 +78,7 @@ const Overview = () => {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [withdrawError, setWithdrawError] = useState('');
-  
+
   // Frontend validation errors only
   const [validationErrors, setValidationErrors] = useState({
     account_holder: '',
@@ -85,7 +88,7 @@ const Overview = () => {
     ifsc_code: '',
     upi_id: '',
   });
-  
+
   // Beneficiary form states
   const [beneficiaryForm, setBeneficiaryForm] = useState({
     bank_account: '',
@@ -191,193 +194,193 @@ const Overview = () => {
 
   // Helper function to get digit count for bank account
   const getBankAccountDigitCount = (value) => {
-  const digitsOnly = value.replace(/\s/g, '');
-  return `${digitsOnly.length}/20`;
-};
+    const digitsOnly = value.replace(/\s/g, '');
+    return `${digitsOnly.length}/20`;
+  };
 
   // ─────────────────────────────────────────────────────────
   // FRONTEND VALIDATION FUNCTIONS (regex only)
   // ─────────────────────────────────────────────────────────
 
   const validateAccountHolder = (value) => {
-  if (!value) return '';
-  const errors = [];
-  
-  if (!/^[A-Za-z\s]+$/.test(value)) {
-    errors.push("Only alphabets and spaces are allowed");
-  }
-  
-  if (value.length > 50) {  // Changed from 20 to 50
-    errors.push("Account holder name cannot exceed 50 characters");
-  }
-  
-  return errors.join(". ");
-};
+    if (!value) return '';
+    const errors = [];
 
- const validateBankAccount = (value) => {
-  if (!value) return '';
-  const errors = [];
-  
-  // Check for whitespace
-  if (/\s/.test(value)) {
-    errors.push("Spaces are not allowed");
-  }
-  
-  const digitsOnly = value.replace(/\s/g, '');
-  if (digitsOnly.length > 0 && !/^\d+$/.test(digitsOnly)) {
-    errors.push("Bank account number should contain only digits");
-  }
-  if (digitsOnly.length > 0) {
-    if (digitsOnly.length < 9) {
-      errors.push("Bank account number must be at least 9 digits");
+    if (!/^[A-Za-z\s]+$/.test(value)) {
+      errors.push("Only alphabets and spaces are allowed");
     }
-    if (digitsOnly.length > 20) {
-      errors.push("Bank account number cannot exceed 20 digits");
+
+    if (value.length > 50) {  // Changed from 20 to 50
+      errors.push("Account holder name cannot exceed 50 characters");
     }
-  }
-  return errors.join(". ");
-};
+
+    return errors.join(". ");
+  };
+
+  const validateBankAccount = (value) => {
+    if (!value) return '';
+    const errors = [];
+
+    // Check for whitespace
+    if (/\s/.test(value)) {
+      errors.push("Spaces are not allowed");
+    }
+
+    const digitsOnly = value.replace(/\s/g, '');
+    if (digitsOnly.length > 0 && !/^\d+$/.test(digitsOnly)) {
+      errors.push("Bank account number should contain only digits");
+    }
+    if (digitsOnly.length > 0) {
+      if (digitsOnly.length < 9) {
+        errors.push("Bank account number must be at least 9 digits");
+      }
+      if (digitsOnly.length > 20) {
+        errors.push("Bank account number cannot exceed 20 digits");
+      }
+    }
+    return errors.join(". ");
+  };
 
   const validatePhone = (value) => {
-  if (!value) return '';
+    if (!value) return '';
 
-  if (!/^\d+$/.test(value)) {
-    return "Phone number must contain only digits";
-  }
+    if (!/^\d+$/.test(value)) {
+      return "Phone number must contain only digits";
+    }
 
-  if (value.length !== 10) {
-    return "Phone number must be 10 digits";
-  }
+    if (value.length !== 10) {
+      return "Phone number must be 10 digits";
+    }
 
-  if (!/^[6-9]\d{9}$/.test(value)) {
-    return "Invalid Indian mobile number";
-  }
+    if (!/^[6-9]\d{9}$/.test(value)) {
+      return "Invalid Indian mobile number";
+    }
 
-  return '';
-};
+    return '';
+  };
 
   const validateEmailFormat = (value) => {
-  const email = value.trim().toLowerCase();
+    const email = value.trim().toLowerCase();
 
-  if (!email) return "";
+    if (!email) return "";
 
-  // Basic email format
-  const emailRegex =
-    /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/;
+    // Basic email format
+    const emailRegex =
+      /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/;
 
-  if (!emailRegex.test(email)) {
-    return "Please enter a valid email address";
-  }
-
-  // Invalid patterns
-  if (
-    email.includes("..") ||
-    email.includes(".@") ||
-    email.includes("@.") ||
-    email.startsWith(".") ||
-    email.endsWith(".")
-  ) {
-    return "Invalid email format";
-  }
-
-  const [localPart, domain] = email.split("@");
-
-  // Username validations
-  if (localPart.length < 2) {
-    return "Email username is too short";
-  }
-
-  if (/(.)\1{5,}/.test(localPart)) {
-    return "Email appears to be invalid";
-  }
-
-  if (/(\.\.|__|--|\+\+)/.test(localPart)) {
-    return "Email contains invalid characters";
-  }
-
-  // Disposable domains
-  const invalidDomains = [
-    "email.com",
-    "example.com",
-    "test.com",
-    "domain.com",
-    "mailinator.com",
-    "tempmail.com",
-    "guerrillamail.com",
-    "10minutemail.com",
-    "yopmail.com",
-    "fakeemail.com",
-    "temp-mail.org",
-    "throwawayemail.com",
-    "dispostable.com",
-    "maildrop.cc"
-  ];
-
-  if (invalidDomains.includes(domain)) {
-    return "Disposable or invalid email domains are not allowed";
-  }
-
-  // Provider typo detection
-  const providers = [
-    "gmail.com",
-    "yahoo.com",
-    "outlook.com",
-    "hotmail.com",
-    "icloud.com"
-  ];
-
-  for (const provider of providers) {
-    const distance = levenshtein(domain, provider);
-
-    if (distance > 0 && distance <= 2) {
-      return `Did you mean ${localPart}@${provider}?`;
+    if (!emailRegex.test(email)) {
+      return "Please enter a valid email address";
     }
-  }
 
-  // Validate TLD
-  const validTlds = [
-    "com",
-    "in",
-    "org",
-    "net",
-    "edu",
-    "gov",
-    "io",
-    "ai",
-    "co",
-    "co.in"
-  ];
+    // Invalid patterns
+    if (
+      email.includes("..") ||
+      email.includes(".@") ||
+      email.includes("@.") ||
+      email.startsWith(".") ||
+      email.endsWith(".")
+    ) {
+      return "Invalid email format";
+    }
 
-  const domainParts = domain.split(".");
-  const lastPart = domainParts[domainParts.length - 1];
-  const lastTwoParts = domainParts.slice(-2).join(".");
+    const [localPart, domain] = email.split("@");
 
-  if (
-    !validTlds.includes(lastPart) &&
-    !validTlds.includes(lastTwoParts)
-  ) {
-    return "Please enter a valid domain extension";
-  }
+    // Username validations
+    if (localPart.length < 2) {
+      return "Email username is too short";
+    }
 
-  return "";
-};  
+    if (/(.)\1{5,}/.test(localPart)) {
+      return "Email appears to be invalid";
+    }
+
+    if (/(\.\.|__|--|\+\+)/.test(localPart)) {
+      return "Email contains invalid characters";
+    }
+
+    // Disposable domains
+    const invalidDomains = [
+      "email.com",
+      "example.com",
+      "test.com",
+      "domain.com",
+      "mailinator.com",
+      "tempmail.com",
+      "guerrillamail.com",
+      "10minutemail.com",
+      "yopmail.com",
+      "fakeemail.com",
+      "temp-mail.org",
+      "throwawayemail.com",
+      "dispostable.com",
+      "maildrop.cc"
+    ];
+
+    if (invalidDomains.includes(domain)) {
+      return "Disposable or invalid email domains are not allowed";
+    }
+
+    // Provider typo detection
+    const providers = [
+      "gmail.com",
+      "yahoo.com",
+      "outlook.com",
+      "hotmail.com",
+      "icloud.com"
+    ];
+
+    for (const provider of providers) {
+      const distance = levenshtein(domain, provider);
+
+      if (distance > 0 && distance <= 2) {
+        return `Did you mean ${localPart}@${provider}?`;
+      }
+    }
+
+    // Validate TLD
+    const validTlds = [
+      "com",
+      "in",
+      "org",
+      "net",
+      "edu",
+      "gov",
+      "io",
+      "ai",
+      "co",
+      "co.in"
+    ];
+
+    const domainParts = domain.split(".");
+    const lastPart = domainParts[domainParts.length - 1];
+    const lastTwoParts = domainParts.slice(-2).join(".");
+
+    if (
+      !validTlds.includes(lastPart) &&
+      !validTlds.includes(lastTwoParts)
+    ) {
+      return "Please enter a valid domain extension";
+    }
+
+    return "";
+  };
   const validateIfscFormat = (value) => {
-  if (!value) return '';
-  const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
-  if (!ifscRegex.test(value.toUpperCase())) {
-    return "IFSC must be 11 characters, (e.g., SBIN0012345)";
-  }
-  return '';
-};
+    if (!value) return '';
+    const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
+    if (!ifscRegex.test(value.toUpperCase())) {
+      return "IFSC must be 11 characters, (e.g., SBIN0012345)";
+    }
+    return '';
+  };
 
   const validateUpiFormat = (value) => {
     if (!value) return '';
-    
+
     const upiRegex = /^[a-zA-Z0-9.\-_]{2,}@[a-zA-Z]{2,}$/;
     if (!upiRegex.test(value)) {
       return "Invalid UPI ID (e.g., name@bank)";
     }
-    
+
     const [localPart, domain] = value.split('@');
     if (localPart.length > 50) {
       return "UPI ID local part (before @) cannot exceed 50 characters";
@@ -411,18 +414,18 @@ const Overview = () => {
   // ─────────────────────────────────────────────────────────
   // FRONTEND DUPLICATE CHECKS
   // ─────────────────────────────────────────────────────────
-  
+
   const isFrontendDuplicateUpi = () => {
     const inputUpi = beneficiaryForm.upi_id.trim().toLowerCase();
     return withdrawalMethods.some(
       (m) => m.type === "upi" && m.account_detail?.toLowerCase() === inputUpi
     );
   };
-  
+
   const isFrontendDuplicateBankAccount = () => {
     const inputBankAccount = beneficiaryForm.bank_account.replace(/\s/g, '').trim();
     if (!inputBankAccount) return false;
-    
+
     const inputLast4 = inputBankAccount.slice(-4);
     return withdrawalMethods.some((m) => {
       if (m.type !== "bank") return false;
@@ -434,38 +437,58 @@ const Overview = () => {
   };
 
   // Lock body scroll when modals are open
-useEffect(() => {
-  const isAnyModalOpen = showMethodModal || showWithdrawPopup || showMethodsPopup || showEmailSetupPopup || showEmailPopup || showOTPPopup || emailVerificationSuccess;
-  
-  if (isAnyModalOpen) {
-    // Save current scroll position
-    const scrollY = window.scrollY;
-    
-    // Apply fixed positioning to body to prevent scroll
-    document.body.style.position = 'fixed';
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = '100%';
-    document.body.style.overflow = 'hidden';
-    
-    // Return cleanup function
-    return () => {
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-      window.scrollTo(0, scrollY);
-    };
-  }
-}, [showMethodModal, showWithdrawPopup, showMethodsPopup, showEmailSetupPopup, showEmailPopup, showOTPPopup, emailVerificationSuccess]);
-  // Fetch wallet balance, contracts, and wallet status
   useEffect(() => {
-    if (!userData?.id) return;
+    const isAnyModalOpen = showMethodModal || showWithdrawPopup || showMethodsPopup || showEmailSetupPopup || showEmailPopup || showOTPPopup || emailVerificationSuccess;
+
+    if (isAnyModalOpen) {
+      // Save current scroll position
+      const scrollY = window.scrollY;
+
+      // Apply fixed positioning to body to prevent scroll
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+
+      // Return cleanup function
+      return () => {
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        window.scrollTo(0, scrollY);
+      };
+    }
+  }, [showMethodModal, showWithdrawPopup, showMethodsPopup, showEmailSetupPopup, showEmailPopup, showOTPPopup, emailVerificationSuccess]);
+
+  // ---------- REFRESH USER DATA ON MOUNT ----------
+  useEffect(() => {
+    const refreshUserData = async () => {
+      try {
+        const response = await api.get('/auth/me');
+        if (response.data) {
+          setLocalUserData(response.data);          // update local state
+          if (updateUserData) {
+            updateUserData(response.data);          // also update global context
+          }
+        }
+      } catch (error) {
+        console.error('Failed to refresh user data in Overview:', error);
+      }
+    };
+    refreshUserData();
+  }, []); // runs once on mount
+
+  // Fetch wallet balance, contracts, and wallet status (depends on effectiveUser.id)
+  useEffect(() => {
+    const userId = effectiveUser?.id;
+    if (!userId) return;
 
     fetchWalletBalance();
     fetchContracts();
     fetchWalletStatus();
     fetchWithdrawalMethods();
-  }, [userData?.id]);
+  }, [effectiveUser?.id]);
 
   // Reset page when tab changes
   useEffect(() => {
@@ -473,10 +496,10 @@ useEffect(() => {
   }, [activeTab]);
 
   const fetchWalletBalance = async () => {
-    if (!userData?.id) return;
+    if (!effectiveUser?.id) return;
     try {
       setLoadingWallet(true);
-      const response = await api.get(`/wallet/?user_id=${userData.id}`);
+      const response = await api.get(`/wallet/?user_id=${effectiveUser.id}`);
       if (response.data) {
         setWalletBalance(response.data.balance || 0);
       }
@@ -489,18 +512,18 @@ useEffect(() => {
   };
 
   const fetchContracts = async () => {
-    if (!userData?.id) return;
+    if (!effectiveUser?.id) return;
     try {
       setLoadingContracts(true);
-      const response = await api.get(`/contracts/collaborator-contracts?user_id=${userData.id}`);
+      const response = await api.get(`/contracts/collaborator-contracts?user_id=${effectiveUser.id}`);
       const contracts = response.data || [];
-      
+
       const inProgress = contracts.filter(c => c.status === "in_progress");
       const inReview = contracts.filter(c => c.status === "in_review");
-      
+
       setWorkInProgressContracts(inProgress);
       setInReviewContracts(inReview);
-      
+
     } catch (err) {
       console.error("Error fetching contracts:", err);
       toast.error("Failed to load contracts", "Please refresh the page and try again.");
@@ -510,11 +533,11 @@ useEffect(() => {
   };
 
   const fetchWalletStatus = async () => {
-    if (!userData?.id) return;
+    if (!effectiveUser?.id) return;
     try {
       setWalletStatus(prev => ({ ...prev, loading: true }));
-      const response = await api.get(`/wallet/wallet-status?user_id=${userData.id}`);
-      
+      const response = await api.get(`/wallet/wallet-status?user_id=${effectiveUser.id}`);
+
       setWalletStatus({
         isReady: response.data.isReady ?? false,
         canWithdraw: response.data.canWithdraw ?? false,
@@ -538,10 +561,10 @@ useEffect(() => {
 
   const fetchWithdrawalMethods = async () => {
     try {
-      const response = await api.get(`/wallet/withdrawal-methods?user_id=${userData.id}`);
+      const response = await api.get(`/wallet/withdrawal-methods?user_id=${effectiveUser.id}`);
       const methods = response.data.methods || [];
       setWithdrawalMethods(methods);
-      
+
       const defaultMethod = methods.find(m => m.is_default);
       if (defaultMethod) {
         setSelectedMethod(defaultMethod);
@@ -559,7 +582,7 @@ useEffect(() => {
   const handleRemoveMethod = async (methodId) => {
     if (window.confirm("Are you sure you want to remove this withdrawal method?")) {
       try {
-        await api.delete(`/wallet/withdrawal-method/${methodId}?user_id=${userData.id}`);
+        await api.delete(`/wallet/withdrawal-method/${methodId}?user_id=${effectiveUser.id}`);
         toast.success("Method removed", "Your withdrawal method has been removed successfully.");
         await fetchWithdrawalMethods();
         await fetchWalletStatus();
@@ -572,7 +595,7 @@ useEffect(() => {
 
   const handleSetDefaultMethod = async (methodId) => {
     try {
-      await api.post(`/wallet/set-default-method/${methodId}?user_id=${userData.id}`);
+      await api.post(`/wallet/set-default-method/${methodId}?user_id=${effectiveUser.id}`);
       toast.success("Default method updated", "Your default withdrawal method has been updated.");
       await fetchWithdrawalMethods();
     } catch (err) {
@@ -587,7 +610,7 @@ useEffect(() => {
     const fields = methodType === "bank"
       ? ['account_holder', 'bank_account', 'ifsc_code', 'email', 'phone']
       : ['account_holder', 'upi_id', 'email', 'phone'];
-    
+
     for (const field of fields) {
       const value = beneficiaryForm[field];
       let error = "";
@@ -597,7 +620,7 @@ useEffect(() => {
       else if (field === 'ifsc_code') error = validateIfscFormat(value);
       else if (field === 'upi_id') error = validateUpiFormat(value);
       else if (field === 'bank_account') error = validateBankAccount(value);
-      
+
       if (error) {
         setValidationErrors(prev => ({ ...prev, [field]: error }));
         hasError = true;
@@ -615,7 +638,7 @@ useEffect(() => {
         hasError = true;
       }
     }
-    
+
     if (hasError) return;
 
     if (methodType === "upi" && isFrontendDuplicateUpi()) {
@@ -657,12 +680,12 @@ useEffect(() => {
 
       try {
         const response = await api.post('/wallet/register-bank-beneficiary', {
-          user_id: userData.id,
+          user_id: effectiveUser.id,
           bank_account: beneficiaryForm.bank_account.replace(/\s/g, ''),
           ifsc_code: beneficiaryForm.ifsc_code.toUpperCase().replace(/\s/g, ''),
           account_holder: beneficiaryForm.account_holder,
-          email: beneficiaryForm.email || userData.email,
-          phone: beneficiaryForm.phone || userData.phone || ''
+          email: beneficiaryForm.email || effectiveUser.email,
+          phone: beneficiaryForm.phone || effectiveUser.phone || ''
         });
 
         if (response.data.success) {
@@ -707,11 +730,11 @@ useEffect(() => {
 
       try {
         const response = await api.post('/wallet/register-upi-beneficiary', {
-          user_id: userData.id,
+          user_id: effectiveUser.id,
           upi_id: beneficiaryForm.upi_id,
           account_holder: beneficiaryForm.account_holder,
-          email: beneficiaryForm.email || userData.email,
-          phone: beneficiaryForm.phone || userData.phone || ''
+          email: beneficiaryForm.email || effectiveUser.email,
+          phone: beneficiaryForm.phone || effectiveUser.phone || ''
         });
 
         if (response.data.success) {
@@ -768,7 +791,7 @@ useEffect(() => {
     if (!hasEmail) {
       setShowEmailSetupPopup(true);
     } else {
-      setEmail(userData.email);
+      setEmail(effectiveUser.email);
       setShowEmailPopup(true);
     }
   };
@@ -780,7 +803,7 @@ useEffect(() => {
     }
     setIsSavingEmail(true);
     try {
-      const response = await api.put(`/collaborator/edit/${userData.id}`, {
+      const response = await api.put(`/collaborator/edit/${effectiveUser.id}`, {
         email: newEmail,
       });
       if (response.data.status === "success") {
@@ -798,7 +821,7 @@ useEffect(() => {
   };
 
   const handleEmailSubmit = async () => {
-    const registeredEmail = userData?.email;
+    const registeredEmail = effectiveUser?.email;
     if (!registeredEmail) {
       toast.error("No registered email found. Please add an email first.");
       setShowEmailSetupPopup(true);
@@ -893,7 +916,7 @@ useEffect(() => {
     }
     setIsVerifying(true);
     try {
-      const registeredEmail = userData?.email;
+      const registeredEmail = effectiveUser?.email;
       if (!registeredEmail) {
         toast.error("No registered email found");
         setIsVerifying(false);
@@ -959,23 +982,23 @@ useEffect(() => {
     }
 
     if (Number(withdrawAmount) < 1) {
-  setWithdrawError("Minimum withdrawal amount is ₹1");
-  toast.error("Invalid amount", "Minimum withdrawal amount is ₹1.");
-  return;
-}
+      setWithdrawError("Minimum withdrawal amount is ₹1");
+      toast.error("Invalid amount", "Minimum withdrawal amount is ₹1.");
+      return;
+    }
 
     if (Number(withdrawAmount) > walletBalance) {
-  setWithdrawError(
-    `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
-  );
+      setWithdrawError(
+        `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
+      );
 
-  toast.error(
-    "Insufficient balance",
-    `Entered amount exceeds your available balance of ₹${formatIndianRupee(walletBalance)}`
-  );
+      toast.error(
+        "Insufficient balance",
+        `Entered amount exceeds your available balance of ₹${formatIndianRupee(walletBalance)}`
+      );
 
-  return;
-}
+      return;
+    }
 
     if (!selectedMethod) {
       setWithdrawError("Please select a withdrawal method");
@@ -996,7 +1019,7 @@ useEffect(() => {
     setIsProcessing(true);
     try {
       const response = await api.post('/wallet/withdraw', {
-        user_id: userData.id,
+        user_id: effectiveUser.id,
         amount: Number(withdrawAmount),
         method_id: selectedMethod.id
       });
@@ -1019,59 +1042,59 @@ useEffect(() => {
   };
 
   const validateWithdrawAmount = (value) => {
-  if (value === '') {
+    if (value === '') {
+      setWithdrawError('');
+      return true;
+    }
+
+    const numValue = Number(value);
+
+    if (isNaN(numValue)) {
+      setWithdrawError('Please enter a valid amount');
+      return false;
+    }
+
+    // Minimum ₹1
+    if (numValue < 1) {
+      setWithdrawError('Minimum withdrawal amount is ₹1');
+      return false;
+    }
+
+    // Maximum ₹100000
+    if (numValue > 100000) {
+      setWithdrawError('Maximum withdrawal amount is ₹100000');
+      return false;
+    }
+
+    if (numValue > walletBalance) {
+      setWithdrawError(
+        `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
+      );
+      return false;
+    }
+
     setWithdrawError('');
     return true;
-  }
-
-  const numValue = Number(value);
-
-  if (isNaN(numValue)) {
-    setWithdrawError('Please enter a valid amount');
-    return false;
-  }
-
-  // Minimum ₹1
-  if (numValue < 1) {
-    setWithdrawError('Minimum withdrawal amount is ₹1');
-    return false;
-  }
-
-  // Maximum ₹100000
-  if (numValue > 100000) {
-    setWithdrawError('Maximum withdrawal amount is ₹100000');
-    return false;
-  }
-
-  if (numValue > walletBalance) {
-    setWithdrawError(
-      `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
-    );
-    return false;
-  }
-
-  setWithdrawError('');
-  return true;
-};
+  };
   const handleWithdrawAmountChange = (e) => {
-  let value = e.target.value;
+    let value = e.target.value;
 
-  // Allow only numbers and decimal point
-  value = value.replace(/[^0-9.]/g, "");
+    // Allow only numbers and decimal point
+    value = value.replace(/[^0-9.]/g, "");
 
-  // Prevent multiple decimal points
-  const parts = value.split(".");
-  if (parts.length > 2) return;
+    // Prevent multiple decimal points
+    const parts = value.split(".");
+    if (parts.length > 2) return;
 
-  // Allow max 2 digits after decimal
-  if (parts[1] && parts[1].length > 2) return;
+    // Allow max 2 digits after decimal
+    if (parts[1] && parts[1].length > 2) return;
 
-  // Prevent leading zero like 0123
-  if (/^0\d+/.test(value)) return;
+    // Prevent leading zero like 0123
+    if (/^0\d+/.test(value)) return;
 
-  setWithdrawAmount(value);
-  validateWithdrawAmount(value);
-};
+    setWithdrawAmount(value);
+    validateWithdrawAmount(value);
+  };
 
   const getCurrentItems = () => {
     const contracts = activeTab === 'work-in-progress' ? workInProgressContracts : inReviewContracts;
@@ -1251,13 +1274,13 @@ useEffect(() => {
         >
           <div className="absolute inset-0 bg-white md:bg-black opacity-40 md:opacity-20" />
         </div>
-        
+
         <ColHeader />
 
         {/* Back Button */}
         <div className="absolute top-[100px] left-4 md:top-[140px] md:left-1/2 md:transform md:-translate-x-1/2 md:w-[1215px] z-20">
-          <button 
-            onClick={() => navigate(-1)} 
+          <button
+            onClick={() => navigate(-1)}
             className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-black/30 backdrop-blur-sm hover:bg-black/40 transition-all group"
           >
             <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
@@ -1276,13 +1299,13 @@ useEffect(() => {
                      rounded-[16px] md:rounded-none pb-10 md:pb-16"
           style={{ minHeight: 'auto' }}
         >
-          
+
           {/* Header Section */}
           <div className="px-4 md:px-[37px] pt-6 md:pt-[21px]">
             <h1 className="font-outfit font-normal text-[28px] md:text-[40px] leading-[100%] text-black">
               Overview
             </h1>
-            
+
             {activeTab === 'available' && (
               <p className="font-outfit font-normal text-[14px] md:text-[16px] leading-[130%] text-black mt-2 md:mt-3">
                 Transfer your wallet balance securely and track withdrawals in real time via Cashfree Payouts.
@@ -1295,8 +1318,8 @@ useEffect(() => {
             {renderWalletStatusBanner()}
           </div>
 
-          {/* ✅ SINGLE HELPER CARD – missing phone and/or email */}
-          {userData && (!hasPhone || !hasEmail) && (
+          {/* ✅ SINGLE HELPER CARD – missing phone and/or email (now using fresh localUserData) */}
+          {effectiveUser && (!hasPhone || !hasEmail) && (
             <div className="px-4 md:px-[37px] mt-4">
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
                 <div className="flex items-start gap-3">
@@ -1491,14 +1514,14 @@ useEffect(() => {
                       const contracts = activeTab === 'work-in-progress' ? workInProgressContracts : inReviewContracts;
                       const currentItems = getCurrentItems();
                       const totalPages = getTotalPages();
-                      
+
                       if (contracts.length === 0) {
                         return (
                           <div className="flex flex-col items-center justify-center py-12">
                             <div className="w-[180px] md:w-[295px] h-auto mb-6 md:mb-8">
-                              <img 
-                                src={Default} 
-                                alt="No items" 
+                              <img
+                                src={Default}
+                                alt="No items"
                                 className="w-full h-full object-contain"
                               />
                             </div>
@@ -1510,7 +1533,7 @@ useEffect(() => {
                           </div>
                         );
                       }
-                      
+
                       return (
                         <>
                           {/* Table View - Mobile Optimized with Enhanced Card Visibility */}
@@ -1519,8 +1542,8 @@ useEffect(() => {
                               {/* Mobile Cards View */}
                               <div className="block md:hidden space-y-4">
                                 {currentItems.map((contract, index) => (
-                                  <div 
-                                    key={contract.id} 
+                                  <div
+                                    key={contract.id}
                                     className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden transition-all duration-200 hover:shadow-xl"
                                     style={{
                                       boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04)'
@@ -1606,7 +1629,7 @@ useEffect(() => {
                               </div>
                             </div>
                           </div>
-                          
+
                           {/* Pagination */}
                           {totalPages > 1 && (
                             <div className="flex justify-center items-center gap-2 mt-6 flex-wrap">
@@ -1620,7 +1643,7 @@ useEffect(() => {
                               >
                                 Previous
                               </button>
-                              
+
                               {[...Array(totalPages)].map((_, index) => {
                                 const pageNumber = index + 1;
                                 if (
@@ -1649,7 +1672,7 @@ useEffect(() => {
                                 }
                                 return null;
                               })}
-                              
+
                               <button
                                 onClick={() => handlePageChange(currentPage + 1)}
                                 disabled={currentPage === totalPages}
@@ -1662,7 +1685,7 @@ useEffect(() => {
                               </button>
                             </div>
                           )}
-                          
+
                           <div className="text-center text-sm text-gray-500 mt-4">
                             Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, contracts.length)} of {contracts.length} contracts
                           </div>
@@ -1754,13 +1777,13 @@ useEffect(() => {
                     <>
                       <div>
                         <label className="block text-gray-700 text-xs font-medium mb-1">Account Holder Name <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          value={beneficiaryForm.account_holder} 
-                          onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} 
-                          placeholder="Full name as on bank account" 
+                        <input
+                          type="text"
+                          value={beneficiaryForm.account_holder}
+                          onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)}
+                          placeholder="Full name as on bank account"
                           maxLength="50"
-                          style={inputStyle} 
+                          style={inputStyle}
                         />
                         <div style={helperTextStyle}>
                           <span className={`text-[10px] ${beneficiaryForm.account_holder.length > 50 ? 'text-red-500' : 'text-gray-400'}`}>
@@ -1770,34 +1793,34 @@ useEffect(() => {
                         {validationErrors.account_holder && <p className="text-xs text-red-500 mt-1">{validationErrors.account_holder}</p>}
                       </div>
                       <div>
-  <label className="block text-gray-700 text-xs font-medium mb-1">Bank Account Number <span className="text-red-500">*</span></label>
-  <input 
-    type="text" 
-    value={beneficiaryForm.bank_account} 
-    onChange={(e) => {
-      // Remove all whitespace
-      const valueWithoutSpaces = e.target.value.replace(/\s/g, '');
-      handleBeneficiaryChange('bank_account', valueWithoutSpaces);
-    }} 
-    placeholder="Enter bank account number (no spaces)" 
-    maxLength="20"
-    style={inputStyle} 
-  />
-  <div style={helperTextStyle}>
-    <span className={`text-[10px] ${beneficiaryForm.bank_account.replace(/\s/g, '').length > 20 || (beneficiaryForm.bank_account.replace(/\s/g, '').length > 0 && beneficiaryForm.bank_account.replace(/\s/g, '').length < 9) ? 'text-red-500' : 'text-gray-400'}`}>
-      {getBankAccountDigitCount(beneficiaryForm.bank_account)}
-    </span>
-  </div>
-  {validationErrors.bank_account && <p className="text-xs text-red-500 mt-1">{validationErrors.bank_account}</p>}
-</div>
+                        <label className="block text-gray-700 text-xs font-medium mb-1">Bank Account Number <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={beneficiaryForm.bank_account}
+                          onChange={(e) => {
+                            // Remove all whitespace
+                            const valueWithoutSpaces = e.target.value.replace(/\s/g, '');
+                            handleBeneficiaryChange('bank_account', valueWithoutSpaces);
+                          }}
+                          placeholder="Enter bank account number (no spaces)"
+                          maxLength="20"
+                          style={inputStyle}
+                        />
+                        <div style={helperTextStyle}>
+                          <span className={`text-[10px] ${beneficiaryForm.bank_account.replace(/\s/g, '').length > 20 || (beneficiaryForm.bank_account.replace(/\s/g, '').length > 0 && beneficiaryForm.bank_account.replace(/\s/g, '').length < 9) ? 'text-red-500' : 'text-gray-400'}`}>
+                            {getBankAccountDigitCount(beneficiaryForm.bank_account)}
+                          </span>
+                        </div>
+                        {validationErrors.bank_account && <p className="text-xs text-red-500 mt-1">{validationErrors.bank_account}</p>}
+                      </div>
                       <div>
                         <label className="block text-gray-700 text-xs font-medium mb-1">IFSC Code <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          value={beneficiaryForm.ifsc_code} 
-                          onChange={(e) => handleBeneficiaryChange('ifsc_code', e.target.value.toUpperCase())} 
-                          placeholder="e.g., SBIN0001234" 
-                          style={inputStyle} 
+                        <input
+                          type="text"
+                          value={beneficiaryForm.ifsc_code}
+                          onChange={(e) => handleBeneficiaryChange('ifsc_code', e.target.value.toUpperCase())}
+                          placeholder="e.g., SBIN0001234"
+                          style={inputStyle}
                         />
                         <div style={helperTextStyle}>
                           <span className={`text-[10px] ${beneficiaryForm.ifsc_code.length !== 11 && beneficiaryForm.ifsc_code.length > 0 ? 'text-red-500' : 'text-gray-400'}`}>
@@ -1811,13 +1834,13 @@ useEffect(() => {
                     <>
                       <div>
                         <label className="block text-gray-700 text-xs font-medium mb-1">Account Holder Name <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          value={beneficiaryForm.account_holder} 
-                          onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)} 
-                          placeholder="Full name" 
+                        <input
+                          type="text"
+                          value={beneficiaryForm.account_holder}
+                          onChange={(e) => handleBeneficiaryChange('account_holder', e.target.value)}
+                          placeholder="Full name"
                           maxLength="50"
-                          style={inputStyle} 
+                          style={inputStyle}
                         />
                         <div style={helperTextStyle}>
                           <span className={`text-[10px] ${beneficiaryForm.account_holder.length > 50 ? 'text-red-500' : 'text-gray-400'}`}>
@@ -1828,18 +1851,18 @@ useEffect(() => {
                       </div>
                       <div>
                         <label className="block text-gray-700 text-xs font-medium mb-1">UPI ID <span className="text-red-500">*</span></label>
-                        <input 
-                          type="text" 
-                          value={beneficiaryForm.upi_id} 
-                          onChange={(e) => handleBeneficiaryChange('upi_id', e.target.value.toLowerCase())} 
-                          placeholder="e.g., username@okhdfcbank" 
-                          style={inputStyle} 
+                        <input
+                          type="text"
+                          value={beneficiaryForm.upi_id}
+                          onChange={(e) => handleBeneficiaryChange('upi_id', e.target.value.toLowerCase())}
+                          placeholder="e.g., username@okhdfcbank"
+                          style={inputStyle}
                         />
                         <div style={helperTextStyle}>
                           <span className="text-gray-400 text-[10px]">
                             {beneficiaryForm.upi_id && beneficiaryForm.upi_id.includes('@') ? (
                               <>
-                                {beneficiaryForm.upi_id.split('@')[0]?.length || 0}/50 • 
+                                {beneficiaryForm.upi_id.split('@')[0]?.length || 0}/50 •
                                 {beneficiaryForm.upi_id.split('@')[1]?.length || 0}/20
                               </>
                             ) : (
@@ -1854,27 +1877,27 @@ useEffect(() => {
 
                   <div>
                     <label className="block text-gray-700 text-xs font-medium mb-1">Email (Optional)</label>
-                    <input 
-                      type="email" 
-                      value={beneficiaryForm.email} 
-                      onChange={(e) => handleBeneficiaryChange('email', e.target.value)} 
-                      placeholder={userData?.email || "your@email.com"} 
-                      style={inputStyle} 
+                    <input
+                      type="email"
+                      value={beneficiaryForm.email}
+                      onChange={(e) => handleBeneficiaryChange('email', e.target.value)}
+                      placeholder={effectiveUser?.email || "your@email.com"}
+                      style={inputStyle}
                     />
                     {validationErrors.email && <p className="text-xs text-red-500 mt-1">{validationErrors.email}</p>}
                   </div>
                   <div>
                     <label className="block text-gray-700 text-xs font-medium mb-1">Phone (Optional)</label>
                     <input
-  type="tel"
-  value={beneficiaryForm.phone}
-  onChange={(e) => {
-    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-    handleBeneficiaryChange('phone', value);
-  }}
-  placeholder="9999999999"
-  style={inputStyle}
-/>
+                      type="tel"
+                      value={beneficiaryForm.phone}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        handleBeneficiaryChange('phone', value);
+                      }}
+                      placeholder="9999999999"
+                      style={inputStyle}
+                    />
                     <div style={helperTextStyle}>
                       <span className={`text-[10px] ${beneficiaryForm.phone.replace(/\D/g, '').length !== 10 && beneficiaryForm.phone.replace(/\D/g, '').length > 0 ? 'text-red-500' : 'text-gray-400'}`}>
                         {getPhoneDigitCount(beneficiaryForm.phone)}
@@ -2168,7 +2191,7 @@ useEffect(() => {
                       <p className="text-xs sm:text-sm font-medium text-[#51218F]">
                         Registered email:{" "}
                         <span className="font-bold">
-                          {userData?.email || "Not set"}
+                          {effectiveUser?.email || "Not set"}
                         </span>
                       </p>
                     </div>
@@ -2185,7 +2208,7 @@ useEffect(() => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value.toLowerCase())}
-                      placeholder={userData?.email || "Enter your Gmail address"}
+                      placeholder={effectiveUser?.email || "Enter your Gmail address"}
                       disabled={isVerifying}
                       className={`w-full px-3 py-2.5 sm:px-4 sm:py-3 text-sm sm:text-base border ${isValidGmail(email) ? "border-gray-300" : "border-red-300"} rounded-xl bg-white/50 backdrop-blur-sm focus:ring-2 focus:ring-[#3D1768] focus:border-[#3D1768] outline-none transition-all text-[#030303] poppins-font placeholder:text-[#030303]/50 ${isVerifying ? "opacity-50 cursor-not-allowed" : ""}`}
                     />
@@ -2218,8 +2241,8 @@ useEffect(() => {
                     </div>
 
                     {email &&
-                      userData?.email &&
-                      email.toLowerCase() !== userData.email.toLowerCase() && (
+                      effectiveUser?.email &&
+                      email.toLowerCase() !== effectiveUser.email.toLowerCase() && (
                         <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <p className="text-[10px] sm:text-xs text-yellow-700">
                             ⚠️ This email doesn't match your registered email.
@@ -2262,8 +2285,8 @@ useEffect(() => {
                     disabled={
                       !isValidGmail(email) ||
                       isVerifying ||
-                      (userData?.email &&
-                        email.toLowerCase() !== userData.email.toLowerCase())
+                      (effectiveUser?.email &&
+                        email.toLowerCase() !== effectiveUser.email.toLowerCase())
                     }
                     type="button"
                     className="group relative overflow-hidden w-full max-w-[554px] h-10 sm:h-12 md:h-[48px] rounded-[30px] bg-gradient-to-r from-[#3D1768] to-[#030303] px-4 sm:px-6 md:px-8 py-2 sm:py-3 text-white text-sm sm:text-base md:text-lg font-medium poppins-font border border-white/10 shadow-lg hover:border-white/30 hover:shadow-2xl hover:shadow-purple-900/50 active:scale-95 transition-all duration-500 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2534,7 +2557,7 @@ useEffect(() => {
         )}
 
       </section>
-      
+
       <div className="w-full mt-auto">
         <Footer />
       </div>

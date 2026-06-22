@@ -1431,20 +1431,29 @@ const Dashboard = () => {
               }`}
           >
             <div className="flex flex-col justify-between py-1 w-20 shrink-0">
-              {[
-                ["All Task", progressData.allTask, "#3CD4A0"],
-                ["Done", progressData.done, "#FF8B66"],
-                ["In Progress", progressData.inProgress, "#3CD4A0"],
-              ].map(([l, v, c], i) => (
-                <div key={i} className="flex flex-col">
-                  <span className={`text-[10px] font-bold ${isDarkMode ? "text-white/70" : "text-[#1e293b]"}`}>{l}</span>
-                  <span className={`text-[22px] font-bold leading-tight ${isDarkMode ? "text-white" : "text-[#6D28D9]"}`}>{v}</span>
-                  <span className="text-[8px] font-bold flex items-center gap-0.5" style={{ color: c }}>
-                    <TrendingUp size={8} strokeWidth={3} /> +{progressGrowth}%
-                  </span>
-                </div>
-              ))}
-            </div>
+  {[
+    ["All Task", progressData.allTask],
+    ["Done", progressData.done],
+    ["In Progress", progressData.inProgress],
+  ].map(([l, v], i) => (
+    <div key={i} className="flex flex-col">
+      <span
+        className={`text-[10px] font-bold ${
+          isDarkMode ? "text-white/70" : "text-[#1e293b]"
+        }`}
+      >
+        {l}
+      </span>
+      <span
+        className={`text-[22px] font-bold leading-tight ${
+          isDarkMode ? "text-white" : "text-[#6D28D9]"
+        }`}
+      >
+        {v}
+      </span>
+    </div>
+  ))}
+</div>
 
             <div className="flex-1 flex items-end justify-between gap-1 pb-1 relative h-full">
               {progressChartData.labels.map((label, i) => {

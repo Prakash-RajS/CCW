@@ -603,7 +603,7 @@ export default function Proposal() {
                   {job?.title || "Job Title"}
                 </h2>
                 <div className="text-right shrink-0">
-                  <p className="text-[18px] font-bold text-gray-900">{formatBudget()} USD</p>
+                  <p className="text-[18px] font-bold text-gray-900">{formatBudget()}</p>
                   <p className="text-[11px] text-gray-400 uppercase tracking-wide mt-0.5">
                     {job?.budget_type === "fixed" ? "Fixed Price" : job?.budget_type || "Hourly Rate"}
                   </p>

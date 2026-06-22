@@ -73,15 +73,14 @@ const Contact = () => {
       newErrors.lastName = "Only letters and spaces allowed";
     }
 
-    // Email
     // Email - Updated to accept ONLY Gmail addresses
-if (!form.email) {
-  newErrors.email = "Email is required";
-} else if (form.email.length > 100) {
-  newErrors.email = "Email cannot exceed 100 characters";
-} else if (!/^[A-Za-z0-9._%+-]+@gmail\.com$/.test(form.email)) {
-  newErrors.email = "Only Gmail addresses are accepted (example@gmail.com)";
-}
+    if (!form.email) {
+      newErrors.email = "Email is required";
+    } else if (form.email.length > 100) {
+      newErrors.email = "Email cannot exceed 100 characters";
+    } else if (!/^[A-Za-z0-9._%+-]+@gmail\.com$/.test(form.email)) {
+      newErrors.email = "Only Gmail addresses are accepted (example@gmail.com)";
+    }
 
     // Phone
     if (!form.phone) {
@@ -190,7 +189,9 @@ if (!form.email) {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* FIRST NAME */}
             <div>
-              <label className="text-sm font-medium block mb-1">First Name</label>
+              <label className="text-sm font-medium block mb-1">
+                First Name <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <svg className="absolute left-3 top-3.5 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -210,7 +211,9 @@ if (!form.email) {
 
             {/* LAST NAME */}
             <div>
-              <label className="text-sm font-medium block mb-1">Last Name</label>
+              <label className="text-sm font-medium block mb-1">
+                Last Name <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <svg className="absolute left-3 top-3.5 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <circle cx="12" cy="7" r="4"/>
@@ -230,7 +233,9 @@ if (!form.email) {
 
             {/* EMAIL */}
             <div>
-              <label className="text-sm font-medium block mb-1">Email</label>
+              <label className="text-sm font-medium block mb-1">
+                Email <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <svg className="absolute left-3 top-3.5 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M4 4h16v16H4z"/>
@@ -252,7 +257,9 @@ if (!form.email) {
 
             {/* PHONE */}
             <div>
-              <label className="text-sm font-medium block mb-1">Phone Number</label>
+              <label className="text-sm font-medium block mb-1">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <svg className="absolute left-3 top-3.5 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3 5.18 2 2 0 0 1 5 3h3"/>
@@ -273,7 +280,9 @@ if (!form.email) {
 
             {/* MESSAGE */}
             <div>
-              <label className="text-sm font-medium block mb-1">Message</label>
+              <label className="text-sm font-medium block mb-1">
+                Message <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <svg className="absolute left-3 top-3.5 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                   <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a2 2 0 0 1 2-2h12a4 4 0 0 1 4 4z"/>
@@ -359,7 +368,9 @@ if (!form.email) {
               {/* NAME */}
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block mb-2 text-sm font-medium">First Name</label>
+                  <label className="block mb-2 text-sm font-medium">
+                    First Name <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <svg className="absolute left-3 top-3 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -378,7 +389,9 @@ if (!form.email) {
                 </div>
 
                 <div>
-                  <label className="block mb-2 text-sm font-medium">Last Name</label>
+                  <label className="block mb-2 text-sm font-medium">
+                    Last Name <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <svg className="absolute left-3 top-3 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <circle cx="12" cy="7" r="4"/>
@@ -400,7 +413,9 @@ if (!form.email) {
               {/* EMAIL PHONE */}
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block mb-2 text-sm font-medium">Email</label>
+                  <label className="block mb-2 text-sm font-medium">
+                    Email <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <svg className="absolute left-3 top-3 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path d="M4 4h16v16H4z"/>
@@ -413,7 +428,7 @@ if (!form.email) {
                       maxLength={100}
                       onChange={handleChange}
                       className={`w-full !border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-lg pl-10 p-3 outline-none focus:border-purple-600`}
-                      placeholder="Enter valid email address"
+                      placeholder="Enter your Gmail address (example@gmail.com)"
                     />
                   </div>
                   {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
@@ -421,7 +436,9 @@ if (!form.email) {
                 </div>
 
                 <div>
-                  <label className="block mb-2 text-sm font-medium">Phone Number</label>
+                  <label className="block mb-2 text-sm font-medium">
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <svg className="absolute left-3 top-3 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                       <path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3 5.18 2 2 0 0 1 5 3h3"/>
@@ -443,7 +460,9 @@ if (!form.email) {
 
               {/* MESSAGE */}
               <div>
-                <label className="block mb-2 text-sm font-medium">Message</label>
+                <label className="block mb-2 text-sm font-medium">
+                  Message <span className="text-red-500">*</span>
+                </label>
                 <div className="relative">
                   <svg className="absolute left-3 top-3 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V5a2 2 0 0 1 2-2h12a4 4 0 0 1 4 4z"/>
