@@ -22,6 +22,7 @@ import time
 from datetime import datetime, date
 from asgiref.sync import sync_to_async
 import asyncio
+import logging
 
 # ============================================================
 # S3 STORAGE IMPORTS
@@ -37,6 +38,13 @@ from fastapi_app.routes.storage import (
     get_storage_path,
     get_s3_key_from_path,
 )
+
+# ============================================================
+# NOTIFICATION SERVICE
+# ============================================================
+from fastapi_app.services.notification_service import create_notification
+
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # S3 HELPER FUNCTIONS FOR PROPOSAL ATTACHMENTS
@@ -220,7 +228,7 @@ def validate_milestone_amounts(bid_amount, milestone_amount, job_budget_from, jo
 
 
 # ============================================================
-# 1. CREATE PROPOSAL (UPDATED WITH S3)
+# 1. CREATE PROPOSAL (UPDATED WITH S3 + NOTIFICATION)
 # ============================================================
 @router.post("/CreateProposal")
 async def create_proposal(
@@ -410,6 +418,28 @@ async def create_proposal(
             
             await sync_to_async(update_proposal_attachments)()
 
+        # ============================================================
+        # NOTIFICATION: Notify job creator about new proposal
+        # ============================================================
+        try:
+            employer = await sync_to_async(lambda: job.employer)()
+            freelancer_name = await sync_to_async(lambda: freelancer.full_name or freelancer.email)()
+            job_title = await sync_to_async(lambda: job.title)()
+            
+            await sync_to_async(create_notification)(
+                user=employer,
+                notification_type="proposal",
+                title=f"New proposal from {freelancer_name}",
+                message=f"{freelancer_name} has submitted a proposal for your job '{job_title}'",
+                job=job,
+                proposal=proposal,
+                url=f"/proposalspage"  # or f"/jobs/{job_id}"
+            )
+            logger.info(f"✅ Proposal creation notification sent to employer {employer.id}")
+        except Exception as notify_error:
+            logger.error(f"Error sending proposal creation notification: {notify_error}")
+            # Do not fail the request
+
         return {
             "message": "Proposal submitted successfully",
             "proposal_id": proposal.id,
@@ -551,10 +581,7 @@ async def get_my_proposals(request: Request, freelancer_id: int):
     
  
 # ============================================================
-# 4. EDIT PROPOSAL (UPDATED WITH S3 AND ASYNC FIXES)
-# ============================================================
-# ============================================================
-# 4. EDIT PROPOSAL (UPDATED WITH S3 AND ASYNC FIXES)
+# 4. EDIT PROPOSAL (UPDATED WITH S3 + NOTIFICATION)
 # ============================================================
 @router.put("/EditProposal/{proposal_id}")
 async def edit_proposal(
@@ -698,6 +725,28 @@ async def edit_proposal(
                 proposal.save()
             
             await sync_to_async(update_proposal_attachments)()
+
+        # ============================================================
+        # NOTIFICATION: Notify job creator about proposal update
+        # ============================================================
+        try:
+            job = await sync_to_async(lambda: proposal.job)()
+            employer = await sync_to_async(lambda: job.employer)()
+            freelancer_name = await sync_to_async(lambda: freelancer.full_name or freelancer.email)()
+            job_title = await sync_to_async(lambda: job.title)()
+            
+            await sync_to_async(create_notification)(
+                user=employer,
+                notification_type="proposal",
+                title=f"Proposal updated by {freelancer_name}",
+                message=f"{freelancer_name} has updated their proposal for '{job_title}'",
+                job=job,
+                proposal=proposal,
+                url=f"/proposal"
+            )
+            logger.info(f"✅ Proposal update notification sent to employer {employer.id}")
+        except Exception as notify_error:
+            logger.error(f"Error sending proposal update notification: {notify_error}")
 
         return {
             "message": "Proposal updated successfully",
@@ -902,7 +951,7 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
 
 
 # ============================================================
-# 7. ACCEPT PROPOSAL (FIXED - No manual transaction management)
+# 7. ACCEPT PROPOSAL (FIXED + NOTIFICATION)
 # ============================================================
 @router.post("/AcceptProposal/{proposal_id}")
 async def accept_proposal(proposal_id: int, creator_id: int):
@@ -1068,6 +1117,27 @@ async def accept_proposal(proposal_id: int, creator_id: int):
                 return contract
 
         contract = await sync_to_async(create_contract_sync)()
+
+        # ============================================================
+        # NOTIFICATION: Notify freelancer that proposal was accepted
+        # ============================================================
+        try:
+            freelancer = await sync_to_async(lambda: proposal.freelancer)()
+            job_title = await sync_to_async(lambda: job.title)()
+            
+            await sync_to_async(create_notification)(
+                user=freelancer,
+                notification_type="contract",
+                title=f"Proposal accepted for '{job_title}'",
+                message=f"Your proposal for '{job_title}' has been accepted! A contract has been created.",
+                job=job,
+                proposal=proposal,
+                contract=contract,
+                url=f"/all-contacts"  # or f"/contracts/{contract.id}"
+            )
+            logger.info(f"✅ Proposal acceptance notification sent to freelancer {freelancer.id}")
+        except Exception as notify_error:
+            logger.error(f"Error sending proposal acceptance notification: {notify_error}")
 
         return {
             "message": "Proposal accepted and contract created",
@@ -1375,4 +1445,3 @@ async def download_proposal_attachment(proposal_id: int, filename: str):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-

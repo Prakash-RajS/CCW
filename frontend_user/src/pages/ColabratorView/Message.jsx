@@ -1,4 +1,4 @@
-// message.jsx - Complete Fixed Version with Scroll Fix
+// message.jsx - Complete Optimized Version
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import EmojiPicker from 'emoji-picker-react';
@@ -27,7 +27,6 @@ const DEFAULT_QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢"];
 
 const MessageSkeleton = () => (
   <div className="flex-1 flex flex-col h-full bg-gray-50">
-    {/* Header skeleton */}
     <div className="h-14 sm:h-16 md:h-[72px] px-2 sm:px-3 md:px-5 flex items-center gap-2 sm:gap-3 border-b border-gray-200 bg-white flex-shrink-0">
       <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gray-200 animate-pulse flex-shrink-0" />
       <div className="flex-1">
@@ -35,8 +34,6 @@ const MessageSkeleton = () => (
         <div className="h-3 w-24 bg-gray-200 rounded mt-1 animate-pulse" />
       </div>
     </div>
-
-    {/* Messages skeleton */}
     <div className="flex-1 overflow-y-auto px-2 sm:px-3 md:px-5 py-3 md:py-5">
       <div className="space-y-4 max-w-full mx-auto px-2 sm:px-3 md:px-4">
         {[1, 2, 3, 4, 5].map((i) => (
@@ -51,8 +48,6 @@ const MessageSkeleton = () => (
         ))}
       </div>
     </div>
-
-    {/* Input skeleton */}
     <div className="p-2 sm:p-3 md:p-4 bg-white border-t border-gray-200 flex-shrink-0">
       <div className="flex items-center gap-2 bg-gray-100 rounded-2xl p-1.5 sm:p-2">
         <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
@@ -462,14 +457,14 @@ const MobileMessageActions = ({ message, messageElement, onClose, onReply, onSta
         </button>
         
         <button
-  onClick={() => { onStar(message); onClose(); }}
-  className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200 ${
-    isStarred ? "text-amber-500" : "text-gray-600"
-  }`}
->
-  <span className="text-xl">{isStarred ? "⭐" : "☆"}</span>
-  <span className="text-[10px] font-medium">{isStarred ? "Unstar" : "Star"}</span>
-</button>
+          onClick={() => { onStar(message); onClose(); }}
+          className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200 ${
+            isStarred ? "text-amber-500" : "text-gray-600"
+          }`}
+        >
+          <span className="text-xl">{isStarred ? "⭐" : "☆"}</span>
+          <span className="text-[10px] font-medium">{isStarred ? "Unstar" : "Star"}</span>
+        </button>
         
         <button
           onClick={(e) => { onContextMenu(message, e); onClose(); }}
@@ -970,6 +965,8 @@ export default function Message() {
   const lastTapRef = useRef(0);
   const scrollAfterSend = useRef(false);
   const scrollTimeoutRef = useRef(null);
+  const switchingChatRef = useRef(false);
+  const reactionsCache = useRef({});
 
   const jobId = jobIdFromUrl ?? location.state?.jobId ?? null;
   const receiverId = targetUserIdFromUrl ?? location.state?.receiverId ?? null;
@@ -1023,7 +1020,6 @@ export default function Message() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [mobileActionMessage, setMobileActionMessage] = useState(null);
   const [mobileActionElement, setMobileActionElement] = useState(null);
-  const reactionsCache = useRef({});
   const [activeCall, setActiveCall] = useState(null);
   const [incomingCall, setIncomingCall] = useState(null);
   const [callerProfileImage, setCallerProfileImage] = useState(null);
@@ -1035,7 +1031,10 @@ export default function Message() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const activeUser = displayedUsers.find((u) => u.id === activeUserId) || null;
+  const activeUser = useMemo(() => 
+    displayedUsers.find((u) => u.id === activeUserId) || null,
+    [displayedUsers, activeUserId]
+  );
 
   // SCROLL TO BOTTOM HELPER
   const scrollToBottom = useCallback((smooth = false) => {
@@ -1265,17 +1264,79 @@ export default function Message() {
     }
   }, [currentUserId, activeUserId, clearUnreadMessages]);
 
+  const formatMessages = useCallback((messagesData) => {
+    return messagesData.map((msg) => ({
+      id: msg.id,
+      text: msg.content,
+      from: msg.sender === currentUserId ? "me" : "other",
+      time: new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: msg.created_at,
+      file_url: msg.file_url,
+      message_type: msg.message_type,
+      reply_to: msg.reply_to,
+      is_seen: msg.is_seen,
+      call_data: msg.call_data,
+      edited: msg.edited || false,
+      is_starred: msg.is_starred || false,
+    }));
+  }, [currentUserId]);
+
+  const loadAllReactions = useCallback(async (messagesList) => {
+    if (!messagesList || messagesList.length === 0) {
+      setReactions({});
+      return;
+    }
+
+    try {
+      const messageIds = messagesList.map(msg => msg.id);
+      const cachedReactions = {};
+      const uncachedIds = [];
+      
+      messageIds.forEach(id => {
+        if (reactionsCache.current[id]) {
+          cachedReactions[id] = reactionsCache.current[id];
+        } else {
+          uncachedIds.push(id);
+        }
+      });
+      
+      if (uncachedIds.length > 0) {
+        const response = await api.post('/message/messages/reactions/batch', uncachedIds, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.data && response.data.reactions) {
+          Object.keys(response.data.reactions).forEach(id => {
+            reactionsCache.current[id] = response.data.reactions[id];
+          });
+          
+          setReactions(prev => ({
+            ...prev,
+            ...cachedReactions,
+            ...response.data.reactions
+          }));
+          return;
+        }
+      }
+      
+      if (Object.keys(cachedReactions).length > 0) {
+        setReactions(prev => ({ ...prev, ...cachedReactions }));
+      } else {
+        setReactions({});
+      }
+    } catch (error) {
+      console.error('Failed to load reactions in batch:', error);
+      setReactions({});
+    }
+  }, []);
+
   const fetchMessages = useCallback(async (otherUserId) => {
-  if (!currentUserId || !otherUserId || !isMounted.current) return;
-  
-  // ===== ADD THIS THROTTLE CHECK =====
-  const now = Date.now();
-  if (fetchMessages._lastFetch && (now - fetchMessages._lastFetch) < 3000) {
-    console.log('Throttling fetch - too soon');
-    return;
-  }
-  fetchMessages._lastFetch = now;
+    if (!currentUserId || !otherUserId || !isMounted.current) return;
+    
+    switchingChatRef.current = true;
+    setMessages([]);
     setLoading(true);
+    
     try {
       const response = await api.get(`/message/conversation/${currentUserId}/${otherUserId}`);
       if (!isMounted.current) return;
@@ -1296,23 +1357,9 @@ export default function Message() {
       }
 
       if (response.data.messages) {
-        const formatted = response.data.messages.map((msg) => ({
-          id: msg.id,
-          text: msg.content,
-          from: msg.sender === currentUserId ? "me" : "other",
-          time: new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          timestamp: msg.created_at,
-          file_url: msg.file_url,
-          message_type: msg.message_type,
-          reply_to: msg.reply_to,
-          is_seen: msg.is_seen,
-          call_data: msg.call_data,
-          edited: msg.edited || false,
-          is_starred: msg.is_starred || false, // <-- ADD THIS
-        }));
+        const formatted = formatMessages(response.data.messages);
         setMessages(formatted);
 
-        // ===== ADD THIS: Initialize starredIds from API response =====
         const initialStarredIds = new Set();
         formatted.forEach(msg => {
           if (msg.is_starred) {
@@ -1320,9 +1367,10 @@ export default function Message() {
           }
         });
         setStarredIds(initialStarredIds);
-        // ===========================================================
 
-        await loadAllReactions(formatted);
+        if (formatted.length > 0) {
+          setTimeout(() => loadAllReactions(formatted), 100);
+        }
 
         if (response.data.conversation_id) {
           const hasUnseen = formatted.some((m) => m.from === "other" && !m.is_seen);
@@ -1335,66 +1383,11 @@ export default function Message() {
       console.error("Failed to fetch messages", error);
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        switchingChatRef.current = false;
+      }, 100);
     }
-  }, [currentUserId, markMessagesAsSeen]);
-  
-  // ===== ADD THIS THROTTLE CHECK =====
-  
-        
-
-  const loadAllReactions = useCallback(async (messagesList) => {
-  if (!messagesList || messagesList.length === 0) {
-    setReactions({});
-    return;
-  }
-
-  try {
-    const messageIds = messagesList.map(msg => msg.id);
-    
-    // Check cache first
-    const cachedReactions = {};
-    const uncachedIds = [];
-    
-    messageIds.forEach(id => {
-      if (reactionsCache.current[id]) {
-        cachedReactions[id] = reactionsCache.current[id];
-      } else {
-        uncachedIds.push(id);
-      }
-    });
-    
-    // Only fetch uncached messages
-    if (uncachedIds.length > 0) {
-      const response = await api.post('/message/messages/reactions/batch', uncachedIds, {
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      if (response.data && response.data.reactions) {
-        // Update cache
-        Object.keys(response.data.reactions).forEach(id => {
-          reactionsCache.current[id] = response.data.reactions[id];
-        });
-        
-        // Merge with cached
-        setReactions({
-          ...cachedReactions,
-          ...response.data.reactions
-        });
-        return;
-      }
-    }
-    
-    // Use cached reactions
-    if (Object.keys(cachedReactions).length > 0) {
-      setReactions(cachedReactions);
-    } else {
-      setReactions({});
-    }
-  } catch (error) {
-    console.error('Failed to load reactions in batch:', error);
-    setReactions({});
-  }
-}, []);
+  }, [currentUserId, formatMessages, markMessagesAsSeen, loadAllReactions]);
 
   const sendHeartbeat = useCallback(async () => {
     if (!currentUserId) return;
@@ -1555,41 +1548,40 @@ export default function Message() {
   }, [currentUserId, activeUserId, reactions, fetchMessages]);
 
   const handleCopyText = useCallback((message) => {
-  if (!message.text) return;
-  
-  const copyText = () => {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(message.text);
-    }
+    if (!message.text) return;
     
-    // Fallback for non-HTTPS
-    return new Promise((resolve, reject) => {
-      const textarea = document.createElement('textarea');
-      textarea.value = message.text;
-      textarea.style.position = 'fixed';
-      textarea.style.left = '-9999px';
-      textarea.style.top = '-9999px';
-      textarea.style.width = '1px';
-      textarea.style.height = '1px';
-      
-      document.body.appendChild(textarea);
-      textarea.select();
-      
-      try {
-        const success = document.execCommand('copy');
-        document.body.removeChild(textarea);
-        success ? resolve() : reject(new Error('Copy failed'));
-      } catch (err) {
-        document.body.removeChild(textarea);
-        reject(err);
+    const copyText = () => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(message.text);
       }
-    });
-  };
-  
-  copyText()
-    .then(() => toast.success("Copied to clipboard"))
-    .catch(() => toast.error("Failed to copy text"));
-}, []);
+      
+      return new Promise((resolve, reject) => {
+        const textarea = document.createElement('textarea');
+        textarea.value = message.text;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        textarea.style.width = '1px';
+        textarea.style.height = '1px';
+        
+        document.body.appendChild(textarea);
+        textarea.select();
+        
+        try {
+          const success = document.execCommand('copy');
+          document.body.removeChild(textarea);
+          success ? resolve() : reject(new Error('Copy failed'));
+        } catch (err) {
+          document.body.removeChild(textarea);
+          reject(err);
+        }
+      });
+    };
+    
+    copyText()
+      .then(() => toast.success("Copied to clipboard"))
+      .catch(() => toast.error("Failed to copy text"));
+  }, []);
 
   const handleEditMessage = useCallback((message) => {
     setEditingMessageId(message.id);
@@ -1651,69 +1643,63 @@ export default function Message() {
     toast.success(pinnedMessage?.id === message.id ? "Message unpinned" : "Message pinned");
   }, [pinnedMessage]);
 
-  // Replace the existing handleStarMessage with this:
-
-const handleStarMessage = useCallback(async (message) => {
+  const handleStarMessage = useCallback(async (message) => {
     if (!currentUserId || !message) return;
     
     const currentStarred = starredIds.has(message.id);
     
     try {
-        // Update local state optimistically
-        setStarredIds(prev => {
-            const newSet = new Set(prev);
-            if (currentStarred) {
-                newSet.delete(message.id);
-            } else {
-                newSet.add(message.id);
-            }
-            return newSet;
-        });
-        
-        setMessages(prev => prev.map(msg => 
-            msg.id === message.id 
-                ? { ...msg, is_starred: !currentStarred }
-                : msg
-        ));
-        
-        // Call API
-        const response = await api.post(`/message/message/${message.id}/star`, {
-            user_id: currentUserId,
-            is_starred: !currentStarred
-        });
-        
-        if (response.data.status === 'success') {
-            toast.success(!currentStarred ? "Message starred ⭐" : "Message unstarred");
-            
-            // Update with server response
-            setMessages(prev => prev.map(msg => 
-                msg.id === message.id 
-                    ? { ...msg, is_starred: response.data.is_starred }
-                    : msg
-            ));
+      setStarredIds(prev => {
+        const newSet = new Set(prev);
+        if (currentStarred) {
+          newSet.delete(message.id);
+        } else {
+          newSet.add(message.id);
         }
-    } catch (error) {
-        console.error("Failed to star message:", error);
-        toast.error("Failed to update star");
-        
-        // Revert on error
-        setStarredIds(prev => {
-            const newSet = new Set(prev);
-            if (currentStarred) {
-                newSet.add(message.id);
-            } else {
-                newSet.delete(message.id);
-            }
-            return newSet;
-        });
+        return newSet;
+      });
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === message.id 
+          ? { ...msg, is_starred: !currentStarred }
+          : msg
+      ));
+      
+      const response = await api.post(`/message/message/${message.id}/star`, {
+        user_id: currentUserId,
+        is_starred: !currentStarred
+      });
+      
+      if (response.data.status === 'success') {
+        toast.success(!currentStarred ? "Message starred ⭐" : "Message unstarred");
         
         setMessages(prev => prev.map(msg => 
-            msg.id === message.id 
-                ? { ...msg, is_starred: currentStarred }
-                : msg
+          msg.id === message.id 
+            ? { ...msg, is_starred: response.data.is_starred }
+            : msg
         ));
+      }
+    } catch (error) {
+      console.error("Failed to star message:", error);
+      toast.error("Failed to update star");
+      
+      setStarredIds(prev => {
+        const newSet = new Set(prev);
+        if (currentStarred) {
+          newSet.add(message.id);
+        } else {
+          newSet.delete(message.id);
+        }
+        return newSet;
+      });
+      
+      setMessages(prev => prev.map(msg => 
+        msg.id === message.id 
+          ? { ...msg, is_starred: currentStarred }
+          : msg
+      ));
     }
-}, [currentUserId, starredIds]);
+  }, [currentUserId, starredIds]);
 
   useEffect(() => {
     if (editingMessageId) {
@@ -1800,13 +1786,13 @@ const handleStarMessage = useCallback(async (message) => {
     }
   }, [searchTerm, allUsers, conversationUsers, targetUserIdFromUrl]);
 
- useEffect(() => {
-  if (!currentUserId) return;
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
+    if (!currentUserId) return;
     setIsLoadingUsers(true);
     try {
       const res = await api.get("/message/users", { params: { current_user_id: currentUserId } });
       if (!isMounted.current) return;
+      
       const processed = res.data.map((u, i) => ({
         id: u.id, 
         name: u.name || u.email?.split("@")[0] || `User ${u.id}`, 
@@ -1819,19 +1805,25 @@ const handleStarMessage = useCallback(async (message) => {
         unread_count: u.unread_count || 0, 
         hasConversation: !!u.last_message,
       }));
-      const convoUsers = processed.filter((u) => u.hasConversation);
-      setAllUsers(processed); 
+      
+      const allProcessed = processed;
+      let convoUsers = processed.filter((u) => u.hasConversation);
+      
+      convoUsers = convoUsers.sort((a, b) => {
+        if (!a.last_message_time) return 1;
+        if (!b.last_message_time) return -1;
+        return new Date(b.last_message_time) - new Date(a.last_message_time);
+      });
+      
+      setAllUsers(allProcessed);
       setConversationUsers(convoUsers);
 
-      // --- HANDLE CONVERSATION ID FROM URL ---
       let targetUserId = null;
       
-      // Priority 1: Direct user ID from URL
       if (targetUserIdFromUrl) {
         targetUserId = Number(targetUserIdFromUrl);
       }
       
-      // Priority 2: Conversation ID from URL (new notification navigation)
       if (!targetUserId && conversationIdFromUrl) {
         try {
           const convRes = await api.get(`/message/conversation/by-id/${conversationIdFromUrl}`, {
@@ -1840,8 +1832,7 @@ const handleStarMessage = useCallback(async (message) => {
           if (convRes.data && convRes.data.other_user_id) {
             targetUserId = convRes.data.other_user_id;
             
-            // If the user isn't in our list yet, add them
-            if (!processed.some(u => u.id === targetUserId)) {
+            if (!allProcessed.some(u => u.id === targetUserId)) {
               const otherUser = convRes.data.other_user;
               const newUser = {
                 id: otherUser.id,
@@ -1854,7 +1845,14 @@ const handleStarMessage = useCallback(async (message) => {
                 unread_count: 0
               };
               setAllUsers(prev => [...prev, newUser]);
-              setConversationUsers(prev => [...prev, newUser]);
+              setConversationUsers(prev => {
+                const updated = [...prev, newUser];
+                return updated.sort((a, b) => {
+                  if (!a.last_message_time) return 1;
+                  if (!b.last_message_time) return -1;
+                  return new Date(b.last_message_time) - new Date(a.last_message_time);
+                });
+              });
             }
           }
         } catch (e) {
@@ -1862,21 +1860,18 @@ const handleStarMessage = useCallback(async (message) => {
         }
       }
       
-      // Priority 3: Use the provided receiverId
       if (!targetUserId && receiverId) {
         targetUserId = Number(receiverId);
       }
       
-      // Now set the active user if we have a target
       if (targetUserId) {
-        const t = processed.find((u) => u.id === targetUserId);
+        const t = allProcessed.find((u) => u.id === targetUserId);
         if (t) {
-          setDisplayedUsers([t]); 
-          setActiveUserId(t.id); 
-          setShowChatMobile(true); 
+          setDisplayedUsers([t]);
+          setActiveUserId(t.id);
+          setShowChatMobile(true);
           clearUnreadMessages(t.id);
         } else {
-          // Try to fetch user directly
           try {
             const ur = await api.get(`/user/${targetUserId}`);
             if (ur.data && isMounted.current) {
@@ -1891,19 +1886,18 @@ const handleStarMessage = useCallback(async (message) => {
                 unread_count: 0, 
                 hasConversation: true 
               };
-              setDisplayedUsers([nu]); 
-              setActiveUserId(nu.id); 
+              setDisplayedUsers([nu]);
+              setActiveUserId(nu.id);
               setShowChatMobile(true);
-              setAllUsers((p) => [...p, nu]); 
+              setAllUsers((p) => [...p, nu]);
               clearUnreadMessages(nu.id);
             }
           } catch { 
-            setDisplayedUsers([]); 
-            setActiveUserId(null); 
+            setDisplayedUsers([]);
+            setActiveUserId(null);
           }
         }
       } else {
-        // No target user, show conversation list
         setDisplayedUsers(convoUsers);
         let uid = null;
         if (receiverId) {
@@ -1923,36 +1917,39 @@ const handleStarMessage = useCallback(async (message) => {
                   unread_count: 0, 
                   hasConversation: false 
                 };
-                setAllUsers((p) => [...p, nu]); 
-                setDisplayedUsers((p) => [...p, nu]); 
-                uid = nu.id; 
+                setAllUsers((p) => [...p, nu]);
+                setDisplayedUsers((p) => [...p, nu]);
+                uid = nu.id;
                 clearUnreadMessages(nu.id);
               }
             } catch {}
           }
         }
         if (!uid && convoUsers.length > 0) uid = convoUsers[0].id;
-        if (uid) { 
-          setActiveUserId(uid); 
-          setShowChatMobile(true); 
-          clearUnreadMessages(uid); 
+        if (uid) {
+          setActiveUserId(uid);
+          setShowChatMobile(true);
+          clearUnreadMessages(uid);
         }
       }
       
       setInitialLoadDone(true);
     } catch (err) {
-      console.error("Failed to load users", err); 
+      console.error("Failed to load users", err);
       setInitialLoadDone(true);
-    } finally { 
-      setIsLoadingUsers(false); 
+    } finally {
+      setIsLoadingUsers(false);
     }
-  };
-  loadUsers();
-}, [currentUserId, targetUserIdFromUrl, receiverId, conversationIdFromUrl, clearUnreadMessages]);
+  }, [currentUserId, targetUserIdFromUrl, receiverId, conversationIdFromUrl, clearUnreadMessages]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   useEffect(() => {
     if (activeUserId && currentUserId) {
-      fetchMessages(activeUserId); clearUnreadMessages(activeUserId);
+      fetchMessages(activeUserId);
+      clearUnreadMessages(activeUserId);
     }
   }, [activeUserId, currentUserId, fetchMessages, clearUnreadMessages]);
 
@@ -1981,71 +1978,72 @@ const handleStarMessage = useCallback(async (message) => {
     return () => window.removeEventListener('reaction-updated', handleReactionUpdate);
   }, [currentUserId, allUsers]);
 
-  // Initial scroll to bottom when opening chat
   useEffect(() => {
     if (!loading && messages.length > 0 && messagesContainerRef.current && !initialScrollDone.current) {
       setTimeout(() => {
-        scrollToBottom(false);
-        initialScrollDone.current = true;
-        shouldAutoScroll.current = true;
-        setUserScrolled(false);
+        if (!switchingChatRef.current) {
+          scrollToBottom(false);
+          initialScrollDone.current = true;
+          shouldAutoScroll.current = true;
+          setUserScrolled(false);
+        }
       }, 200);
     }
   }, [loading, messages.length, scrollToBottom]);
 
-  // Reset scroll when switching chats
   useEffect(() => {
     if (activeUserId) { 
       initialScrollDone.current = false; 
       shouldAutoScroll.current = true; 
       setUserScrolled(false);
       scrollAfterSend.current = false;
+      switchingChatRef.current = true;
       if (scrollTimeoutRef.current) {
         clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = null;
       }
+      setTimeout(() => {
+        switchingChatRef.current = false;
+      }, 500);
     }
   }, [activeUserId]);
 
-  // Poll for new messages - fixed scroll behavior
   useEffect(() => {
-  if (activeUserId && currentUserId) {
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    
-    // Use 30 seconds instead of 5 seconds
-    pollIntervalRef.current = setInterval(() => {
-      const container = messagesContainerRef.current;
-      if (!container) return;
+    if (activeUserId && currentUserId) {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       
-      const scrollTop = container.scrollTop;
-      const scrollHeight = container.scrollHeight;
-      const clientHeight = container.clientHeight;
-      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      pollIntervalRef.current = setInterval(() => {
+        if (switchingChatRef.current) return;
+        
+        const container = messagesContainerRef.current;
+        if (!container) return;
+        
+        const scrollTop = container.scrollTop;
+        const scrollHeight = container.scrollHeight;
+        const clientHeight = container.clientHeight;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        const isNearBottom = distanceFromBottom < 100;
+        
+        if (isNearBottom || scrollAfterSend.current) {
+          fetchMessages(activeUserId).then(() => {
+            if (scrollAfterSend.current) {
+              scrollToBottom(true);
+              scrollAfterSend.current = false;
+            } else {
+              scrollToBottom(false);
+            }
+            shouldAutoScroll.current = true;
+            setUserScrolled(false);
+          });
+        }
+      }, 30000);
       
-      const isNearBottom = distanceFromBottom < 100;
-      
-      // Only fetch if user is at bottom or just sent a message
-      if (isNearBottom || scrollAfterSend.current) {
-        fetchMessages(activeUserId).then(() => {
-          if (scrollAfterSend.current) {
-            scrollToBottom(true);
-            scrollAfterSend.current = false;
-          } else {
-            scrollToBottom(false);
-          }
-          shouldAutoScroll.current = true;
-          setUserScrolled(false);
-        });
-      }
-    }, 30000); // <-- CHANGE FROM 5000 TO 30000
-    
-    return () => { 
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current); 
-    };
-  }
-}, [activeUserId, currentUserId, fetchMessages, scrollToBottom]);
+      return () => { 
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      };
+    }
+  }, [activeUserId, currentUserId, fetchMessages, scrollToBottom]);
 
-  // Handle scroll to show/hide jump-to-bottom button
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -2083,7 +2081,6 @@ const handleStarMessage = useCallback(async (message) => {
     }
   }, [handleScroll]);
 
-  // Scroll after sending a message
   useEffect(() => {
     if (messages.length > 0 && scrollAfterSend.current) {
       if (scrollTimeoutRef.current) {
@@ -2178,7 +2175,8 @@ const handleStarMessage = useCallback(async (message) => {
     if (!activeUserId || !currentUserId) return;
     try {
       await api.delete(`/message/conversation/${currentUserId}/${activeUserId}`, { params: { user_id: currentUserId } });
-      setMessages([]); setConversationUsers((p) => p.filter((u) => u.id !== activeUserId));
+      setMessages([]); 
+      setConversationUsers((p) => p.filter((u) => u.id !== activeUserId));
       setAllUsers((p) => p.map((u) => (u.id === activeUserId ? { ...u, hasConversation: false, lastMessage: "" } : u)));
       setDisplayedUsers((p) => p.filter((u) => u.id !== activeUserId));
       const next = conversationUsers.find((u) => u.id !== activeUserId);
@@ -2248,16 +2246,36 @@ const handleStarMessage = useCallback(async (message) => {
       );
       
       const newLast = messageText || (selectedFile ? `📎 ${selectedFile.name}` : "");
-      setAllUsers((p) => p.map((u) => (u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: new Date().toISOString(), hasConversation: true } : u)));
+      const now = new Date().toISOString();
+      
+      setAllUsers((p) => 
+        p.map((u) => u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: now, hasConversation: true } : u)
+      );
+      
       setConversationUsers((p) => {
-        if (p.some((u) => u.id === activeUserId)) return p.map((u) => (u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: new Date().toISOString() } : u));
-        const nu = allUsers.find((u) => u.id === activeUserId);
-        return nu ? [...p, { ...nu, lastMessage: newLast, last_message_time: new Date().toISOString() }] : p;
+        const updated = p.map((u) => 
+          u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: now } : u
+        );
+        return updated.sort((a, b) => {
+          if (!a.last_message_time) return 1;
+          if (!b.last_message_time) return -1;
+          return new Date(b.last_message_time) - new Date(a.last_message_time);
+        });
       });
+      
       setDisplayedUsers((p) => {
-        if (p.some((u) => u.id === activeUserId)) return p.map((u) => (u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: new Date().toISOString(), hasConversation: true } : u));
+        if (p.some((u) => u.id === activeUserId)) {
+          const updated = p.map((u) => 
+            u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: now, hasConversation: true } : u
+          );
+          return updated.sort((a, b) => {
+            if (!a.last_message_time) return 1;
+            if (!b.last_message_time) return -1;
+            return new Date(b.last_message_time) - new Date(a.last_message_time);
+          });
+        }
         const nu = allUsers.find((u) => u.id === activeUserId);
-        return nu ? [...p, { ...nu, lastMessage: newLast, last_message_time: new Date().toISOString(), hasConversation: true }] : p;
+        return nu ? [...p, { ...nu, lastMessage: newLast, last_message_time: now, hasConversation: true }] : p;
       });
       
       setInput(""); 
@@ -2327,7 +2345,6 @@ const handleStarMessage = useCallback(async (message) => {
     }
   };
 
-
   const renderMessage = useCallback((msg, index) => {
     const showDate = index === 0 || new Date(msg.timestamp).toDateString() !== new Date(messages[index - 1]?.timestamp).toDateString();
     const isOwn = msg.from === "me";
@@ -2366,9 +2383,6 @@ const handleStarMessage = useCallback(async (message) => {
           ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
           className={`flex ${isOwn ? "justify-end" : "justify-start"} transition-all duration-300 ${isHighlighted ? "scale-[1.02]" : ""}`}
         >
-          {/* {!isOwn && (
-            <img src={activeUser?.avatar} className="w-7 h-7 md:w-8 md:h-8 rounded-full object-cover mr-2 mt-1 flex-shrink-0" alt="" />
-          )} */}
           <div className={`relative group max-w-[85%] md:max-w-[70%] xl:max-w-[60%] 4k:max-w-[50%] ${isOwn ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}>
             {isStarred && (
               <div className={`absolute -top-2 ${isOwn ? "right-2" : "left-2"} z-10`}>
@@ -2577,12 +2591,12 @@ const handleStarMessage = useCallback(async (message) => {
                 <span className="text-sm">↩️</span>
               </button>
               <button
-    onClick={() => handleStarMessage(msg)}
-    className={`p-1.5 bg-white rounded-full shadow-md transition-colors ${isStarred ? "text-amber-400" : "text-gray-400 hover:text-amber-400"}`}
-    title={isStarred ? "Unstar" : "Star"}
->
-    <span className="text-sm">{isStarred ? "⭐" : "☆"}</span>
-</button>
+                onClick={() => handleStarMessage(msg)}
+                className={`p-1.5 bg-white rounded-full shadow-md transition-colors ${isStarred ? "text-amber-400" : "text-gray-400 hover:text-amber-400"}`}
+                title={isStarred ? "Unstar" : "Star"}
+              >
+                <span className="text-sm">{isStarred ? "⭐" : "☆"}</span>
+              </button>
               <button
                 onClick={(e) => openContextMenu(msg, e, e.currentTarget)}
                 className="p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
@@ -2598,11 +2612,20 @@ const handleStarMessage = useCallback(async (message) => {
         </div>
       </React.Fragment>
     );
-  }, [messages, formatMessageDate, editingMessageId, highlightedMsgId, reactions, starredIds, openContextMenu, handleReact, handleStarMessage, handleSaveEdit, jumpToMessage, handleFileDownload, activeUser, handleMobileLongPress, handleDoubleTap]);
+  }, [messages, formatMessageDate, editingMessageId, highlightedMsgId, reactions, starredIds, openContextMenu, handleReact, handleStarMessage, handleSaveEdit, jumpToMessage, handleFileDownload, handleMobileLongPress, handleDoubleTap, currentUserId]);
 
   const UserListItem = ({ user }) => (
     <div
-      onClick={() => { setActiveUserId(user.id); setShowChatMobile(true); setMobileMenuOpen(false); clearUnreadMessages(user.id); }}
+      onClick={() => { 
+        setActiveUserId(user.id); 
+        setShowChatMobile(true); 
+        setMobileMenuOpen(false); 
+        clearUnreadMessages(user.id);
+        switchingChatRef.current = true;
+        setTimeout(() => {
+          switchingChatRef.current = false;
+        }, 500);
+      }}
       className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer relative transition-all duration-200 ${
         activeUserId === user.id 
           ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md" 
@@ -2688,7 +2711,6 @@ const handleStarMessage = useCallback(async (message) => {
         }
       `}</style>
 
-      {/* Top Bar */}
       <div className="h-14 sm:h-16 md:h-[72px] px-3 sm:px-4 md:px-6 flex items-center justify-between flex-shrink-0 bg-white shadow-sm z-10 top-bar">
         <h1
           className="text-xl sm:text-2xl md:text-3xl font-bold truncate"
@@ -2709,7 +2731,6 @@ const handleStarMessage = useCallback(async (message) => {
           boxShadow: '0 0 30px rgba(81, 33, 143, 0.5), 0 25px 50px -12px rgba(81, 33, 143, 0.6), 0 0 0 1px rgba(124, 58, 237, 0.3)'
         }}
       >
-        {/* LEFT: USER LIST */}
         <div className={`${showChatMobile ? "hidden md:flex" : "flex"} w-full md:w-[320px] lg:w-[360px] flex-col border-r border-gray-200 bg-white flex-shrink-0 chat-list-container`}>
           <div className="p-3 sm:p-4 pb-2">
             <div className="relative">
@@ -2724,27 +2745,26 @@ const handleStarMessage = useCallback(async (message) => {
           </div>
 
           <div className="flex-1 overflow-y-auto px-2 sm:px-3 pb-3">
-  {!initialLoadDone || isLoadingUsers ? (
-    <UserListSkeleton />
-  ) : displayedUsers.length === 0 ? (
-    <div className="text-center py-12 px-4">
-      <span className="text-4xl sm:text-5xl mb-3 block">💬</span>
-      <p className="text-gray-400 text-sm">
-        {searchTerm.length >= 2 ? "No users match your search" : "No conversations yet"}
-      </p>
-      <p className="text-xs text-gray-300 mt-1">Start a chat by searching for users</p>
-    </div>
-  ) : (
-    <div className="space-y-1">
-      {displayedUsers.map((user) => (
-        <UserListItem key={user.id} user={user} />
-      ))}
-    </div>
-  )}
-</div>
+            {!initialLoadDone || isLoadingUsers ? (
+              <UserListSkeleton />
+            ) : displayedUsers.length === 0 ? (
+              <div className="text-center py-12 px-4">
+                <span className="text-4xl sm:text-5xl mb-3 block">💬</span>
+                <p className="text-gray-400 text-sm">
+                  {searchTerm.length >= 2 ? "No users match your search" : "No conversations yet"}
+                </p>
+                <p className="text-xs text-gray-300 mt-1">Start a chat by searching for users</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {displayedUsers.map((user) => (
+                  <UserListItem key={user.id} user={user} />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* RIGHT: CHAT AREA */}
         {activeUser ? (
           <div className={`flex-1 flex flex-col h-full ${showChatMobile ? "flex" : "hidden md:flex"} bg-gray-50 min-w-0 chat-area-container`}>
             <div className="h-14 sm:h-16 md:h-[72px] px-2 sm:px-3 md:px-5 flex items-center gap-2 sm:gap-3 border-b border-gray-200 bg-white flex-shrink-0">
@@ -2834,15 +2854,15 @@ const handleStarMessage = useCallback(async (message) => {
             >
               <div className="space-y-2 max-w-full lg:max-w-7xl xl:max-w-[90%] 2xl:max-w-[1400px] mx-auto px-2 sm:px-3 md:px-4">
                 {loading && messages.length === 0 ? (
-  <MessageSkeleton />
-) : messages.length === 0 ? (
-  <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
-    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
-      <span className="text-2xl sm:text-3xl">💬</span>
-    </div>
-    <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
-  </div>
-) : (
+                  <MessageSkeleton />
+                ) : messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 gap-3 px-4">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
+                      <span className="text-2xl sm:text-3xl">💬</span>
+                    </div>
+                    <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
+                  </div>
+                ) : (
                   <>
                     {messages.map((msg, i) => renderMessage(msg, i))}
                     {isTyping && <TypingIndicator user={activeUser} />}

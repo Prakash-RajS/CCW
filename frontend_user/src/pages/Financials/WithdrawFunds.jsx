@@ -194,37 +194,110 @@ export default function WithdrawFunds() {
 };
 
   const validateEmailFormat = (value) => {
-    const email = value.trim();
-    if (!email) return "";
+  const email = value.trim().toLowerCase();
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return "Please enter a valid email address (e.g., user@domain.com)";
-    if (email.includes("..") || email.includes(".@") || email.includes("@.")) return "Invalid email format";
+  if (!email) return "";
 
-    const [localPart, domain] = email.toLowerCase().split("@");
-    if (localPart.length < 2) return "Email username is too short";
-    if (/(.)\1{5,}/.test(localPart)) return "Email appears to be invalid";
-    if (/(\.\.|__|--|\+\+)/.test(localPart)) return "Email contains invalid characters";
+  // Basic email format
+  const emailRegex =
+    /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/;
 
-    const invalidDomains = [
-      "email.com", "example.com", "test.com", "domain.com",
-      "mailinator.com", "tempmail.com", "guerrillamail.com",
-      "10minutemail.com", "yopmail.com", "fakeemail.com",
-      "temp-mail.org", "throwawayemail.com", "dispostable.com",
-      "maildrop.cc"
-    ];
-    if (invalidDomains.includes(domain)) return "Disposable or invalid email domains are not allowed";
+  if (!emailRegex.test(email)) {
+    return "Please enter a valid email address";
+  }
 
-    const providers = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"];
-    for (const provider of providers) {
-      const distance = levenshtein(domain, provider);
-      if (distance > 0 && distance <= 2) return `Did you mean ${localPart}@${provider}?`;
+  // Invalid patterns
+  if (
+    email.includes("..") ||
+    email.includes(".@") ||
+    email.includes("@.") ||
+    email.startsWith(".") ||
+    email.endsWith(".")
+  ) {
+    return "Invalid email format";
+  }
+
+  const [localPart, domain] = email.split("@");
+
+  // Username validations
+  if (localPart.length < 2) {
+    return "Email username is too short";
+  }
+
+  if (/(.)\1{5,}/.test(localPart)) {
+    return "Email appears to be invalid";
+  }
+
+  if (/(\.\.|__|--|\+\+)/.test(localPart)) {
+    return "Email contains invalid characters";
+  }
+
+  // Disposable domains
+  const invalidDomains = [
+    "email.com",
+    "example.com",
+    "test.com",
+    "domain.com",
+    "mailinator.com",
+    "tempmail.com",
+    "guerrillamail.com",
+    "10minutemail.com",
+    "yopmail.com",
+    "fakeemail.com",
+    "temp-mail.org",
+    "throwawayemail.com",
+    "dispostable.com",
+    "maildrop.cc"
+  ];
+
+  if (invalidDomains.includes(domain)) {
+    return "Disposable or invalid email domains are not allowed";
+  }
+
+  // Provider typo detection
+  const providers = [
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com"
+  ];
+
+  for (const provider of providers) {
+    const distance = levenshtein(domain, provider);
+
+    if (distance > 0 && distance <= 2) {
+      return `Did you mean ${localPart}@${provider}?`;
     }
+  }
 
-    const tld = domain.split(".").pop();
-    if (tld.length < 2) return "Please use a valid domain extension";
-    return "";
-  };
+  // Validate TLD
+  const validTlds = [
+    "com",
+    "in",
+    "org",
+    "net",
+    "edu",
+    "gov",
+    "io",
+    "ai",
+    "co",
+    "co.in"
+  ];
+
+  const domainParts = domain.split(".");
+  const lastPart = domainParts[domainParts.length - 1];
+  const lastTwoParts = domainParts.slice(-2).join(".");
+
+  if (
+    !validTlds.includes(lastPart) &&
+    !validTlds.includes(lastTwoParts)
+  ) {
+    return "Please enter a valid domain extension";
+  }
+
+  return "";
+};
 
   const validateIfscFormat = (value) => {
   if (!value) return '';
@@ -765,11 +838,10 @@ const handleWithdrawClick = () => {
     return;
   }
 
-  // Check if it's a positive number
-  if (numericAmount <= 0) {
-    setFormError("Amount must be greater than zero");
-    return;
-  }
+  if (numericAmount < 1) {
+  setFormError("Minimum withdrawal amount is ₹1");
+  return;
+}
 
   // Check if the amount has only digits and optionally a decimal point
   if (!/^\d+(\.\d+)?$/.test(cleanAmount)) {
@@ -808,11 +880,11 @@ const handleWithdrawClick = () => {
   setFormError("");
   try {
     const amountToWithdraw = parseFloat(withdrawAmount);
-    if (isNaN(amountToWithdraw) || amountToWithdraw <= 0) {
-      setFormError("Invalid amount");
-      setIsProcessing(false);
-      return;
-    }
+    if (isNaN(amountToWithdraw) || amountToWithdraw < 1) {
+  setFormError("Minimum withdrawal amount is ₹1");
+  setIsProcessing(false);
+  return;
+}
     
     const response = await api.post('/wallet/withdraw', {
       user_id: userData.id,
@@ -1244,7 +1316,9 @@ const handleWithdrawClick = () => {
               value = value.replace(/[^0-9.]/g, "");
               // Prevent multiple decimal points
               const parts = value.split(".");
-              if (parts.length > 2) return;
+if (parts.length > 2) return;
+
+if (parts[1] && parts[1].length > 2) return;
               // Prevent leading zeros (e.g., "01" -> "1")
               if (value.length > 1 && value.startsWith("0") && !value.startsWith("0.")) {
                 value = value.replace(/^0+/, "");
@@ -1260,10 +1334,18 @@ const handleWithdrawClick = () => {
 
 const amount = parseFloat(value);
 
-if (value && !isNaN(amount) && amount > walletBalance) {
-  setFormError(
-    `Entered amount exceeds available balance (₹${walletBalance.toFixed(2)})`
-  );
+if (value) {
+  if (isNaN(amount)) {
+    setFormError("Please enter a valid amount");
+  } else if (amount < 1) {
+    setFormError("Minimum withdrawal amount is ₹1");
+  } else if (amount > walletBalance) {
+    setFormError(
+      `Entered amount exceeds available balance (₹${walletBalance.toFixed(2)})`
+    );
+  } else {
+    setFormError("");
+  }
 } else {
   setFormError("");
 }
@@ -1273,9 +1355,9 @@ if (value && !isNaN(amount) && amount > walletBalance) {
               const amount = parseFloat(withdrawAmount);
 
 if (withdrawAmount) {
-  if (isNaN(amount) || amount <= 0) {
-    setFormError("Please enter a valid amount");
-  } else if (amount > walletBalance) {
+  if (isNaN(amount) || amount < 1) {
+  setFormError("Minimum withdrawal amount is ₹1");
+}else if (amount > walletBalance) {
     setFormError(
       `Entered amount exceeds available balance (₹${walletBalance.toFixed(2)})`
     );
@@ -1316,7 +1398,7 @@ if (withdrawAmount) {
               !walletStatus.canWithdraw || 
               !withdrawAmount || 
               isNaN(parseFloat(withdrawAmount)) || 
-              parseFloat(withdrawAmount) <= 0 || 
+              parseFloat(withdrawAmount) < 1 || 
               parseFloat(withdrawAmount) > walletBalance
             } 
             className={`flex-1 h-9 md:h-11 rounded-xl text-white font-medium transition-all text-[11px] md:text-sm ${

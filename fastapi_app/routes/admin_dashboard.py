@@ -741,52 +741,68 @@ def get_top_collaborators(limit: int = 5, admin: AdminUser = Depends(get_current
     """ Top Collaborator List ranked by wallet balance """
     ensure_db_connection()
     
-    # Get all collaborators (remove status filter)
+    # ✅ Import S3 functions
+    from fastapi_app.routes.storage import (
+        generate_presigned_url_with_cache, 
+        get_s3_key_from_path, 
+        USE_S3
+    )
+    
     top_users = UserData.objects.filter(
         role__iexact="collaborator"
-        # status__iexact="Active"  # REMOVED
     ).order_by('-wallet__balance')[:limit]
     
     results = []
     
     for idx, u in enumerate(top_users, 1):
-        # Get wallet balance
         wallet_bal = u.wallet.balance if hasattr(u, 'wallet') else 0.0
         
-        # Get profile image URL
         profile_image = None
-        if u.profile_picture:
-            if str(u.profile_picture).startswith(('http://', 'https://')):
-                profile_image = str(u.profile_picture)
-            else:
-                profile_image = f"{BASE_URL}/media/{str(u.profile_picture)}"
         
+        # ✅ Get profile image with S3 support
+        if u.profile_picture:
+            profile_pic = str(u.profile_picture)
+            if profile_pic.startswith(('http://', 'https://')):
+                profile_image = profile_pic
+            elif USE_S3:
+                s3_key = get_s3_key_from_path(profile_pic)
+                if s3_key:
+                    profile_image = generate_presigned_url_with_cache(
+                        s3_key=s3_key,
+                        expires_in=86400
+                    )
+            else:
+                profile_image = f"{BASE_URL}/media/{profile_pic}"
+        
+        # ✅ Fallback to CollaboratorProfile
         if not profile_image:
             try:
                 collab_profile = CollaboratorProfile.objects.filter(user=u).first()
                 if collab_profile and collab_profile.profile_picture:
                     profile_pic = str(collab_profile.profile_picture)
-                    profile_image = f"{BASE_URL}/media/{profile_pic}"
+                    if USE_S3:
+                        s3_key = get_s3_key_from_path(profile_pic)
+                        if s3_key:
+                            profile_image = generate_presigned_url_with_cache(
+                                s3_key=s3_key,
+                                expires_in=86400
+                            )
+                    else:
+                        profile_image = f"{BASE_URL}/media/{profile_pic}"
             except:
                 pass
         
-        # Get ALL contracts for this collaborator
+        # Get contracts
         contracts = Contract.objects.filter(collaborator=u)
         total_jobs = contracts.count()
         completed_jobs = contracts.filter(status__iexact="completed").count()
-        
-        # Calculate completion rate
         completion_rate = round((completed_jobs / total_jobs * 100), 1) if total_jobs > 0 else 0
-        
-        # ✅ TOTAL BUDGET from ALL contracts (this is the TARGET)
         total_budget = contracts.aggregate(total=Sum('budget'))['total'] or 0.0
         
-        # Calculate earnings from completed contracts
         completed_contracts = contracts.filter(status__iexact="completed")
         total_earnings = completed_contracts.aggregate(total=Sum('budget'))['total'] or 0.0
         avg_job_value = round(total_earnings / completed_jobs, 2) if completed_jobs > 0 else 0
         
-        # Monthly revenue (last 30 days based on updated_at)
         thirty_days_ago = django_timezone.now() - timedelta(days=30)
         monthly_revenue = completed_contracts.filter(
             updated_at__gte=thirty_days_ago
@@ -802,7 +818,7 @@ def get_top_collaborators(limit: int = 5, admin: AdminUser = Depends(get_current
             "completion_rate": completion_rate,
             "avg_job_value": avg_job_value,
             "monthly_revenue": float(monthly_revenue),
-            "total_budget": float(total_budget),  # ← ADD THIS (MUST BE INCLUDED)
+            "total_budget": float(total_budget),
             "joined_date": u.created_at.strftime("%d %b %Y"),
             "profile_image": profile_image,
             "status": u.status
@@ -1045,14 +1061,19 @@ def get_active_projects_table(
     Returns unique projects with milestone progress
     """
     ensure_db_connection()
+    
+    # ✅ Import S3 functions
+    from fastapi_app.routes.storage import (
+        generate_presigned_url_with_cache, 
+        get_s3_key_from_path, 
+        USE_S3
+    )
 
     # Get ALL contracts that are not completed or cancelled
     base_query = Contract.objects.filter(
         ~Q(status__iexact="completed") &
         ~Q(status__iexact="cancelled")
     ).select_related('creator', 'job', 'collaborator').order_by('-updated_at')
-
-    # print(f"🟢 Total active contracts found: {base_query.count()}")
 
     # Apply search filter if provided
     if search:
@@ -1062,14 +1083,13 @@ def get_active_projects_table(
             Q(description__icontains=search) |
             Q(collaborator__full_name__icontains=search)
         )
-        # print(f"🟢 After search filter: {base_query.count()}")
 
     projects = base_query[:limit] if limit > 0 else base_query
 
     data = []
     now = django_timezone.now()
 
-    # ✅ Track seen projects to prevent duplicates
+    # Track seen projects to prevent duplicates
     seen_projects = set()
 
     for p in projects:
@@ -1079,13 +1099,10 @@ def get_active_projects_table(
 
         unique_key = (client_id, project_title)
 
-        # ✅ Skip duplicates
+        # Skip duplicates
         if unique_key in seen_projects:
-            # print(f"⚠️ Skipping duplicate project: {project_title} for client {client_id}")
             continue
         seen_projects.add(unique_key)
-
-        # print(f"🟢 Processing contract {p.id}: status={p.status}")
 
         # Get client info
         client_name = "Unknown"
@@ -1099,11 +1116,39 @@ def get_active_projects_table(
 
         if p.creator:
             client_name = p.creator.full_name or p.creator.email.split('@')[0]
+            
+            # ✅ Get client profile image with S3 support
             if p.creator.profile_picture:
-                if str(p.creator.profile_picture).startswith(('http://', 'https://')):
-                    client_profile_image = str(p.creator.profile_picture)
+                profile_pic = str(p.creator.profile_picture)
+                if profile_pic.startswith(('http://', 'https://')):
+                    client_profile_image = profile_pic
+                elif USE_S3:
+                    s3_key = get_s3_key_from_path(profile_pic)
+                    if s3_key:
+                        client_profile_image = generate_presigned_url_with_cache(
+                            s3_key=s3_key,
+                            expires_in=86400
+                        )
                 else:
-                    client_profile_image = f"{BASE_URL}/media/{str(p.creator.profile_picture)}"
+                    client_profile_image = f"{BASE_URL}/media/{profile_pic}"
+            
+            # Fallback to CreatorProfile if no profile picture in UserData
+            if not client_profile_image and p.creator.role and p.creator.role.lower() == "creator":
+                try:
+                    creator_profile = CreatorProfile.objects.filter(user=p.creator).first()
+                    if creator_profile and creator_profile.profile_picture:
+                        profile_pic = str(creator_profile.profile_picture)
+                        if USE_S3:
+                            s3_key = get_s3_key_from_path(profile_pic)
+                            if s3_key:
+                                client_profile_image = generate_presigned_url_with_cache(
+                                    s3_key=s3_key,
+                                    expires_in=86400
+                                )
+                        else:
+                            client_profile_image = f"{BASE_URL}/media/{profile_pic}"
+                except:
+                    pass
 
         # Check if milestone-based
         is_milestone_based = False
@@ -1123,7 +1168,6 @@ def get_active_projects_table(
             if total_milestones > 0:
                 progress_percent = int((completed_milestones / total_milestones) * 100)
 
-            # Find next pending milestone
             for milestone in milestones_data:
                 if milestone.get('status') in ['in_progress', 'pending', 'submitted']:
                     if milestone.get('due_date'):
@@ -1161,7 +1205,6 @@ def get_active_projects_table(
             except:
                 duration_str = f"Milestone {completed_milestones}/{total_milestones} completed"
         else:
-            # Regular project timeline
             if p.start_date and p.end_date:
                 total_days = (p.end_date - p.start_date).days
                 if total_days > 0:
@@ -1193,7 +1236,6 @@ def get_active_projects_table(
             else:
                 contract_status = f"{completed_milestones}/{total_milestones} Milestones Done"
 
-        # Project category
         project_category = "General"
         if is_milestone_based:
             project_category = "Milestone Based"
@@ -1225,7 +1267,6 @@ def get_active_projects_table(
             "next_milestone_description": next_milestone_description
         })
 
-    # print(f"🟢 Returning {len(data)} unique active projects")
     return data
 
 # ==============================================================================
@@ -1243,46 +1284,81 @@ def get_all_users(
     ensure_db_connection()
    
     query = UserData.objects.all().order_by('-created_at')
-    # ✅ ROLE FILTER
     if role:
         query = query.filter(role__iexact=role)
-    # ✅ STATUS FILTER (FIXED)
     if status:
         query = query.filter(status__iexact=status)
-    # ✅ SEARCH FILTER (IMPROVED)
     if search:
         query = query.filter(
             Q(full_name__icontains=search) |
             Q(email__icontains=search)
         )
     total = query.count()
-    # ✅ PAGINATION
     start = (page - 1) * page_size
     end = start + page_size
     users = query[start:end]
     results = []
+    
+    # ✅ Import S3 functions
+    from fastapi_app.routes.storage import (
+        generate_presigned_url_with_cache, 
+        get_s3_key_from_path, 
+        USE_S3
+    )
+    
     for u in users:
         user_status = getattr(u, 'status', 'Active')
-        # ✅ PROFILE IMAGE LOGIC
         profile_image = None
+        
+        # ✅ Check if user has profile picture in UserData
         if u.profile_picture:
-            if str(u.profile_picture).startswith(('http://', 'https://')):
-                profile_image = str(u.profile_picture)
+            profile_pic = str(u.profile_picture)
+            if profile_pic.startswith(('http://', 'https://')):
+                profile_image = profile_pic
+            elif USE_S3:
+                # ✅ Generate S3 presigned URL
+                s3_key = get_s3_key_from_path(profile_pic)
+                if s3_key:
+                    profile_image = generate_presigned_url_with_cache(
+                        s3_key=s3_key,
+                        expires_in=86400  # 24 hours
+                    )
             else:
-                profile_image = f"{BASE_URL}/media/{str(u.profile_picture)}"
-        # Fallback to role-based profile
+                profile_image = f"{BASE_URL}/media/{profile_pic}"
+        
+        # ✅ Fallback to role-based profile (CreatorProfile or CollaboratorProfile)
         if not profile_image:
             try:
                 if u.role and u.role.lower() == "creator":
                     creator_profile = CreatorProfile.objects.filter(user=u).first()
                     if creator_profile and creator_profile.profile_picture:
-                        profile_image = f"{BASE_URL}/media/{str(creator_profile.profile_picture)}"
+                        profile_pic = str(creator_profile.profile_picture)
+                        if USE_S3:
+                            s3_key = get_s3_key_from_path(profile_pic)
+                            if s3_key:
+                                profile_image = generate_presigned_url_with_cache(
+                                    s3_key=s3_key,
+                                    expires_in=86400
+                                )
+                        else:
+                            profile_image = f"{BASE_URL}/media/{profile_pic}"
+                            
                 elif u.role and u.role.lower() == "collaborator":
                     collab_profile = CollaboratorProfile.objects.filter(user=u).first()
                     if collab_profile and collab_profile.profile_picture:
-                        profile_image = f"{BASE_URL}/media/{str(collab_profile.profile_picture)}"
-            except:
-                pass
+                        profile_pic = str(collab_profile.profile_picture)
+                        if USE_S3:
+                            s3_key = get_s3_key_from_path(profile_pic)
+                            if s3_key:
+                                profile_image = generate_presigned_url_with_cache(
+                                    s3_key=s3_key,
+                                    expires_in=86400
+                                )
+                        else:
+                            profile_image = f"{BASE_URL}/media/{profile_pic}"
+            except Exception as e:
+                logger.warning(f"Error getting role profile for user {u.id}: {e}")
+        
         results.append({
             "id": u.id,
             "full_name": u.full_name or "",
@@ -1293,13 +1369,13 @@ def get_all_users(
             "last_active": "Recently",
             "profile_image": profile_image
         })
+    
     return {
         "total_users": total,
         "page": page,
         "page_size": page_size,
         "data": results
     }
-
 # ==============================================================================
 # CREATE USER
 # ==============================================================================
@@ -1585,16 +1661,10 @@ def get_subscription_history(
     admin: AdminUser = Depends(get_current_admin)
 ):
     """Get subscription history from SubscriptionHistory table with user details and profile images"""
-    # Ensure database connection
     ensure_db_connection()
    
     try:
-        # print("🔍 Fetching subscription history from SubscriptionHistory table...")
-       
-        # Get from SubscriptionHistory with related user data
         query = SubscriptionHistory.objects.select_related('user').all().order_by('-created_at')
-       
-        # print(f"📊 Total subscription history records found: {query.count()}")
        
         if search:
             query = query.filter(
@@ -1604,66 +1674,83 @@ def get_subscription_history(
             )
        
         history_records = query[:limit]
-        # print(f"📊 Subscription history after filtering: {len(history_records)}")
-       
         result = []
+        
+        # ✅ Import S3 functions
+        from fastapi_app.routes.storage import (
+            generate_presigned_url_with_cache, 
+            get_s3_key_from_path, 
+            USE_S3
+        )
        
         for idx, history in enumerate(history_records):
             user = history.user
-            # print(f"🔄 Processing history {idx+1} for user: {user.email if user else 'No user'}")
            
             if not user:
-                # print(f"⚠️ History record {history.id} has no associated user, skipping")
                 continue
            
-            # Get profile image from UserData (works for both creators and collaborators)
             profile_image = None
             avatar_color = "#8B5CF6"  # Default purple
            
             # Set avatar color based on role
             if user.role and user.role.lower() == "creator":
-                avatar_color = "#8B5CF6"  # Purple for creators
+                avatar_color = "#8B5CF6"
             elif user.role and user.role.lower() == "collaborator":
-                avatar_color = "#10B981"  # Green for collaborators
+                avatar_color = "#10B981"
            
-            # Check if user has a profile picture in UserData
+            # ✅ Check UserData profile picture first
             if user.profile_picture:
                 try:
-                    # Get just the filename
                     profile_pic = str(user.profile_picture)
-                    # print(f"📸 User has profile picture: {profile_pic}")
-                   
-                    # Build the full URL for the profile image
-                    profile_image = f"{BASE_URL}/media/{profile_pic}"
-                    # print(f"✅ Full profile image URL: {profile_image}")
+                    if USE_S3:
+                        s3_key = get_s3_key_from_path(profile_pic)
+                        if s3_key:
+                            profile_image = generate_presigned_url_with_cache(
+                                s3_key=s3_key,
+                                expires_in=86400
+                            )
+                    else:
+                        profile_image = f"{BASE_URL}/media/{profile_pic}"
                 except Exception as e:
-                    pass
+                    logger.warning(f"Error getting UserData profile for user {user.id}: {e}")
            
-            # If no profile picture in UserData, try role-specific profiles as fallback
+            # ✅ Fallback to CreatorProfile or CollaboratorProfile
             if not profile_image:
                 if user.role and user.role.lower() == "creator":
                     try:
                         creator_profile = CreatorProfile.objects.filter(user=user).first()
-                        if creator_profile and hasattr(creator_profile, 'profile_picture') and creator_profile.profile_picture:
+                        if creator_profile and creator_profile.profile_picture:
                             profile_pic = str(creator_profile.profile_picture)
-                            profile_image = f"{BASE_URL}/media/{profile_pic}"
-                            # print(f"✅ Found creator profile image: {profile_image}")
+                            if USE_S3:
+                                s3_key = get_s3_key_from_path(profile_pic)
+                                if s3_key:
+                                    profile_image = generate_presigned_url_with_cache(
+                                        s3_key=s3_key,
+                                        expires_in=86400
+                                    )
+                            else:
+                                profile_image = f"{BASE_URL}/media/{profile_pic}"
                     except Exception as e:
-                        # print(f"❌ Error fetching creator profile: {e}")
-                        pass
+                        logger.warning(f"Error getting CreatorProfile for user {user.id}: {e}")
 
                 elif user.role and user.role.lower() == "collaborator":
                     try:
                         collab_profile = CollaboratorProfile.objects.filter(user=user).first()
-                        if collab_profile and hasattr(collab_profile, 'profile_picture') and collab_profile.profile_picture:
+                        if collab_profile and collab_profile.profile_picture:
                             profile_pic = str(collab_profile.profile_picture)
-                            profile_image = f"{BASE_URL}/media/{profile_pic}"
-                            # print(f"✅ Found collaborator profile image: {profile_image}")
+                            if USE_S3:
+                                s3_key = get_s3_key_from_path(profile_pic)
+                                if s3_key:
+                                    profile_image = generate_presigned_url_with_cache(
+                                        s3_key=s3_key,
+                                        expires_in=86400
+                                    )
+                            else:
+                                profile_image = f"{BASE_URL}/media/{profile_pic}"
                     except Exception as e:
-                        # print(f"❌ Error fetching collaborator profile: {e}")
-                        pass
+                        logger.warning(f"Error getting CollaboratorProfile for user {user.id}: {e}")
 
-            # Get username from profile or email
+            # Get username
             username = user.email.split('@')[0] if user.email else "user"
            
             if user.role and user.role.lower() == "creator":
@@ -1671,35 +1758,21 @@ def get_subscription_history(
                     creator_profile = CreatorProfile.objects.filter(user=user).first()
                     if creator_profile and creator_profile.creator_name:
                         username = creator_profile.creator_name
-                        # print(f"✅ Found creator username: {username}")
-                except Exception as e:
-                    # print(f"❌ Error fetching creator username: {e}")
+                except Exception:
                     pass
-
             elif user.role and user.role.lower() == "collaborator":
                 try:
                     collab_profile = CollaboratorProfile.objects.filter(user=user).first()
                     if collab_profile and collab_profile.name:
                         username = collab_profile.name
-                        # print(f"✅ Found collaborator username: {username}")
-                except Exception as e:
-                    # print(f"❌ Error fetching collaborator username: {e}")
+                except Exception:
                     pass
 
-            # Construct full name - Now using full_name directly
             full_name = user.full_name or ""
             if not full_name:
                 full_name = user.email.split('@')[0] if user.email else "User"
            
-            # Format date
             date_str = history.start_date.strftime("%B %d, %Y") if history.start_date else "N/A"
-           
-            # Get plan name
-            plan_name = history.plan_name or "Free"
-           
-            # Get invoice number and stripe subscription ID
-            invoice_number = history.invoice_number
-            stripe_subscription_id = history.stripe_subscription_id
            
             result.append({
                 "id": history.id,
@@ -1709,24 +1782,23 @@ def get_subscription_history(
                 "username": username,
                 "role": user.role or "Creator",
                 "date": date_str,
-                "plan": plan_name,
+                "plan": history.plan_name or "Free",
                 "plan_price": float(history.plan_price) if history.plan_price else 0,
                 "duration": history.duration,
                 "start_date": history.start_date.isoformat() if history.start_date else None,
                 "end_date": history.end_date.isoformat() if history.end_date else None,
                 "status": history.status,
                 "action": history.action,
-                "invoice_number": invoice_number,
-                "stripe_subscription_id": stripe_subscription_id,
+                "invoice_number": history.invoice_number,
+                "stripe_subscription_id": history.stripe_subscription_id,
                 "profile_image": profile_image,
                 "avatar_color": avatar_color
             })
        
-        # print(f"✅ Returning {len(result)} subscription history records")
         return {"history": result}
        
     except Exception as e:
-        # print(f"❌ Error in get_subscription_history: {e}")
+        logger.error(f"Error in get_subscription_history: {e}")
         import traceback
         traceback.print_exc()
         return {"history": []}

@@ -1576,12 +1576,14 @@ def update_contract_status(
     else:
         contract.status_reason = None
 
+    # Handle completed status - convert to pending for creator approval
     if new_status == "completed":
         new_status = "pending"
         status_message = "Work marked as pending for creator approval"
-
+        actual_status_for_redirect = "pending"  # Track actual status for URL
     else:
         status_message = f"Contract status updated to {new_status}"
+        actual_status_for_redirect = new_status
 
     contract.status = new_status
     contract.save()
@@ -1592,22 +1594,34 @@ def update_contract_status(
         else "Project"
     )
 
+    # URL mapping for different statuses
+    status_url_mapping = {
+        "pending": "/pendingstatuscontracts",
+        "awaiting": "/awaitingcontracts",
+        "in_progress": "/activecontracts",
+        "completed": "/completedcontracts",
+        "cancelled": "/cancelledcontracts"
+    }
+
+    # Get the appropriate URL for the actual status
+    creator_url = status_url_mapping.get(
+        actual_status_for_redirect,
+        "/activecontracts"  # Default fallback
+    )
+
     notification_messages = {
         "pending": (
             f"{contract.collaborator.full_name} moved "
             f"'{job_title}' to Pending"
         ),
-
         "awaiting": (
             f"{contract.collaborator.full_name} moved "
             f"'{job_title}' to Awaiting"
         ),
-
         "in_progress": (
             f"{contract.collaborator.full_name} started working on "
             f"'{job_title}'"
         ),
-
         "cancelled": (
             f"{contract.collaborator.full_name} cancelled "
             f"'{job_title}'"
@@ -1615,7 +1629,7 @@ def update_contract_status(
     }
 
     creator_message = notification_messages.get(
-        new_status,
+        actual_status_for_redirect,
         f"{contract.collaborator.full_name} updated the contract status"
     )
 
@@ -1625,6 +1639,7 @@ def update_contract_status(
     )
 
     try:
+        # Creator notification with appropriate URL
         create_notification(
             user=contract.creator,
             sender=contract.collaborator,
@@ -1633,9 +1648,10 @@ def update_contract_status(
             message=creator_message,
             contract=contract,
             job=contract.job,
-            url="/activecontracts"
+            url=creator_url  # Dynamic URL based on status
         )
 
+        # Collaborator notification
         create_notification(
             user=contract.collaborator,
             sender=contract.creator,
@@ -1658,7 +1674,6 @@ def update_contract_status(
         "status_reason": contract.status_reason,
         "old_status": old_status
     }
-
 
 # ==========================================================
 # DELETE CONTRACT

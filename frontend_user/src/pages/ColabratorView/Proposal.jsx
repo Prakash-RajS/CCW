@@ -146,49 +146,61 @@ export default function Proposal() {
   };
 
   // ========== ATTACHMENT HANDLER ==========
-  const handleAttachmentDownload = async (att, type = 'job') => {
-    try {
-      const filename = getAttachmentFileName(att);
-      let response;
-      
-      if (type === 'job' || att.includes('job_attachments/')) {
-        response = await api.get(`/jobs/download-attachment/${job?.id}/${filename}`);
-      } else if (type === 'proposal' || att.includes('proposal_attachments/')) {
+ const handleAttachmentDownload = async (att, type = 'job') => {
+  try {
+    const filename = getAttachmentFileName(att);
+    const loadingToast = toast.loading("Preparing download...");
+    
+    // ✅ Get the download URL from backend
+    let response;
+    
+    if (type === 'job' || att.includes('job_attachments/')) {
+      response = await api.get(`/jobs/download-attachment/${job?.id}/${filename}`);
+    } else if (type === 'proposal' || att.includes('proposal_attachments/')) {
+      response = await api.get(`/proposals/download-attachment/${proposal?.id}/${filename}`);
+    } else {
+      if (proposal?.id) {
         response = await api.get(`/proposals/download-attachment/${proposal?.id}/${filename}`);
+      } else if (job?.id) {
+        response = await api.get(`/jobs/download-attachment/${job?.id}/${filename}`);
       } else {
-        if (proposal?.id) {
-          response = await api.get(`/proposals/download-attachment/${proposal?.id}/${filename}`);
-        } else if (job?.id) {
-          response = await api.get(`/jobs/download-attachment/${job?.id}/${filename}`);
-        } else {
-          toast.error("No ID found for attachment");
-          return;
-        }
+        toast.dismiss(loadingToast);
+        toast.error("No ID found for attachment");
+        return;
       }
-      
-      if (response.data && response.data.download_url) {
-        const isViewable = /\.(pdf|jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
-        
-        if (isViewable) {
-          window.open(response.data.download_url, '_blank');
-          toast.success('Opening file...');
-        } else {
-          const link = document.createElement('a');
-          link.href = response.data.download_url;
-          link.download = filename;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          toast.success('Download started!');
-        }
-      } else {
-        toast.error('Failed to get download URL');
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Failed to download attachment');
     }
-  };
+    
+    toast.dismiss(loadingToast);
+    
+    if (response.data && response.data.download_url) {
+      // ✅ SIMPLE APPROACH: Just open the URL in a new tab
+      // The browser will handle download/view
+      window.open(response.data.download_url, '_blank');
+      toast.success('Opening file...');
+      return;
+    }
+    
+    // ✅ Handle blob response (local mode)
+    if (response.data instanceof Blob) {
+      const blobUrl = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      toast.success(`Downloaded ${filename}`);
+      return;
+    }
+    
+    toast.error('Unexpected response format');
+    
+  } catch (error) {
+    console.error('Download error:', error);
+    toast.error('Failed to download file');
+  }
+};
 
   // ========== HELPER FUNCTIONS ==========
   const getAttachmentUrl = (att) => {

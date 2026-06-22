@@ -257,49 +257,110 @@ const Overview = () => {
 };
 
   const validateEmailFormat = (value) => {
-    const email = value.trim();
-    if (!email) return "";
+  const email = value.trim().toLowerCase();
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return "Please enter a valid email address (e.g., user@domain.com)";
+  if (!email) return "";
+
+  // Basic email format
+  const emailRegex =
+    /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/;
+
+  if (!emailRegex.test(email)) {
+    return "Please enter a valid email address";
+  }
+
+  // Invalid patterns
+  if (
+    email.includes("..") ||
+    email.includes(".@") ||
+    email.includes("@.") ||
+    email.startsWith(".") ||
+    email.endsWith(".")
+  ) {
+    return "Invalid email format";
+  }
+
+  const [localPart, domain] = email.split("@");
+
+  // Username validations
+  if (localPart.length < 2) {
+    return "Email username is too short";
+  }
+
+  if (/(.)\1{5,}/.test(localPart)) {
+    return "Email appears to be invalid";
+  }
+
+  if (/(\.\.|__|--|\+\+)/.test(localPart)) {
+    return "Email contains invalid characters";
+  }
+
+  // Disposable domains
+  const invalidDomains = [
+    "email.com",
+    "example.com",
+    "test.com",
+    "domain.com",
+    "mailinator.com",
+    "tempmail.com",
+    "guerrillamail.com",
+    "10minutemail.com",
+    "yopmail.com",
+    "fakeemail.com",
+    "temp-mail.org",
+    "throwawayemail.com",
+    "dispostable.com",
+    "maildrop.cc"
+  ];
+
+  if (invalidDomains.includes(domain)) {
+    return "Disposable or invalid email domains are not allowed";
+  }
+
+  // Provider typo detection
+  const providers = [
+    "gmail.com",
+    "yahoo.com",
+    "outlook.com",
+    "hotmail.com",
+    "icloud.com"
+  ];
+
+  for (const provider of providers) {
+    const distance = levenshtein(domain, provider);
+
+    if (distance > 0 && distance <= 2) {
+      return `Did you mean ${localPart}@${provider}?`;
     }
+  }
 
-    if (email.includes("..") || email.includes(".@") || email.includes("@.")) {
-      return "Invalid email format";
-    }
+  // Validate TLD
+  const validTlds = [
+    "com",
+    "in",
+    "org",
+    "net",
+    "edu",
+    "gov",
+    "io",
+    "ai",
+    "co",
+    "co.in"
+  ];
 
-    const [localPart, domain] = email.toLowerCase().split("@");
+  const domainParts = domain.split(".");
+  const lastPart = domainParts[domainParts.length - 1];
+  const lastTwoParts = domainParts.slice(-2).join(".");
 
-    if (localPart.length < 2) return "Email username is too short";
-    if (/(.)\1{5,}/.test(localPart)) return "Email appears to be invalid";
-    if (/(\.\.|__|--|\+\+)/.test(localPart)) return "Email contains invalid characters";
+  if (
+    !validTlds.includes(lastPart) &&
+    !validTlds.includes(lastTwoParts)
+  ) {
+    return "Please enter a valid domain extension";
+  }
 
-    const invalidDomains = [
-      "email.com", "example.com", "test.com", "domain.com",
-      "mailinator.com", "tempmail.com", "guerrillamail.com",
-      "10minutemail.com", "yopmail.com", "fakeemail.com",
-      "temp-mail.org", "throwawayemail.com", "dispostable.com",
-      "maildrop.cc"
-    ];
-
-    if (invalidDomains.includes(domain)) {
-      return "Disposable or invalid email domains are not allowed";
-    }
-
-    const providers = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com"];
-    for (const provider of providers) {
-      const distance = levenshtein(domain, provider);
-      if (distance > 0 && distance <= 2) {
-        return `Did you mean ${localPart}@${provider}?`;
-      }
-    }
-
-    const tld = domain.split(".").pop();
-    if (tld.length < 2) return "Please use a valid domain extension";
-    return "";
-  };
-
+  return "";
+};  
   const validateIfscFormat = (value) => {
   if (!value) return '';
   const ifscRegex = /^[A-Za-z]{4}0[A-Za-z0-9]{6}$/;
@@ -897,11 +958,11 @@ useEffect(() => {
       return;
     }
 
-    if (Number(withdrawAmount) <= 0) {
-      setWithdrawError("Amount must be greater than zero");
-      toast.error("Invalid amount", "Amount must be greater than zero.");
-      return;
-    }
+    if (Number(withdrawAmount) < 1) {
+  setWithdrawError("Minimum withdrawal amount is ₹1");
+  toast.error("Invalid amount", "Minimum withdrawal amount is ₹1.");
+  return;
+}
 
     if (Number(withdrawAmount) > walletBalance) {
   setWithdrawError(
@@ -958,29 +1019,40 @@ useEffect(() => {
   };
 
   const validateWithdrawAmount = (value) => {
-    if (value === '') {
-      setWithdrawError('');
-      return true;
-    }
-    const numValue = Number(value);
-    if (isNaN(numValue)) {
-      setWithdrawError('Please enter a valid number');
-      return false;
-    }
-    if (numValue <= 0) {
-      setWithdrawError('Amount cannot be negative or zero');
-      return false;
-    }
-    if (numValue > walletBalance) {
-  setWithdrawError(
-    `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
-  );
-  return false;
-}
+  if (value === '') {
     setWithdrawError('');
     return true;
-  };
+  }
 
+  const numValue = Number(value);
+
+  if (isNaN(numValue)) {
+    setWithdrawError('Please enter a valid amount');
+    return false;
+  }
+
+  // Minimum ₹1
+  if (numValue < 1) {
+    setWithdrawError('Minimum withdrawal amount is ₹1');
+    return false;
+  }
+
+  // Maximum ₹100000
+  if (numValue > 100000) {
+    setWithdrawError('Maximum withdrawal amount is ₹100000');
+    return false;
+  }
+
+  if (numValue > walletBalance) {
+    setWithdrawError(
+      `Entered amount exceeds available balance (₹${formatIndianRupee(walletBalance)})`
+    );
+    return false;
+  }
+
+  setWithdrawError('');
+  return true;
+};
   const handleWithdrawAmountChange = (e) => {
   let value = e.target.value;
 

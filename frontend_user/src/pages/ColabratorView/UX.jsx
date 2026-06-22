@@ -34,24 +34,19 @@ export default function UX() {
   const [creatorRating, setCreatorRating] = useState(0);
   const [creatorReviewsCount, setCreatorReviewsCount] = useState(0);
   const [reviews, setReviews] = useState([]);
-  const [downloadingFiles, setDownloadingFiles] = useState(new Set()); // Track which files are downloading
-  const [downloadProgress, setDownloadProgress] = useState({}); // Optional: track progress
+  const [downloadingFiles, setDownloadingFiles] = useState(new Set());
+  const [downloadProgress, setDownloadProgress] = useState({});
 
   useEffect(() => {
-
     // INSTANT RENDER
     if (location.state?.job) {
-
       const jobData = location.state.job;
-
       setJob(jobData);
-
       setCreator(
         jobData.creator ||
         jobData.employer ||
         null
       );
-
       setLoading(false);
       setCreatorLoading(false);
 
@@ -67,7 +62,6 @@ export default function UX() {
     if (location.state?.jobId) {
       fetchJobDetails(location.state.jobId);
     }
-
   }, [location.state]);
 
   const fetchJobDetails = async (jobId) => {
@@ -94,113 +88,102 @@ export default function UX() {
     }
   };
 
-  const downloadFile = async (url, fileName) => {
-    // Add to downloading set
-    setDownloadingFiles(prev => new Set([...prev, fileName]));
-
+  // ✅ FIXED: Use the same approach as Proposal.jsx
+  const downloadFile = async (attachmentPath, filename) => {
+    let loadingToast = null;
     try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Failed to fetch file");
+      loadingToast = toast.loading("Preparing download...");
+      
+      // Add to downloading set
+      setDownloadingFiles(prev => new Set([...prev, filename]));
 
-      // Get total size for progress (optional)
-      const contentLength = response.headers.get('content-length');
-      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      // ✅ Get the download URL from backend (same as Proposal.jsx)
+      const response = await api.get(`/jobs/download-attachment/${job?.id}/${filename}`);
+      
+      toast.dismiss(loadingToast);
 
-      const reader = response.body.getReader();
-      const chunks = [];
-      let received = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        chunks.push(value);
-        received += value.length;
-
-        // Update progress if total size is known
-        if (total > 0) {
-          setDownloadProgress(prev => ({
-            ...prev,
-            [fileName]: (received / total) * 100
-          }));
+      // ✅ Handle S3 response with download_url
+      if (response.data && response.data.download_url) {
+        const downloadUrl = response.data.download_url;
+        const isViewable = /\.(pdf|jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
+        
+        if (isViewable) {
+          // For viewable files, open in new tab
+          window.open(downloadUrl, '_blank');
+          toast.success('Opening file...');
+        } else {
+          // For other files, download directly
+          const link = document.createElement('a');
+          link.href = downloadUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          toast.success('Download started!');
         }
+        return;
       }
 
-      const blob = new Blob(chunks);
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
+      // ✅ Handle blob response (local mode)
+      if (response.data instanceof Blob || response.data instanceof ArrayBuffer) {
+        const blob = new Blob([response.data]);
+        const url = URL.createObjectURL(blob);
+        const isViewable = /\.(pdf|jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
+        
+        if (isViewable) {
+          window.open(url, '_blank');
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+          toast.success('Opening file...');
+        } else {
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          toast.success('Download started!');
+        }
+        return;
+      }
 
-    } catch (err) {
-      console.error("Download failed:", err);
-      toast.error(`Failed to download ${fileName}`);
+      toast.error('Unexpected response format');
+
+    } catch (error) {
+      if (loadingToast) toast.dismiss(loadingToast);
+      console.error('Download error:', error);
+      
+      // ✅ Fallback: Try direct URL approach
+      try {
+        // If it's a relative path, construct the full URL
+        let fallbackUrl = attachmentPath;
+        if (!fallbackUrl.startsWith('http://') && !fallbackUrl.startsWith('https://')) {
+          const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+          fallbackUrl = `${baseUrl}/jobs/download-attachment/${job?.id}/${filename}`;
+        }
+        
+        toast.info('Trying alternative download...');
+        window.open(fallbackUrl, '_blank');
+      } catch (fallbackError) {
+        toast.error('Failed to download file');
+      }
     } finally {
-      // Remove from downloading set
-      setDownloadingFiles(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(fileName);
-        return newSet;
-      });
-      // Remove progress
-      setDownloadProgress(prev => {
-        const newProgress = { ...prev };
-        delete newProgress[fileName];
-        return newProgress;
-      });
+      // Remove from downloading set after a delay
+      setTimeout(() => {
+        setDownloadingFiles(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(filename);
+          return newSet;
+        });
+        setDownloadProgress(prev => {
+          const newProgress = { ...prev };
+          delete newProgress[filename];
+          return newProgress;
+        });
+      }, 1000);
     }
   };
-  const DownloadButton = ({ url, fileName, label }) => {
-    const isDownloading = downloadingFiles.has(fileName);
-    const progress = downloadProgress[fileName] || 0;
 
-    return (
-      <a
-        href="#"
-        onClick={async (e) => {
-          e.preventDefault();
-          await downloadFile(url, fileName);
-        }}
-        className="flex items-center gap-2 text-[13px] text-[#5B2D91] hover:underline"
-      >
-        {isDownloading ? (
-          <>
-            <div className="relative w-4 h-4">
-              <svg className="w-4 h-4 animate-spin text-[#5B2D91]" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-              {progress > 0 && progress < 100 && (
-                <div
-                  className="absolute inset-0 rounded-full border-2 border-[#5B2D91]"
-                  style={{
-                    background: `conic-gradient(#5B2D91 ${progress}%, transparent ${progress}%)`,
-                    clipPath: 'circle(50%)'
-                  }}
-                />
-              )}
-            </div>
-            <span className="text-[#5B2D91]">
-              {progress > 0 && progress < 100 ? `${Math.round(progress)}%` : 'Downloading...'}
-            </span>
-          </>
-        ) : (
-          <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            {label || fileName}
-          </>
-        )}
-      </a>
-    );
-  };
   const fetchCreatorDetails = async (creatorId) => {
     if (!creatorId) {
       setCreatorLoading(false);
@@ -322,14 +305,12 @@ export default function UX() {
     } catch { return "Recently"; }
   };
 
-  // Updated formatBudget function - fixed price shows only the price, not a range
   const formatBudget = () => {
     if (!job) return '₹0.00';
 
     const isFixed = job.budget_type === 'fixed' || job.budget_type === 'Fixed';
 
     if (isFixed) {
-      // For fixed price, show only the budget_from value (the actual fixed price)
       if (job.budget_from !== null && job.budget_from > 0) {
         return `₹${job.budget_from}`;
       } else if (job.budget_to !== null && job.budget_to > 0) {
@@ -339,7 +320,6 @@ export default function UX() {
       }
       return '₹0.00';
     } else {
-      // For hourly, show range or single value
       if (job.budget_from && job.budget_to && job.budget_from !== job.budget_to) {
         return `₹${job.budget_from} - ₹${job.budget_to}`;
       } else if (job.budget_from) {
@@ -387,46 +367,26 @@ export default function UX() {
     return Array.isArray(skills) ? skills : [];
   };
 
-
-
-  // Build correct attachment URL
-  // Build correct attachment URL - Use relative URLs for same-origin
-  const getAttachmentUrl = (att) => {
-    if (!att) return null;
-
-    // If it's already a relative URL starting with /collaborator
-    if (att.startsWith('/collaborator/')) {
-      return att;
-    }
-
-    // If it's an absolute URL from our server, extract the path
-    if (att.includes('/collaborator/files/')) {
-      const match = att.match(/\/collaborator\/files\/(.+)$/);
-      if (match) {
-        return `/collaborator/files/${match[1]}`;
-      }
-    }
-
-    // Handle media URLs
-    if (att.includes('/media/')) {
-      const match = att.match(/\/media\/(.+)$/);
-      if (match) {
-        return `/collaborator/files/${match[1]}`;
-      }
-    }
-
-    // Handle direct paths
-    let clean = att.replace(/^\/+/, '');
-    if (clean.startsWith('media/')) {
-      clean = clean.slice(6);
-    }
-
-    // Use relative URL (faster, no CORS)
-    return `/collaborator/files/${clean}`;
-  };
+  // ✅ Get attachment filename - same as Proposal.jsx
   const getAttachmentFileName = (att) => {
     if (!att) return 'Attachment';
-    return att.split('/').pop() || 'Attachment';
+    // Handle both URL formats
+    let filename = att.split('/').pop() || 'Attachment';
+    // Remove query parameters if present
+    return filename.split('?')[0];
+  };
+
+  // ✅ Get attachment URL - same as Proposal.jsx
+  const getAttachmentUrl = (att) => {
+    if (!att) return null;
+    
+    // If it's already a fully-qualified URL (S3 presigned URL), use it as-is
+    if (att.startsWith('http://') || att.startsWith('https://')) {
+      return att;
+    }
+    
+    // Otherwise, return the path as-is (will be handled by download endpoint)
+    return att;
   };
 
   if (loading && !job) {
@@ -571,12 +531,14 @@ export default function UX() {
                 )}
               </div>
 
-              {/* Attachments */}
+              {/* ✅ Attachments - Using same approach as Proposal.jsx */}
               {(() => {
                 const hasWorkAtt = !!job?.work_attachment;
                 const hasExtLink = !!job?.external_file_link;
                 const hasAtts = Array.isArray(job?.attachments) && job.attachments.length > 0;
+                
                 if (!hasWorkAtt && !hasExtLink && !hasAtts) return null;
+                
                 return (
                   <>
                     <div className="h-px bg-gray-100 mb-4"></div>
@@ -601,19 +563,15 @@ export default function UX() {
                         )}
 
                         {hasWorkAtt && (() => {
-                          const url = getAttachmentUrl(job.work_attachment);
                           const fileName = getAttachmentFileName(job.work_attachment);
                           const isDownloading = downloadingFiles.has(fileName);
                           const progress = downloadProgress[fileName] || 0;
 
                           return (
-                            <a
-                              href="#"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                await downloadFile(url, fileName);
-                              }}
-                              className="flex items-center gap-2 text-[13px] text-[#5B2D91] hover:underline"
+                            <button
+                              onClick={() => downloadFile(job.work_attachment, fileName)}
+                              className="flex items-center gap-2 text-[13px] text-[#5B2D91] hover:underline text-left"
+                              disabled={isDownloading}
                             >
                               {isDownloading ? (
                                 <>
@@ -646,25 +604,21 @@ export default function UX() {
                                   {fileName}
                                 </>
                               )}
-                            </a>
+                            </button>
                           );
                         })()}
 
                         {hasAtts && job.attachments.map((att, i) => {
-                          const url = getAttachmentUrl(att);
                           const fileName = getAttachmentFileName(att);
                           const isDownloading = downloadingFiles.has(fileName);
                           const progress = downloadProgress[fileName] || 0;
 
                           return (
-                            <a
-                              key={i}
-                              href="#"
-                              onClick={async (e) => {
-                                e.preventDefault();
-                                await downloadFile(url, fileName);
-                              }}
-                              className="flex items-center gap-2 text-[13px] text-[#5B2D91] hover:underline"
+                            <button
+                              key={`job-att-${i}`}
+                              onClick={() => downloadFile(att, fileName)}
+                              className="flex items-center gap-2 text-[13px] text-[#5B2D91] hover:underline text-left"
+                              disabled={isDownloading}
                             >
                               {isDownloading ? (
                                 <>
@@ -697,7 +651,7 @@ export default function UX() {
                                   {fileName}
                                 </>
                               )}
-                            </a>
+                            </button>
                           );
                         })}
                       </div>
