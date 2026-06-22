@@ -231,9 +231,7 @@ async def save_creator_profile(
             try:
                 s3_key = await save_profile_pic(profile_picture, str(user_id))
                 user.profile_picture = s3_key
-                # print(f"✅ Profile picture saved to S3: {s3_key}")
             except Exception as e:
-                # print(f"⚠️ S3 upload failed, using local storage: {e}")
                 # Fallback to local storage
                 ext = PathLib(profile_picture.filename).suffix
                 filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
@@ -253,7 +251,6 @@ async def save_creator_profile(
                 ContentFile(content),
                 save=True
             )
-            # print(f"✅ Profile picture saved locally: {filename}")
 
     # ---------------- Save / Update Creator Profile ----------------
     defaults = {
@@ -277,13 +274,11 @@ async def save_creator_profile(
         )
     )()
 
-    # ---------------- SAVE PORTFOLIO INTO PortfolioItem (UPDATED FOR S3) ----------------
+    # ---------------- SAVE PORTFOLIO INTO PortfolioItem ----------------
     if portfolio_uploads:
         try:
-            # Read the file content
             content = await portfolio_uploads.read()
 
-            # Create the portfolio item
             portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
                 user=user,
                 role="creator",
@@ -292,19 +287,11 @@ async def save_creator_profile(
             )
 
             if use_s3:
-                # Use S3 storage for portfolio
                 from fastapi_app.routes.storage import save_portfolio_upload_creator
-                ext = PathLib(portfolio_uploads.filename).suffix
-                # Generate a unique filename
-                filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
-                # Save to S3 using storage.py function
                 s3_key = await save_portfolio_upload_creator(portfolio_uploads, str(user_id), str(portfolio_item.id))
-                # Update the portfolio item with S3 key
                 portfolio_item.file.name = s3_key
                 await sync_to_async(portfolio_item.save)()
-                # print(f"✅ Portfolio saved to S3: {s3_key}")
             else:
-                # Use local storage
                 ext = PathLib(portfolio_uploads.filename).suffix
                 filename = f"{user_id}_{generate_random_digits()}{ext}"
                 await sync_to_async(portfolio_item.file.save)(
@@ -312,12 +299,9 @@ async def save_creator_profile(
                     ContentFile(content),
                     save=True,
                 )
-                # print(f"✅ Portfolio saved locally: {filename}")
 
         except Exception as e:
             pass
-            # print(f"❌ Error saving portfolio: {e}")
-            # If portfolio fails, still continue with profile creation
 
     elif portfolio_link and portfolio_link.strip():
         await sync_to_async(PortfolioItem.objects.create)(
@@ -332,31 +316,47 @@ async def save_creator_profile(
     user.full_name = creator_name 
     await sync_to_async(user.save)()
 
-    # Ensure Basic plan exists for creator role
+    # ========== SUBSCRIPTION CREATION - FIXED ==========
+    # Get or create Basic plan for creator role
     basic_plan = await sync_to_async(get_or_create_basic_plan)("creator")
-
+    
+    # Debug logging
+    print(f"🔍 Basic plan: ID={basic_plan.id}, Name={basic_plan.name}, Price={basic_plan.price}")
+    
     # Create a UserSubscription only if the user doesn't have one yet
     subscription_exists = await sync_to_async(
         lambda: UserSubscription.objects.filter(user=user).exists()
     )()
+    
     if not subscription_exists:
         now = datetime.now()
+        
+        # ✅ Check if it's a Basic plan
+        is_basic = basic_plan.price == 0 or "basic" in basic_plan.name.lower()
+        
+        # ✅ Create subscription with explicit end_date logic
         subscription = await sync_to_async(UserSubscription.objects.create)(
-    user=user,
-    email=user.email or "",
-    current_plan=basic_plan.name,
-    plan_name=basic_plan.name,
-    duration=basic_plan.duration.capitalize(),
-    plan_price=basic_plan.price,
-    plan_start_date=now,
-    plan_end_date=now + timedelta(days=30),
-    renewal_date=now + timedelta(days=30),
-    status="active",
-    is_trial=False,
-)
-        # print(f"✅ Created Basic subscription for creator {user.email}")
-
-        # ─── CREATE SUBSCRIPTION HISTORY ────────────────────────────────
+            user=user,
+            email=user.email or "",
+            current_plan=basic_plan.name,
+            plan_name=basic_plan.name,
+            duration=basic_plan.duration.capitalize(),
+            plan_price=basic_plan.price,
+            plan_start_date=now,
+            plan_end_date=None if is_basic else now + timedelta(days=30),  # ✅ Only set end date for paid plans
+            renewal_date=None if is_basic else now + timedelta(days=30),   # ✅ Only set renewal for paid plans
+            status="active",
+            is_trial=False,
+        )
+        
+        # Debug: Verify what was saved
+        print(f"✅ Subscription created: ID={subscription.id}")
+        print(f"   plan_end_date={subscription.plan_end_date}")
+        print(f"   renewal_date={subscription.renewal_date}")
+        print(f"   plan_price={subscription.plan_price}")
+        print(f"   is_basic={is_basic}")
+        
+        # ✅ Create subscription history with explicit None end_date for Basic
         await sync_to_async(SubscriptionHistory.objects.create)(
             user=user,
             email=user.email or "",
@@ -364,18 +364,18 @@ async def save_creator_profile(
             duration=basic_plan.duration,
             plan_price=basic_plan.price,
             start_date=now,
-            end_date=subscription.plan_end_date,
+            end_date=None,  # ✅ Always None for Basic
             status="active",
             action="created",
             plan_id=basic_plan.id,
             stripe_subscription_id=subscription.stripe_subscription_id,
         )
-        # print(f"✅ Subscription history created for creator {user.email}")
+        
+        print(f"✅ Subscription history created with end_date=None")
 
     return {
         "message": "Creator profile saved successfully"
     }
-
 
 # ------------------------------------------------
 # Get Creator Profile by USER ID

@@ -212,6 +212,8 @@
 
 #     # ✅ Within limit – allow upload
 
+
+# fastapi_app/routes/plan_guard.py
 import fastapi_app.django_setup
 
 from fastapi import HTTPException
@@ -269,6 +271,8 @@ def get_user_plan(user: UserData):
             # print(f"✅ Created default Basic plan for role {role}")
         
         now = timezone.now()
+        
+        # ✅ FIX: Basic plan should NEVER expire
         sub = UserSubscription.objects.create(
             user=user,
             email=user.email,
@@ -277,8 +281,8 @@ def get_user_plan(user: UserData):
             duration=basic_plan.duration.capitalize() if basic_plan.duration else "Lifetime",
             plan_price=basic_plan.price,
             plan_start_date=now,
-            plan_end_date=now + timezone.timedelta(days=365*100),
-            renewal_date=now + timezone.timedelta(days=365*100),
+            plan_end_date=None,  # ✅ FIXED: No end date for Basic
+            renewal_date=None,   # ✅ FIXED: No renewal for Basic
             status="active",
             is_trial=False,
         )
@@ -293,7 +297,7 @@ def get_user_plan(user: UserData):
             duration=basic_plan.duration,
             plan_price=basic_plan.price,
             start_date=now,
-            end_date=sub.plan_end_date,
+            end_date=None,  # ✅ FIXED: No end date in history
             status="active",
             action="created",
             plan_id=basic_plan.id,
@@ -305,9 +309,11 @@ def get_user_plan(user: UserData):
     if not sub:
         raise HTTPException(403, "Unable to create subscription. Please contact support.")
 
+    # ✅ FIX: Check if subscription is active (allow Basic plans with None end date)
     if sub.status != "active":
         raise HTTPException(403, "Subscription not active")
 
+    # ✅ FIX: Only check expiration if there's an end date
     if sub.plan_end_date and sub.plan_end_date < timezone.now():
         basic_plan = SubscriptionPlan.objects.filter(
             role__iexact=user.role,

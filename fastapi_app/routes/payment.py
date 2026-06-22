@@ -936,24 +936,19 @@ def send_invoice_email_wrapper(
     invoice_number: str,
     order_id: str,
     subscription,
-    request,
+    request,  # Keep this parameter but don't pass it to the async function
 ):
     """
     Wrapper to run the async invoice email in a synchronous context.
     """
     import asyncio
     try:
-        # print(f"📧 [WRAPPER] Starting invoice email for {getattr(user, 'email', 'unknown')}")
-        # print(f"   Invoice: {invoice_number}")
-        # print(f"   Plan: {getattr(plan, 'name', 'unknown')}")
-        # print(f"   Amount: {amount_paid}")
-        # print(f"   Storage Mode: {'S3' if USE_S3 else 'Local'}")
-        
         # Create a new event loop for this task
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         try:
+            # ✅ REMOVE 'request' from the call - it's not needed
             result = loop.run_until_complete(
                 send_invoice_email_async(
                     user=user,
@@ -963,23 +958,21 @@ def send_invoice_email_wrapper(
                     invoice_number=invoice_number,
                     order_id=order_id,
                     subscription=subscription,
-                    request=request,
+                    # request=request,  # ❌ REMOVE THIS LINE
                 )
             )
             if result:
-                pass
-                # print(f"✅ [WRAPPER] Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
+                print(f"✅ Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
             else:
-                pass
-                # print(f"❌ [WRAPPER] Invoice email returned False for {getattr(user, 'email', 'unknown')}")
+                print(f"❌ Invoice email returned False for {getattr(user, 'email', 'unknown')}")
         except Exception as e:
-            # print(f"❌ [WRAPPER] Error in invoice email async execution: {e}")
+            print(f"❌ Error in invoice email async execution: {e}")
             import traceback
             traceback.print_exc()
         finally:
             loop.close()
     except Exception as e:
-        # print(f"❌ [WRAPPER] Failed to send invoice email: {e}")
+        print(f"❌ Failed to send invoice email: {e}")
         import traceback
         traceback.print_exc()
 
@@ -1203,12 +1196,12 @@ async def verify_payment(
                 invoice_number=invoice_number,
                 order_id=order_id,
                 subscription=subscription,
-                request=request,
+                request=request,  # This is fine - wrapper accepts it but doesn't use it
             )
             email_sent = True
-            # print(f"📧 Invoice email queued for {user.email}")
+            print(f"📧 Invoice email queued for {user.email}")
         except Exception as e:
-            # print(f"Invoice email error: {e}")
+            print(f"Invoice email error: {e}")
             import traceback
             traceback.print_exc()
 
