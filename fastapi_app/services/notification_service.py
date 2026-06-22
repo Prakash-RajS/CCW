@@ -515,3 +515,37 @@ def create_work_submission_notification(collaborator, creator, contract, job_tit
     except Exception as e:
         logger.error(f"Error creating work submission notification: {e}")
         return None
+    
+def create_message_notification(message_obj, receiver, sender):
+    """
+    Create an in-app notification when a new message is received.
+    """
+    try:
+        # Avoid duplicate notifications for the same message (optional)
+        existing = Notification.objects.filter(
+            user=receiver,
+            message_obj=message_obj,
+            notification_type='message'
+        ).exists()
+        if existing:
+            return None
+
+        # Build a preview
+        content_preview = message_obj.content[:100] + ("..." if len(message_obj.content) > 100 else "")
+        sender_name = sender.full_name or sender.email or "Someone"
+
+        notification = Notification.objects.create(
+            user=receiver,
+            sender=sender,
+            notification_type='message',          # you can also use 'system'
+            title=f"New message from {sender_name}",
+            message=content_preview or "New message",
+            message_obj=message_obj,  
+            url=f"/message?user={sender.id}",      # adjust to your frontend route
+            is_read=False
+        )
+        logger.info(f"Created message notification {notification.id} for {receiver.email}")
+        return notification
+    except Exception as e:
+        logger.error(f"Error creating message notification: {e}")
+        return None

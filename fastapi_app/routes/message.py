@@ -7,8 +7,10 @@ import mimetypes
 from pydantic import BaseModel
 from django.db.models import Q
 from django.utils import timezone
+from fastapi import BackgroundTasks 
 from datetime import timedelta, datetime
 from creator_app.models import JobPost, UserData, Conversation, Message
+from fastapi_app.services.notification_service import create_message_notification
 import os
 import json
 import time
@@ -606,6 +608,7 @@ def set_typing(payload: TypingPayload):
 @router.post("/send")
 async def send_message(
     request: Request,
+    background_tasks: BackgroundTasks,  
     sender_id: int = Form(...),
     receiver_id: int = Form(...),
     content: str = Form(None),
@@ -679,6 +682,11 @@ async def send_message(
             file=file_path,
             message_type=msg_type
         )
+        
+        background_tasks.add_task(
+        sync_to_async(create_message_notification),
+        msg, receiver, sender
+    )
 
         # Build URL using the helper function
         file_url = build_full_url(
@@ -969,6 +977,7 @@ async def heartbeat(user_id: int):
 
 @router.post("/send-for-proposal")
 async def send_message_for_proposal(
+    background_tasks: BackgroundTasks,
     job_id: int = Form(...),
     sender_id: int = Form(...),
     content: str = Form(None),
@@ -1031,6 +1040,10 @@ async def send_message_for_proposal(
             message_type=message_type
         )
 
+        background_tasks.add_task(
+        sync_to_async(create_message_notification),
+        msg, receiver, sender
+    )
         base_url = "http://localhost:8000"
         file_url = f"{base_url}/media/{file_path}".replace("\\", "/") if file_path else None
 

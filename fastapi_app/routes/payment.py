@@ -741,8 +741,8 @@ def check_and_downgrade_expired_subscriptions(user=None):
             sub.duration        = basic_plan.duration.capitalize()   # "Monthly"
             sub.plan_price      = basic_plan.price                   # 0.00
             sub.plan_start_date = now
-            sub.plan_end_date   = now + timedelta(days=365*100)      # 100 years (never expires)
-            sub.renewal_date    = now + timedelta(days=365*100)
+            sub.plan_end_date   = None      
+            sub.renewal_date    = None
             sub.status          = "active"
             sub.is_trial        = False
             sub.trial_ends_at   = None
