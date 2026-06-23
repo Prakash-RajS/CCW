@@ -14,7 +14,6 @@ console.log("🔍 ColHeader API_BASE_URL:", API_BASE_URL);
 const ColHeader = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  // ✅ Use global user data from context
   const { userData, loading, updateUserData, logout } = useUser();
 
   // NAVBAR STATE
@@ -46,8 +45,7 @@ const ColHeader = () => {
 
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
-  // ✅ Local status (synced with context)
-  const [status, setStatus] = useState("Available");
+  // ❌ REMOVED local status state – now derived from userData
 
   const [notificationImageErrors, setNotificationImageErrors] = useState({});
 
@@ -97,13 +95,7 @@ const ColHeader = () => {
     return null;
   }
 
-  // ✅ Sync local status with context
-  useEffect(() => {
-    if (userData?.status) {
-      const mappedStatus = userData.status === "Active" ? "Available" : "Away";
-      setStatus(mappedStatus);
-    }
-  }, [userData?.status]);
+  // ❌ REMOVED: useEffect that syncs local status with context – no longer needed
 
   // ✅ Fetch notifications and messages when user ID is available
   useEffect(() => {
@@ -258,9 +250,7 @@ const ColHeader = () => {
     };
   }, [openDropdown]);
 
-  // ✅ No fetchUserData needed – we use context
-
-  // ---- API functions (unchanged, but now use userData.id) ----
+  // ---- API functions ----
   const fetchNotifications = async (showLoader = false) => {
     try {
       if (showLoader) {
@@ -561,9 +551,9 @@ const ColHeader = () => {
     setIsStatusMenuOpen((p) => !p);
   };
 
-  // ✅ Update status – now uses context
-  const changeStatus = async (newStatus) => {
-    console.log("🔄 changeStatus called with:", newStatus);
+  // ✅ Updated changeStatus – uses backend status in context
+  const changeStatus = async (newDisplayStatus) => {
+    console.log("🔄 changeStatus called with:", newDisplayStatus);
     
     if (!userData?.id) {
       console.error("❌ No user ID available");
@@ -571,22 +561,23 @@ const ColHeader = () => {
       return;
     }
 
-    const mappedStatus = newStatus === "Available" ? "Active" : "Inactive";
+    // Map display status to backend status
+    const backendStatus = newDisplayStatus === "Available" ? "Active" : "Inactive";
 
     try {
       const response = await api.put(`/profile/update-status/${userData.id}/`, {
-        status: mappedStatus
+        status: backendStatus
       });
       
       console.log("✅ Status update response:", response.data);
       
-      setStatus(newStatus);
-      // ✅ Update global context so other components reflect the change
-      updateUserData({ status: newStatus });
+      // Update context with the CORRECT backend status (not the display string)
+      updateUserData({ status: backendStatus });
+      
       setIsStatusMenuOpen(false);
       setIsProfileMenuOpen(false);
       setIsMobileProfileOpen(false);
-      toast.success(`Status updated to ${newStatus}`);
+      toast.success(`Status updated to ${newDisplayStatus}`);
       
     } catch (error) {
       console.error("❌ Error updating status:", error);
@@ -675,9 +666,12 @@ const ColHeader = () => {
     return profilepic;
   };
 
+  // ✅ Derive display status from userData (single source of truth)
+  const statusDisplay = userData?.status === "Active" ? "Available" : "Away";
+
   const filteredNotifications = getFilteredNotifications();
 
-  // ✅ If not authenticated and not loading, don't render (redirect happens elsewhere)
+  // If not authenticated and not loading, don't render
   if (!userData && !loading && !location.pathname.includes('/login')) {
     return null;
   }
@@ -998,8 +992,8 @@ const ColHeader = () => {
                 {getUserName()}
               </h3>
               <div className="flex items-center gap-2 mt-1">
-                <span className={`w-2 h-2 rounded-full ${status === "Available" ? "bg-green-400" : "bg-yellow-400"}`}></span>
-                <span className="text-white/70 text-sm">{status}</span>
+                <span className={`w-2 h-2 rounded-full ${statusDisplay === "Available" ? "bg-green-400" : "bg-yellow-400"}`}></span>
+                <span className="text-white/70 text-sm">{statusDisplay}</span>
               </div>
               <button
                 onClick={() => setIsMobileProfileOpen(false)}
@@ -1033,7 +1027,7 @@ const ColHeader = () => {
                   <button
                     onClick={() => changeStatus("Available")}
                     className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                      status === "Available" 
+                      statusDisplay === "Available" 
                         ? "bg-green-500 text-white" 
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
@@ -1044,7 +1038,7 @@ const ColHeader = () => {
                   <button
                     onClick={() => changeStatus("Away")}
                     className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                      status === "Away" 
+                      statusDisplay === "Away" 
                         ? "bg-yellow-500 text-white" 
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
@@ -1113,24 +1107,20 @@ const ColHeader = () => {
               className="w-full px-5 py-2.5 flex items-center justify-between text-gray-200 hover:bg-white/10 hover:text-white transition-all duration-200"
             >
               <div className="flex items-center gap-3">
-                {status === "Available" ? (
+                {statusDisplay === "Available" ? (
                   <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
                     <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                     </svg>
                   </span>
-                ) : status === "Away" ? (
+                ) : (
                   <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
                     <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
                     </svg>
                   </span>
-                ) : (
-                  <span className="w-4 h-4 rounded-full bg-gray-500"></span>
                 )}
-                <span className="text-sm font-medium">
-                  {status === "Set Status" ? "Set Status" : status}
-                </span>
+                <span className="text-sm font-medium">{statusDisplay}</span>
               </div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1150,18 +1140,18 @@ const ColHeader = () => {
                     onClick={() => changeStatus("Available")}
                     className={`
                       w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
-                      ${status === "Available" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
+                      ${statusDisplay === "Available" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
                     `}
                   >
                     <span className="relative">
                       <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-                        {status === "Available" && (
+                        {statusDisplay === "Available" && (
                           <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                           </svg>
                         )}
                       </span>
-                      {status === "Available" && (
+                      {statusDisplay === "Available" && (
                         <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
                       )}
                     </span>
@@ -1173,11 +1163,11 @@ const ColHeader = () => {
                     onClick={() => changeStatus("Away")}
                     className={`
                       w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
-                      ${status === "Away" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
+                      ${statusDisplay === "Away" ? 'bg-white/20 text-white font-medium' : 'text-gray-400 hover:bg-white/10'}
                     `}
                   >
                     <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-                      {status === "Away" && (
+                      {statusDisplay === "Away" && (
                         <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
                         </svg>

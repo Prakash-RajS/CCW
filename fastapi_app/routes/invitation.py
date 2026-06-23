@@ -88,6 +88,9 @@ def get_profile_picture_url_sync(base_url: str, user: UserData) -> str | None:
     return f"{base_url}/media/{pic_path}"
 
 
+# ==========================================================
+# CREATE INVITATION (UPDATED WITH COUNTER)
+# ==========================================================
 def _create_invitation_sync(
     sender_id: int,
     receiver_id: int,
@@ -112,7 +115,6 @@ def _create_invitation_sync(
                 detail="This job already has a contract. Cannot invite more collaborators."
             )
         
-        # After the existing has_contract check, add:
         existing_proposal = Proposal.objects.filter(
             freelancer=receiver,
             job=job,
@@ -125,7 +127,7 @@ def _create_invitation_sync(
                 detail="This collaborator has already submitted a proposal for this job. Cannot invite them."
             )
 
-        # 🔒 PLAN CHECK – uses fixed get_user_plan with role-aware lookup
+        # 🔒 PLAN CHECK – Check invitation limit
         check_invite_limit(sender)
 
         existing_invitation = Invitation.objects.filter(
@@ -151,7 +153,12 @@ def _create_invitation_sync(
             revenue=revenue
         )
 
+        # ✅ INCREMENT INVITATION COUNTER
+        sender.total_invitations_sent += 1
+        sender.save()
+
         logger.info(f"Invitation created: ID={invitation.id}")
+        
         # CREATE INVITATION NOTIFICATION
         create_notification(
             user=receiver,
@@ -167,7 +174,10 @@ def _create_invitation_sync(
         return {
             "message": "Invitation created",
             "id": invitation.id,
-            "status": invitation.status
+            "status": invitation.status,
+            "stats": {
+                "total_invitations_sent": sender.total_invitations_sent
+            }
         }
 
     except UserData.DoesNotExist:
@@ -261,7 +271,6 @@ def _list_sent_invitations_sync(creator_id: int, base_url: str):
             elif inv.receiver.email:
                 receiver_name = inv.receiver.email.split('@')[0]
 
-        # ✅ UPDATED: Use S3 helper for profile picture
         receiver_profile_pic = None
         if inv.receiver and inv.receiver.profile_picture:
             receiver_profile_pic = get_profile_picture_url_sync(base_url, inv.receiver)
@@ -350,7 +359,6 @@ def _update_invitation_status_sync(invitation_id: int, status: str):
 
         start_date = date.today()
 
-        # ✅ Calculate end date using job duration
         def calculate_end_date_from_job(start_date, job):
             if not start_date or not job:
                 return start_date + timedelta(days=30)
@@ -389,6 +397,11 @@ def _update_invitation_status_sync(invitation_id: int, status: str):
             }
         )
 
+        # ✅ INCREMENT CONTRACT COUNTER when invitation creates a contract
+        creator = invitation.sender
+        creator.total_contracts_created += 1
+        creator.save()
+
         if not created:
             updated = False
             if not contract.start_date:
@@ -417,7 +430,6 @@ def _update_invitation_status_sync(invitation_id: int, status: str):
         ).exclude(id=invitation_id).update(status="Rejected")
 
     return {"message": "Invitation updated", "status": invitation.status}
- 
 
 
 @router.put("/update-status")
@@ -482,7 +494,6 @@ def _get_invitation_sync(invitation_id: int, user_id: int, base_url: str):
             return fallback
         return user.full_name or user.email.split('@')[0] if user.email else fallback
 
-    # ✅ UPDATED: Use S3 helper for profile picture
     receiver_profile_pic = None
     if invitation.receiver and invitation.receiver.profile_picture:
         receiver_profile_pic = get_profile_picture_url_sync(base_url, invitation.receiver)

@@ -1,12 +1,13 @@
-# ============================================================
-# fastapi_app/routes/dropdown_options.py  — NEW FILE
-# ============================================================
+# fastapi_app/routes/dropdown_options.py
+
 import csv
 import io
+import re
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
+from django.core.exceptions import ValidationError
 
 # Django ORM is available because django_setup.py is loaded in main.py
 from creator_app.models import DropdownOption
@@ -14,15 +15,15 @@ from creator_app.models import DropdownOption
 router = APIRouter(prefix="/dropdown-options", tags=["Dropdown Options"])
 
 
-# ── Pydantic schemas ────────────────────────────────────────────────────────
+# ── Pydantic schemas with validation ──────────────────────────────────────
 
 class OptionOut(BaseModel):
     id: int
     category: str
     label: str
-    value: str
-    order: int
     is_active: bool
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -30,17 +31,50 @@ class OptionOut(BaseModel):
 
 class OptionCreate(BaseModel):
     category: str
-    label: str
-    value: str
-    order: Optional[int] = 0
+    label: str = Field(..., min_length=1, max_length=30)
     is_active: Optional[bool] = True
+
+    @validator('label')
+    def validate_label(cls, v):
+        # Strip whitespace
+        v = v.strip()
+        if not v:
+            raise ValueError('Label cannot be empty')
+        if len(v) > 30:
+            raise ValueError('Label cannot exceed 30 characters')
+        if len(v) < 1:
+            raise ValueError('Label must be at least 1 character')
+        # Optional: Only allow certain characters
+        # if not re.match(r'^[a-zA-Z0-9\s\&\-\.,]+$', v):
+        #     raise ValueError('Label contains invalid characters')
+        return v
+
+    @validator('category')
+    def validate_category(cls, v):
+        VALID_CATEGORIES = {
+            'creator_category', 'primary_niche', 'secondary_niche',
+            'platform', 'followers_range', 'portfolio_category', 'skill_category'
+        }
+        if v not in VALID_CATEGORIES:
+            raise ValueError(f'Invalid category: {v}')
+        return v
 
 
 class OptionUpdate(BaseModel):
-    label: Optional[str] = None
-    value: Optional[str] = None
-    order: Optional[int] = None
+    label: Optional[str] = Field(None, min_length=1, max_length=30)
     is_active: Optional[bool] = None
+
+    @validator('label')
+    def validate_label(cls, v):
+        if v is not None:
+            v = v.strip()
+            if not v:
+                raise ValueError('Label cannot be empty')
+            if len(v) > 30:
+                raise ValueError('Label cannot exceed 30 characters')
+            if len(v) < 1:
+                raise ValueError('Label must be at least 1 character')
+        return v
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -60,30 +94,28 @@ def _to_dict(obj: DropdownOption) -> dict:
         "id":        obj.id,
         "category":  obj.category,
         "label":     obj.label,
-        "value":     obj.value,
-        "order":     obj.order,
         "is_active": obj.is_active,
+        "created_at": obj.created_at.isoformat() if obj.created_at else None,
+        "updated_at": obj.updated_at.isoformat() if obj.updated_at else None,
     }
 
 
-# ── PUBLIC endpoint (used by frontend dropdowns) ────────────────────────────
+# ── PUBLIC endpoint ────────────────────────────────────────────────────────────
 
 @router.get("/all")
 def get_all_options():
     """
     Returns all ACTIVE options grouped by category.
     Called once by the React hook; result is cached client-side.
-    Response shape: { "creator_category": [{label, value}, ...], ... }
+    Response shape: { "creator_category": [{label}, ...], ... }
     """
-    qs = DropdownOption.objects.filter(is_active=True).values(
-        'category', 'label', 'value', 'order'
-    )
+    qs = DropdownOption.objects.filter(is_active=True).values('category', 'label')
     result: dict = {}
     for item in qs:
         cat = item['category']
         if cat not in result:
             result[cat] = []
-        result[cat].append({"label": item['label'], "value": item['value']})
+        result[cat].append({"label": item['label']})
     return result
 
 
@@ -104,34 +136,61 @@ def admin_list_by_category(category: str):
 @router.post("/admin", response_model=OptionOut)
 def admin_create_option(payload: OptionCreate):
     """Create a single option."""
-    if payload.category not in VALID_CATEGORIES:
-        raise HTTPException(400, f"Invalid category '{payload.category}'")
-    if DropdownOption.objects.filter(category=payload.category, value=payload.value).exists():
-        raise HTTPException(409, "An option with this category + value already exists")
-    obj = DropdownOption.objects.create(
-        category  = payload.category,
-        label     = payload.label.strip(),
-        value = payload.value.strip().lower(),
-        order     = payload.order,
-        is_active = payload.is_active,
-    )
-    return _to_dict(obj)
+    try:
+        # Check if option already exists
+        existing = DropdownOption.objects.filter(
+            category=payload.category,
+            label__iexact=payload.label.strip()
+        ).first()
+        
+        if existing:
+            return _to_dict(existing)
+        
+        obj = DropdownOption.objects.create(
+            category=payload.category,
+            label=payload.label.strip(),
+            is_active=payload.is_active if payload.is_active is not None else True,
+        )
+        return _to_dict(obj)
+    except ValidationError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.put("/admin/{option_id}", response_model=OptionOut)
 def admin_update_option(option_id: int, payload: OptionUpdate):
-    """Update label / value / order / is_active."""
+    """Update label / is_active."""
     try:
         obj = DropdownOption.objects.get(id=option_id)
     except DropdownOption.DoesNotExist:
         raise HTTPException(404, "Option not found")
 
-    if payload.label     is not None: obj.label     = payload.label.strip()
-    if payload.value     is not None: obj.value     = payload.value.strip().lower()
-    if payload.order     is not None: obj.order     = payload.order
-    if payload.is_active is not None: obj.is_active = payload.is_active
-    obj.save()
-    return _to_dict(obj)
+    try:
+        if payload.label is not None:
+            existing = DropdownOption.objects.filter(
+                category=obj.category,
+                label__iexact=payload.label.strip()
+            ).exclude(id=option_id).first()
+            
+            if existing:
+                obj = existing
+                if payload.is_active is not None:
+                    obj.is_active = payload.is_active
+                obj.save()
+                return _to_dict(obj)
+            else:
+                obj.label = payload.label.strip()
+        
+        if payload.is_active is not None:
+            obj.is_active = payload.is_active
+        
+        obj.save()
+        return _to_dict(obj)
+    except ValidationError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.delete("/admin/{option_id}")
@@ -157,16 +216,15 @@ def admin_toggle_option(option_id: int):
     return _to_dict(obj)
 
 
-# ── Bulk import via CSV/Excel ────────────────────────────────────────────────
+# ── Bulk import via CSV ────────────────────────────────────────────────
 
 @router.post("/admin/bulk-import")
 def bulk_import(file: UploadFile = File(...)):
-    # Read file content synchronously
+    # Read file content
     content = file.file.read()
     
-    # Handle BOM and decode properly
+    # Handle BOM and decode
     try:
-        # Try UTF-8 with BOM handling
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         try:
@@ -174,142 +232,125 @@ def bulk_import(file: UploadFile = File(...)):
         except UnicodeDecodeError:
             text = content.decode("latin-1")
     
-    # Clean the text - remove any \r characters and extra whitespace
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # Clean the text
+    text = text.replace('\ufeff', '').strip()
     
-    # Fix: Handle CSV with quoted headers
-    lines = text.strip().split('\n')
-    if lines and len(lines) > 0:
-        first_line = lines[0].strip()
-        # Remove any BOM or invisible characters
-        first_line = first_line.lstrip('\ufeff')
-        # If the header line is quoted as a single string
-        if first_line.startswith('"') and first_line.endswith('"') and ',' in first_line:
-            fixed_header = first_line.strip('"')
-            lines[0] = fixed_header
-            text = '\n'.join(lines)
-            # print(f"✓ Fixed CSV format. New header: {fixed_header}")
+    # Split into lines
+    lines = text.split('\n')
+    if not lines:
+        raise HTTPException(400, "Empty CSV file")
     
-    # Parse CSV with strict settings
-    try:
-        reader = csv.DictReader(io.StringIO(text))
-        headers = reader.fieldnames
-        # print(f"CSV Headers: {headers}")
-        
-        # Debug: # print first few rows raw
-        rows_list = list(reader)
-        # print(f"Total rows found: {len(rows_list)}")
-        if rows_list:
-            pass
-            # print(f"First row raw: {rows_list[0]}")
-    except Exception as e:
-        raise HTTPException(400, f"Error parsing CSV: {str(e)}")
+    created = 0
+    skipped = 0
+    invalid_labels = []
     
-    # Validate columns
-    required_cols = {"category", "label", "value"}
-    if not required_cols.issubset(set(headers or [])):
+    # Parse header
+    header_line = lines[0].strip()
+    if header_line.startswith('"') and header_line.endswith('"'):
+        header_line = header_line[1:-1]
+    
+    header_parts = [h.strip() for h in header_line.split(',')]
+    
+    # Find category and label columns
+    cat_idx = None
+    label_idx = None
+    
+    for i, col in enumerate(header_parts):
+        col_lower = col.lower()
+        if col_lower == 'category':
+            cat_idx = i
+        elif col_lower == 'label':
+            label_idx = i
+    
+    if cat_idx is None or label_idx is None:
         raise HTTPException(
             400,
-            f"CSV must have columns: category, label, value. Got: {headers}"
+            f"CSV must have columns: category, label. Found: {header_parts}"
         )
     
-    created = updated = skipped = 0
-    errors = []
-    
     # Process each row
-    for i, row in enumerate(rows_list, start=2):
+    for i, line in enumerate(lines[1:], start=2):
+        if not line.strip():
+            continue
+            
         try:
-            # Clean each value - remove BOM, extra spaces, None values
-            cat = row.get("category")
-            label = row.get("label")
-            value_raw = row.get("value")
+            # Parse row
+            clean_line = line.strip()
+            if clean_line.startswith('"') and clean_line.endswith('"'):
+                clean_line = clean_line[1:-1]
             
-            # Debug # print for first few rows
-            if i <= 5:
-                pass
-                # print(f"Row {i}: cat={repr(cat)}, label={repr(label)}, value={repr(value_raw)}")
+            parts = clean_line.split(',')
             
-            # Handle None or empty values
-            cat = cat.strip() if cat else ""
-            label = label.strip() if label else ""
-            value_raw = value_raw.strip() if value_raw else ""
-            
-            # Convert value to API-friendly format
-            if value_raw:
-                value = value_raw.lower()
-            else:
-                value = ""
+            cat = parts[cat_idx].strip() if len(parts) > cat_idx else ""
+            label = parts[label_idx].strip() if len(parts) > label_idx else ""
             
             # Validation
-            if not cat:
-                errors.append(f"Row {i}: missing category — skipped (value was: {row.get('category')})")
+            if not cat or not label:
                 skipped += 1
                 continue
                 
-            if not label:
-                errors.append(f"Row {i}: missing label — skipped (value was: {row.get('label')})")
-                skipped += 1
-                continue
-                
-            if not value:
-                errors.append(f"Row {i}: missing value — skipped (value was: {row.get('value')})")
-                skipped += 1
-                continue
-            
             if cat not in VALID_CATEGORIES:
-                errors.append(f"Row {i}: unknown category '{cat}' — skipped")
                 skipped += 1
                 continue
             
-            # Create or update
+            # Validate label length
+            if len(label) > 30:
+                invalid_labels.append(f"Row {i}: '{label}' exceeds 30 characters")
+                skipped += 1
+                continue
+            
+            if len(label) < 1:
+                skipped += 1
+                continue
+            
+            # Check if option already exists
+            existing = DropdownOption.objects.filter(
+                category=cat,
+                label__iexact=label
+            ).first()
+            
+            if existing:
+                skipped += 1
+                continue
+            
+            # Create new option
             try:
-                obj, was_created = DropdownOption.objects.update_or_create(
+                DropdownOption.objects.create(
                     category=cat,
-                    value=value,
-                    defaults={"label": label, "order": 0, "is_active": True},
+                    label=label,
+                    is_active=True,
                 )
-                if was_created:
-                    created += 1
-                else:
-                    updated += 1
-                # print(f"✓ Row {i}: {cat} - {label} ({'created' if was_created else 'updated'})")
-            except Exception as e:
-                errors.append(f"Row {i}: Database error - {str(e)}")
+                created += 1
+            except ValidationError:
                 skipped += 1
                 
-        except Exception as e:
-            errors.append(f"Row {i}: Unexpected error - {str(e)}")
+        except Exception:
             skipped += 1
     
-    # Prepare response
-    response = {
+    # Return summary
+    return {
         "created": created,
-        "updated": updated,
         "skipped": skipped,
-        "errors": errors[:20],  # Limit errors to first 20
+        "invalid_labels": invalid_labels[:5]  # Show first 5 invalid labels
     }
-    
-    # print(f"Import completed: {created} created, {updated} updated, {skipped} skipped")
-    if errors:
-        pass
-        # print(f"First 3 errors: {errors[:3]}")
-    
-    return response
+
 
 @router.get("/admin/export/csv")
 def export_csv():
-    """Download all options as CSV — useful for editing then re-importing."""
+    """Download all options as CSV."""
     from fastapi.responses import StreamingResponse
 
-    rows = DropdownOption.objects.all().values(
-        'category', 'label', 'value', 'order', 'is_active'
-    )
+    rows = DropdownOption.objects.all().values('category', 'label', 'is_active')
     output = io.StringIO()
     writer = csv.DictWriter(
         output,
-        fieldnames=['category', 'label', 'value', 'order', 'is_active']
+        fieldnames=['category', 'label', 'is_active']
     )
     writer.writeheader()
+    
+    for row in rows:
+        row['is_active'] = str(row['is_active'])
+    
     writer.writerows(rows)
     output.seek(0)
 

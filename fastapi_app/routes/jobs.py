@@ -19,7 +19,12 @@ from fastapi_app.services.notification_service import create_notification
 from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
 
 # 🔒 PLAN GUARD
-from fastapi_app.routes.plan_guard import check_job_limit, check_storage_limit
+from fastapi_app.routes.plan_guard import (
+    check_job_limit, 
+    check_storage_limit,
+    increment_job_counter  # ✅ Import this
+)
+
 
 # ============================================================
 # S3 STORAGE IMPORTS
@@ -208,6 +213,8 @@ async def job_search_suggestions(
 # =========================================================
 # CREATE JOB (DRAFT / POSTED) - UPDATED WITH S3
 # =========================================================
+# fastapi_app/routes/jobs.py - Update create_job
+
 @router.post("/create/{employer_id}")
 async def create_job(
     request: Request,
@@ -224,9 +231,7 @@ async def create_job(
     status: str = Form(...),
 ):
     """
-    Create a new job with S3 support for attachments
-    S3 Folder Used: job_attachments/
-    File Type: job
+    Create a new job with counter tracking
     """
     await sync_to_async(ensure_db_connection)()
     
@@ -257,6 +262,9 @@ async def create_job(
             status=status.lower(),
         )
         
+        # ✅ INCREMENT COUNTER using plan_guard function
+        await sync_to_async(increment_job_counter)(employer)
+        
         # CREATE JOB POST NOTIFICATION
         await sync_to_async(create_notification)(
             user=employer,
@@ -266,14 +274,11 @@ async def create_job(
             url='/job-created'
         )
 
-        #print(f"🔔 Job notification created for {employer.email}")
-
-        # Save attachments using S3
+        # Save attachments
+        uploaded_files = []
         if attachments:
-            uploaded_files = []
             total_new_bytes = 0
             
-            # Calculate total size for storage limit
             for file in attachments:
                 await file.seek(0)
                 content = await file.read()
@@ -285,36 +290,38 @@ async def create_job(
 
             for file in attachments:
                 if file.filename:
-                    # Save attachment using S3-aware function
                     saved_path = await save_job_attachment_s3(
                         file, 
                         job.id, 
                         file.filename
                     )
                     uploaded_files.append(saved_path)
-                    
-                    # Track file upload for storage limits (only for local)
-                    if not USE_S3:
-                        full_path = os.path.join(BASE_DIR, "fastapi_app", "media", saved_path)
-                        if os.path.exists(full_path):
-                            file_size = os.path.getsize(full_path)
-                            await sync_to_async(track_file_upload)(employer, full_path, file_size)
 
             job.attachments = uploaded_files
             await sync_to_async(job.save)()
+
+        # Get active jobs count for stats
+        active_jobs = await sync_to_async(
+            lambda: JobPost.objects.filter(employer=employer, status="posted").count()
+        )()
 
         return {
             "message": "Job created successfully", 
             "job_id": job.id, 
             "has_contract": job.has_contract,
             "attachments": uploaded_files if attachments else [],
-            "storage_mode": "s3" if USE_S3 else "local"
+            "storage_mode": "s3" if USE_S3 else "local",
+            "stats": {
+                "total_jobs_created": employer.total_jobs_created,
+                "active_jobs": active_jobs
+            }
         }
 
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
-        #print("JOB CREATE ERROR:", e)
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

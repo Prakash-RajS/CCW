@@ -35,7 +35,7 @@ const Header = ({ variant = "default" }) => {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
-  const [status, setStatus] = useState("Available");
+  // Removed local status state – now derived from userData
   const [imageError, setImageError] = useState(false);
   const [notificationImageErrors, setNotificationImageErrors] = useState({});
 
@@ -43,6 +43,9 @@ const Header = ({ variant = "default" }) => {
   const isLightVariant = variant === "light";
   const isFinderProfile = location.pathname.startsWith('/finder-profile/');
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+  // Derive display status from userData (single source of truth)
+  const statusDisplay = userData?.status === "Active" ? "Available" : "Away";
 
   // ========== HELPERS ==========
   const getFullName = () => {
@@ -121,13 +124,7 @@ const Header = ({ variant = "default" }) => {
 
   // ========== EFFECTS ==========
 
-  // Sync local status with context when it changes
-  useEffect(() => {
-    if (userData?.status) {
-      const mappedStatus = userData.status === "Active" ? "Available" : "Away";
-      setStatus(mappedStatus);
-    }
-  }, [userData?.status]);
+  // 🔹 REMOVED: useEffect that synced local status with context – no longer needed
 
   // Fetch notifications & messages when user ID is available
   useEffect(() => {
@@ -382,18 +379,25 @@ const Header = ({ variant = "default" }) => {
 
   // ========== STATUS & LOGOUT ==========
 
-  const changeStatus = async (newStatus) => {
-    if (!userData?.id) return;
-    const mappedStatus = newStatus === "Available" ? "Active" : "Inactive";
+  const changeStatus = async (newDisplayStatus) => {
+    if (!userData?.id) {
+      toast.error("User data not loaded");
+      return;
+    }
+
+    // Map display status to backend status
+    const backendStatus = newDisplayStatus === "Available" ? "Active" : "Inactive";
 
     try {
-      await api.put(`/profile/update-status/${userData.id}/`, { status: mappedStatus });
-      setStatus(newStatus);
-      // Update global context so other components reflect the change
-      updateUserData({ status: newStatus });
+      await api.put(`/profile/update-status/${userData.id}/`, { status: backendStatus });
+      
+      // Update context with the CORRECT backend status (not the display string)
+      updateUserData({ status: backendStatus });
+      
       setIsStatusMenuOpen(false);
+      setIsProfileMenuOpen(false);
       setIsMobileProfileOpen(false);
-      toast.success(`Status updated to ${newStatus}`);
+      toast.success(`Status updated to ${newDisplayStatus}`);
     } catch (error) {
       console.error("Error updating status:", error);
       toast.error("Failed to update status");
@@ -843,8 +847,8 @@ const Header = ({ variant = "default" }) => {
               </div>
               <h3 className="text-white text-lg font-semibold text-center">{getFullName()}</h3>
               <div className="flex items-center gap-2 mt-1">
-                <span className={`w-2 h-2 rounded-full ${status === "Available" ? "bg-green-400" : "bg-yellow-400"}`} />
-                <span className="text-white/70 text-sm">{status}</span>
+                <span className={`w-2 h-2 rounded-full ${statusDisplay === "Available" ? "bg-green-400" : "bg-yellow-400"}`} />
+                <span className="text-white/70 text-sm">{statusDisplay}</span>
               </div>
               <button onClick={() => setIsMobileProfileOpen(false)} className="absolute top-4 right-4 text-white/70 hover:text-white">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -873,7 +877,7 @@ const Header = ({ variant = "default" }) => {
                   <button
                     onClick={() => changeStatus("Available")}
                     className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                      status === "Available"
+                      statusDisplay === "Available"
                         ? "bg-green-500 text-white"
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
@@ -884,7 +888,7 @@ const Header = ({ variant = "default" }) => {
                   <button
                     onClick={() => changeStatus("Away")}
                     className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
-                      status === "Away"
+                      statusDisplay === "Away"
                         ? "bg-yellow-500 text-white"
                         : "bg-white/10 text-white/70 hover:bg-white/20"
                     }`}
@@ -948,98 +952,97 @@ const Header = ({ variant = "default" }) => {
           </button>
 
           <div className="relative">
-<button
-    type="button"
-    onClick={toggleStatusMenu}
-    className={`
-      w-full px-5 py-2.5 flex items-center justify-between transition-all duration-200
-      ${isFinderProfile || isLightVariant 
-        ? 'text-gray-700 hover:bg-gray-200' 
-        : 'text-gray-200 hover:bg-white/10 hover:text-white'
-      }
-    `}
->
-<div className="flex items-center gap-3">
-      {/* Dynamic Status Icon */}
-      {status === "Available" ? (
-<span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-<svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-<path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-</svg>
-</span>
-      ) : (
-<span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-<svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-<path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
-</svg>
-</span>
-      )}
-<span className="text-sm font-medium">{status || "Set Status"}</span>
-</div>
-<svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 16 16"
-      className={`w-3.5 h-3.5 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''} ${isFinderProfile || isLightVariant ? 'text-gray-400' : 'text-gray-500'}`}
-      fill="none"
->
-<path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-</svg>
-</button>
- 
-  {/* Status Sub-options */}
-  {isStatusMenuOpen && (
-<div className="px-3 pb-2">
-<div className={`rounded-xl p-1.5 ${isFinderProfile || isLightVariant ? 'bg-gray-50' : 'bg-white/5'}`}>
-<button
-          type="button"
-          onClick={() => changeStatus("Available")}
-          className={`
-            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
-            ${status === "Available"
-              ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
-              : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
-            }
-          `}
->
-<span className="relative">
-<span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
-              {status === "Available" && (
-<svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-<path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-</svg>
-              )}
-</span>
-            {status === "Available" && (
-<span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
+            <button
+              type="button"
+              onClick={toggleStatusMenu}
+              className={`
+                w-full px-5 py-2.5 flex items-center justify-between transition-all duration-200
+                ${isFinderProfile || isLightVariant 
+                  ? 'text-gray-700 hover:bg-gray-200' 
+                  : 'text-gray-200 hover:bg-white/10 hover:text-white'
+                }
+              `}
+            >
+              <div className="flex items-center gap-3">
+                {statusDisplay === "Available" ? (
+                  <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                    </svg>
+                  </span>
+                ) : (
+                  <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                    </svg>
+                  </span>
+                )}
+                <span className="text-sm font-medium">{statusDisplay}</span>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                className={`w-3.5 h-3.5 transition-transform duration-300 ${isStatusMenuOpen ? 'rotate-90' : ''} ${isFinderProfile || isLightVariant ? 'text-gray-400' : 'text-gray-500'}`}
+                fill="none"
+              >
+                <path d="M6 3L10 8L6 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {/* Status Sub-options */}
+            {isStatusMenuOpen && (
+              <div className="px-3 pb-2">
+                <div className={`rounded-xl p-1.5 ${isFinderProfile || isLightVariant ? 'bg-gray-50' : 'bg-white/5'}`}>
+                  <button
+                    type="button"
+                    onClick={() => changeStatus("Available")}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5
+                      ${statusDisplay === "Available"
+                        ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
+                        : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
+                      }
+                    `}
+                  >
+                    <span className="relative">
+                      <span className="w-4 h-4 rounded-full bg-green-400 flex items-center justify-center">
+                        {statusDisplay === "Available" && (
+                          <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                          </svg>
+                        )}
+                      </span>
+                      {statusDisplay === "Available" && (
+                        <span className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-ping opacity-75"></span>
+                      )}
+                    </span>
+                    <span className="text-sm">Available</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => changeStatus("Away")}
+                    className={`
+                      w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
+                      ${statusDisplay === "Away"
+                        ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
+                        : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
+                      }
+                    `}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
+                      {statusDisplay === "Away" && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                        </svg>
+                      )}
+                    </span>
+                    <span className="text-sm">Away</span>
+                  </button>
+                </div>
+              </div>
             )}
-</span>
-<span className="text-sm">Available</span>
-</button>
- 
-        <button
-          type="button"
-          onClick={() => changeStatus("Away")}
-          className={`
-            w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200
-            ${status === "Away"
-              ? (isFinderProfile || isLightVariant ? 'bg-white shadow-sm text-gray-900 font-medium' : 'bg-white/20 text-white font-medium')
-              : (isFinderProfile || isLightVariant ? 'text-gray-600 hover:bg-white/50' : 'text-gray-400 hover:bg-white/10')
-            }
-          `}
->
-<span className="w-4 h-4 rounded-full bg-yellow-400 flex items-center justify-center">
-            {status === "Away" && (
-<svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-<path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
-</svg>
-            )}
-</span>
-<span className="text-sm">Away</span>
-</button>
-</div>
-</div>
-  )}
-</div>
+          </div>
 
           <div className={`mx-4 my-1 border-t ${isFinderProfile || isLightVariant ? 'border-gray-100' : 'border-white/10'}`} />
 

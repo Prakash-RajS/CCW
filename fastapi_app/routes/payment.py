@@ -555,6 +555,8 @@ def create_subscription_history_sync(
         return None
 
 
+# fastapi_app/routes/payment.py - Update create_user_subscription_db
+
 @sync_to_async
 def create_user_subscription_db(
     user,
@@ -566,11 +568,11 @@ def create_user_subscription_db(
     """
     Upserts the single UserSubscription row for this user.
     Returns (subscription, duration_display, is_new).
+    ✅ RESETS COUNTERS when new plan is activated
     """
-
     try:
-
         with transaction.atomic():
+            from fastapi_app.routes.plan_guard import reset_user_counters
 
             now = datetime.now(dt_timezone.utc)
 
@@ -583,41 +585,23 @@ def create_user_subscription_db(
                 days=365 if is_annual else 30
             )
 
-            duration_display = (
-    "Yearly"
-    if is_annual
-    else "Monthly"
-)
-
-            final_price = (
-                amount_paid
-                if amount_paid > 0
-                else float(plan.price)
-            )
-
-            # print(
-            #     f"📦 create_user_subscription_db: "
-            #     f"{user.email} -> {plan.name}"
-            # )
+            duration_display = "Yearly" if is_annual else "Monthly"
+            final_price = amount_paid if amount_paid > 0 else float(plan.price)
 
             # =====================================================
             # DUPLICATE CHECK
             # =====================================================
-
             if cf_order_id:
-
                 existing = UserSubscription.objects.filter(
                     stripe_subscription_id=cf_order_id
                 ).first()
 
                 if existing:
-
                     already_logged = SubscriptionHistory.objects.filter(
                         stripe_event_id=cf_order_id
                     ).exists()
 
                     if not already_logged:
-
                         create_subscription_history_sync(
                             user,
                             existing,
@@ -625,32 +609,32 @@ def create_user_subscription_db(
                             plan_id=plan.id,
                             cf_order_id=cf_order_id,
                         )
-
                     return existing, duration_display, False
 
             # =====================================================
             # EXPIRE CURRENT SUB
             # =====================================================
-
             current_sub = UserSubscription.objects.filter(
                 user=user,
                 status="active"
             ).first()
 
             if current_sub:
-
                 create_subscription_history_sync(
                     user,
                     current_sub,
                     "expired"
                 )
-
                 current_sub.delete()
+
+            # =====================================================
+            # ✅ RESET COUNTERS - User gets fresh limits with new plan
+            # =====================================================
+            reset_user_counters(user)
 
             # =====================================================
             # CREATE NEW SUB
             # =====================================================
-
             subscription = UserSubscription.objects.create(
                 user=user,
                 email=user.email,
@@ -684,18 +668,11 @@ def create_user_subscription_db(
                 invoice_number=invoice_number,
             )
 
-            # print(
-            #     f"✅ Subscription created: "
-            #     f"{user.email} -> {plan.name}"
-            # )
-
             return subscription, duration_display, True
 
     except Exception as e:
-
         import traceback
         traceback.print_exc()
-
         raise
 
 

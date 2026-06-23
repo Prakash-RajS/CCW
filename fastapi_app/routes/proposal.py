@@ -14,7 +14,13 @@ from creator_app.models import Review
 import pycountry
 from creator_app.models import Contract
 from datetime import date
-from fastapi_app.routes.plan_guard import check_contract_limit, check_proposal_limit, check_storage_limit
+from fastapi_app.routes.plan_guard import (
+    check_contract_limit, 
+    check_proposal_limit, 
+    check_storage_limit,
+    increment_proposal_counter,
+    increment_contract_counter  # ✅ Add this import
+)
 from creator_app.models import track_file_upload, track_file_deletion
 from django.db import transaction
 from fastapi_app.routes.dbconnection import ensure_db_connection
@@ -260,7 +266,7 @@ async def create_proposal(
         if bid_amount is None or bid_amount <= 0:
             raise HTTPException(status_code=400, detail="Bid amount must be greater than 0.")
 
-        # ✅ FIX: Use sync_to_async for database operations
+        # Get freelancer and job
         freelancer = await sync_to_async(UserData.objects.get)(id=freelancer_id)
         job = await sync_to_async(JobPost.objects.get)(id=job_id)
 
@@ -344,6 +350,7 @@ async def create_proposal(
 
         skills_list = [s.strip() for s in skills.split(',')] if skills else []
 
+        # 🔒 PLAN LIMIT CHECK - Check proposal limit
         await sync_to_async(check_proposal_limit)(freelancer)
 
         # Check storage limit for attachments
@@ -388,7 +395,8 @@ async def create_proposal(
         
         proposal = await sync_to_async(create_proposal_sync)()
 
-        ##print(f"✅ Created proposal {proposal.id} with {len(milestones_list)} milestones")
+        # ✅ INCREMENT COUNTER using plan_guard function
+        await sync_to_async(increment_proposal_counter)(freelancer)
 
         # Save attachments using S3
         uploaded_files = []
@@ -418,6 +426,14 @@ async def create_proposal(
             
             await sync_to_async(update_proposal_attachments)()
 
+        # Get active proposals count for stats
+        active_proposals = await sync_to_async(
+            lambda: Proposal.objects.filter(
+                freelancer=freelancer, 
+                status__in=['pending', 'accepted', 'shortlisted']
+            ).count()
+        )()
+
         # ============================================================
         # NOTIFICATION: Notify job creator about new proposal
         # ============================================================
@@ -433,12 +449,11 @@ async def create_proposal(
                 message=f"{freelancer_name} has submitted a proposal for your job '{job_title}'",
                 job=job,
                 proposal=proposal,
-                url=f"/proposalspage"  # or f"/jobs/{job_id}"
+                url=f"/proposalspage"
             )
             logger.info(f"✅ Proposal creation notification sent to employer {employer.id}")
         except Exception as notify_error:
             logger.error(f"Error sending proposal creation notification: {notify_error}")
-            # Do not fail the request
 
         return {
             "message": "Proposal submitted successfully",
@@ -449,13 +464,16 @@ async def create_proposal(
             "milestones_count": len(milestones_list) if payment_type == PaymentTypeEnum.milestone else 0,
             "attachments": uploaded_files,
             "validation_passed": True,
-            "storage_mode": "s3" if USE_S3 else "local"
+            "storage_mode": "s3" if USE_S3 else "local",
+            "stats": {
+                "total_proposals_created": freelancer.total_proposals_created,
+                "active_proposals": active_proposals
+            }
         }
 
     except HTTPException as he:
         raise he
     except Exception as e:
-        ##print(f"❌ Error in create_proposal: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
@@ -951,7 +969,7 @@ async def get_proposals_for_creator(request: Request, creator_id: int):
 
 
 # ============================================================
-# 7. ACCEPT PROPOSAL (FIXED + NOTIFICATION)
+# 7. ACCEPT PROPOSAL (UPDATED WITH CONTRACT COUNTER)
 # ============================================================
 @router.post("/AcceptProposal/{proposal_id}")
 async def accept_proposal(proposal_id: int, creator_id: int):
@@ -1007,6 +1025,7 @@ async def accept_proposal(proposal_id: int, creator_id: int):
         
         await sync_to_async(update_proposal_status)()
         
+        # 🔒 PLAN LIMIT CHECK - Check contract limit
         await sync_to_async(check_contract_limit)(creator)
 
         budget = proposal.bid_amount if proposal.bid_amount else proposal.milestone_amount
@@ -1118,6 +1137,17 @@ async def accept_proposal(proposal_id: int, creator_id: int):
 
         contract = await sync_to_async(create_contract_sync)()
 
+        # ✅ INCREMENT CONTRACT COUNTER
+        await sync_to_async(increment_contract_counter)(creator)
+
+        # Get active contracts count for stats
+        active_contracts = await sync_to_async(
+            lambda: Contract.objects.filter(
+                creator=creator,
+                status__in=["awaiting", "in_progress"]
+            ).count()
+        )()
+
         # ============================================================
         # NOTIFICATION: Notify freelancer that proposal was accepted
         # ============================================================
@@ -1133,7 +1163,7 @@ async def accept_proposal(proposal_id: int, creator_id: int):
                 job=job,
                 proposal=proposal,
                 contract=contract,
-                url=f"/all-contacts"  # or f"/contracts/{contract.id}"
+                url=f"/all-contacts"
             )
             logger.info(f"✅ Proposal acceptance notification sent to freelancer {freelancer.id}")
         except Exception as notify_error:
@@ -1149,7 +1179,11 @@ async def accept_proposal(proposal_id: int, creator_id: int):
             "milestones_count": len(contract_milestones),
             "has_contract": True,
             "is_milestone_based": len(contract_milestones) > 0,
-            "storage_mode": "s3" if USE_S3 else "local"
+            "storage_mode": "s3" if USE_S3 else "local",
+            "stats": {
+                "total_contracts_created": creator.total_contracts_created,
+                "active_contracts": active_contracts
+            }
         }
 
     except UserData.DoesNotExist:

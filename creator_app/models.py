@@ -51,6 +51,10 @@ class AdminUser(AbstractBaseUser, PermissionsMixin):
 # ============================================================
 
 
+# creator_app/models.py - Update UserData model
+
+# creator_app/models.py - UserData Model
+
 class UserData(models.Model):
     id = models.AutoField(primary_key=True)
 
@@ -67,7 +71,6 @@ class UserData(models.Model):
 
     profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
 
-
     # Stripe — kept for subscription billing
     stripe_account_id = models.CharField(max_length=100, null=True, blank=True)
 
@@ -76,6 +79,12 @@ class UserData(models.Model):
         max_length=100, null=True, blank=True,
         help_text="Cashfree Payout beneficiary ID for wallet withdrawals"
     )
+
+    # ✅ COUNTER FIELDS - Track total usage (never auto-reset)
+    total_jobs_created = models.IntegerField(default=0, help_text="Total jobs ever created")
+    total_proposals_created = models.IntegerField(default=0, help_text="Total proposals ever created")
+    total_invitations_sent = models.IntegerField(default=0, help_text="Total invitations ever sent")
+    total_contracts_created = models.IntegerField(default=0, help_text="Total contracts ever created")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -88,7 +97,6 @@ class UserData(models.Model):
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
         self.save()
-
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
@@ -1459,15 +1467,12 @@ class DropdownOption(models.Model):
 
     category   = models.CharField(max_length=60, choices=CATEGORY_CHOICES, db_index=True)
     label      = models.CharField(max_length=120)   # shown to user: "UI/UX Designer"
-    value      = models.CharField(max_length=120)   # sent to API:   "uiux"
-    order      = models.PositiveIntegerField(default=0)
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['category', 'order', 'label']
-        unique_together = [['category', 'value']]
+        ordering = ['category', 'label']
 
     def __str__(self):
         return f"[{self.get_category_display()}] {self.label}"

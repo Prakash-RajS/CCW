@@ -143,7 +143,7 @@ api.interceptors.response.use(
         processQueue(refreshError);
         // Don't redirect for verify endpoint
         if (!isVerifyEndpoint) {
-          window.location.href = "/";
+          window.location.href = "/admin/";
         }
         return Promise.reject(refreshError);
       } finally {

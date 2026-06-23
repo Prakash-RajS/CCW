@@ -926,10 +926,10 @@ async def register_bank_beneficiary(data: BankBeneficiaryRequest):
     withdrawal_methods = getattr(user, 'withdrawal_methods', [])
     if not withdrawal_methods:
         withdrawal_methods = []
-    
+
     # Mask account number for display
     masked_account = f"XXXX{data.bank_account[-4:]}" if len(data.bank_account) >= 4 else "XXXX"
-    
+
     withdrawal_methods.append({
         "id": bene_id,
         "type": "bank",
@@ -939,9 +939,45 @@ async def register_bank_beneficiary(data: BankBeneficiaryRequest):
         "ifsc": data.ifsc_code,
         "is_default": len(withdrawal_methods) == 0  # First method becomes default
     })
-    
+
     user.withdrawal_methods = withdrawal_methods
     await sync_to_async(user.save)()
+
+    # Create notification based on user role
+    try:
+        is_creator = await sync_to_async(
+            CreatorProfile.objects.filter(user=user).exists
+        )()
+        is_collaborator = await sync_to_async(
+            CollaboratorProfile.objects.filter(user=user).exists
+        )()
+
+        if is_creator:
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="wallet_withdrawal",  # or "payment_method"
+                title="Bank Account Added",
+                message=(
+                    f"Your bank account (ending {masked_account}) has been "
+                    f"registered for withdrawals."
+                ),
+                url="/choose-payment"
+            )
+
+        if is_collaborator:
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="wallet_withdrawal",
+                title="Bank Account Added",
+                message=(
+                    f"Your bank account (ending {masked_account}) has been "
+                    f"registered for withdrawals."
+                ),
+                url="/finance-overview"
+            )
+    except Exception as e:
+        # Log but don't fail the request
+        pass
 
     return {
         "success": True,
@@ -996,7 +1032,7 @@ async def register_upi_beneficiary(data: UpiBeneficiaryRequest):
     withdrawal_methods = getattr(user, 'withdrawal_methods', [])
     if not withdrawal_methods:
         withdrawal_methods = []
-    
+
     withdrawal_methods.append({
         "id": bene_id,
         "type": "upi",
@@ -1005,10 +1041,49 @@ async def register_upi_beneficiary(data: UpiBeneficiaryRequest):
         "full_account": data.upi_id,
         "is_default": len(withdrawal_methods) == 0  # First method becomes default
     })
-    
+
     user.withdrawal_methods = withdrawal_methods
     await sync_to_async(user.save)()
 
+    try:
+        is_creator = await sync_to_async(
+            CreatorProfile.objects.filter(user=user).exists
+        )()
+        is_collaborator = await sync_to_async(
+            CollaboratorProfile.objects.filter(user=user).exists
+        )()
+
+        # Mask UPI ID for display (optional)
+        upi_display = data.upi_id
+        if len(upi_display) > 8:
+            upi_display = upi_display[:3] + "****" + upi_display[-3:]
+
+        if is_creator:
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="wallet_withdrawal",
+                title="UPI ID Added",
+                message=(
+                    f"Your UPI ID ({upi_display}) has been registered "
+                    f"for withdrawals."
+                ),
+                url="/choose-payment"
+            )
+
+        if is_collaborator:
+            await sync_to_async(create_notification)(
+                user=user,
+                notification_type="wallet_withdrawal",
+                title="UPI ID Added",
+                message=(
+                    f"Your UPI ID ({upi_display}) has been registered "
+                    f"for withdrawals."
+                ),
+                url="/finance-overview"
+            )
+    except Exception as e:
+        # Log error but do not fail the request
+        pass
     return {
         "success": True,
         "beneficiary_id": bene_id,

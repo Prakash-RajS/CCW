@@ -1,4 +1,5 @@
 // frontend_admin/src/pages/Admin/Options.jsx
+
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import api from "../../utils/axiosConfig";
 import { toast } from "react-hot-toast";
@@ -236,11 +237,11 @@ export default function OptionsPage() {
   const [addTab, setAddTab] = useState("single");
 
   // Single form
-  const [form, setForm] = useState({ label: "", value: "", order: 0, category: ALL_CATEGORIES[0].key });
+  const [form, setForm] = useState({ label: "", category: ALL_CATEGORIES[0].key });
   const [formErrors, setFormErrors] = useState({});
 
   // Batch
-  const emptyRow = () => ({ label: "", value: "", order: 0, id: Date.now() + Math.random() });
+  const emptyRow = () => ({ label: "", id: Date.now() + Math.random() });
   const [batchRows, setBatchRows] = useState([emptyRow(), emptyRow(), emptyRow()]);
   const [batchCategory, setBatchCategory] = useState(ALL_CATEGORIES[0].key);
   const [batchErrors, setBatchErrors] = useState([]);
@@ -284,31 +285,42 @@ export default function OptionsPage() {
   const activeCountFor = (key) => allOptions.filter(o => o.category === key && o.is_active).length;
 
   const filtered = options.filter(o =>
-    o.label.toLowerCase().includes(search.toLowerCase()) ||
-    o.value.toLowerCase().includes(search.toLowerCase())
+    o.label.toLowerCase().includes(search.toLowerCase())
   );
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const currentItems = filtered.slice(startIndex, startIndex + itemsPerPage);
 
-  // ── helpers ───────────────────────────────────────────────────────────────
-  const toValue = (str) => str.toLowerCase().trim(); 
-  const handleLabelChange = (val) => {
-    setForm(f => ({ ...f, label: val, value: toValue(val) }));
-    if (formErrors.label) setFormErrors(e => ({ ...e, label: "" }));
+  // ── Check if option exists ──────────────────────────────────────────────
+  const checkIfOptionExists = (category, label) => {
+    return allOptions.some(opt => 
+      opt.category === category && 
+      opt.label.toLowerCase() === label.toLowerCase()
+    );
+  };
+
+  // ── Validation ──────────────────────────────────────────────────────────
+  const validateLabel = (label) => {
+    const trimmed = label.trim();
+    if (!trimmed) return "Label is required";
+    if (trimmed.length < 1) return "Label must be at least 1 character";
+    if (trimmed.length > 30) return "Label cannot exceed 30 characters";
+    if (!/^[a-zA-Z0-9\s\&\-\.\']+$/.test(trimmed)) {
+      return "Label contains invalid characters (only letters, numbers, spaces, &, -, ., ')";
+    }
+    return null;
   };
 
   const validateForm = () => {
     const errs = {};
-    if (!form.label.trim()) errs.label = "Label is required";
-    if (!form.value.trim()) errs.value = "Value is required";
-    if (!/^[a-z0-9 _-]+$/.test(form.value)) errs.value = "Only lowercase letters, numbers, spaces, underscores, and hyphens";
+    const error = validateLabel(form.label);
+    if (error) errs.label = error;
     return errs;
   };
 
   // ── ADD ───────────────────────────────────────────────────────────────────
   const openAdd = () => {
-    setForm({ label: "", value: "", order: options.length, category: selectedCat });
+    setForm({ label: "", category: selectedCat });
     setBatchRows([emptyRow(), emptyRow(), emptyRow()]);
     setBatchCategory(selectedCat);
     setBatchErrors([]);
@@ -317,51 +329,130 @@ export default function OptionsPage() {
     setShowAddModal(true);
   };
 
+  const handleLabelChange = (value) => {
+    setForm(f => ({ ...f, label: value }));
+    if (formErrors.label) {
+      setFormErrors({});
+    }
+  };
+
   const handleAddSingle = async () => {
     const errs = validateForm();
-    if (Object.keys(errs).length) { setFormErrors(errs); return; }
+    if (Object.keys(errs).length) { 
+      setFormErrors(errs); 
+      return; 
+    }
+    
     const targetCat = form.category || selectedCat;
+    const label = form.label.trim();
+    
+    // Check if option already exists
+    if (checkIfOptionExists(targetCat, label)) {
+      toast.error(`"${label}" already exists in ${ALL_CATEGORIES.find(c => c.key === targetCat)?.label}`);
+      setFormErrors({ label: "This option already exists in this category" });
+      return;
+    }
+    
     try {
-      await api.post("/dropdown-options/admin", {
-        category: targetCat, label: form.label.trim(), value: form.value.trim(), order: Number(form.order) || 0,
+      const response = await api.post("/dropdown-options/admin", {
+        category: targetCat,
+        label: label,
       });
-      toast.success("Option added");
-      setShowAddModal(false);
-      if (targetCat === selectedCat) fetchCategory(selectedCat);
-      fetchAll();
-    } catch (err) { toast.error(err.response?.data?.detail || "Failed to add"); }
+      
+      if (response.data.id) {
+        toast.success(`"${label}" added successfully`);
+        setShowAddModal(false);
+        if (targetCat === selectedCat) fetchCategory(selectedCat);
+        fetchAll();
+      }
+    } catch (err) {
+      const errorMsg = err.response?.data?.detail || "Failed to add option";
+      if (errorMsg.includes("already exists")) {
+        toast.error(`"${label}" already exists in this category`);
+        setFormErrors({ label: "This option already exists in this category" });
+      } else if (errorMsg.includes("exceed 30 characters")) {
+        toast.error("Label cannot exceed 30 characters");
+        setFormErrors({ label: "Label cannot exceed 30 characters" });
+      } else {
+        toast.error(errorMsg);
+      }
+    }
   };
 
   // Batch helpers
   const updateBatchRow = (idx, field, val) => {
     setBatchRows(rows => rows.map((r, i) => {
       if (i !== idx) return r;
-      if (field === "label") return { ...r, label: val, value: toValue(val) };
       return { ...r, [field]: val };
     }));
+    // Clear batch errors when editing
+    if (batchErrors.length > 0) {
+      setBatchErrors([]);
+    }
   };
+  
   const addBatchRow = () => setBatchRows(r => [...r, emptyRow()]);
   const removeBatchRow = (idx) => setBatchRows(r => r.filter((_, i) => i !== idx));
 
   const handleAddBatch = async () => {
     const filled = batchRows.filter(r => r.label.trim());
-    if (!filled.length) { toast.error("Add at least one label"); return; }
-    const errs = filled.map(r => {
-      const e = {};
-      if (!r.value.trim() || !/^[a-z0-9 _-]+$/.test(r.value)) e.value = "Invalid (only letters, numbers, spaces, _, -)";
-      return e;
-    });
-    if (errs.some(e => Object.keys(e).length)) { setBatchErrors(errs); toast.error("Fix errors first"); return; }
-    let created = 0;
+    if (!filled.length) { 
+      toast.error("Add at least one label"); 
+      return; 
+    }
+    
+    // Validate all rows
+    const errors = [];
+    const validRows = [];
+    
     for (const row of filled) {
+      const error = validateLabel(row.label);
+      if (error) {
+        errors.push({ row: row.id, error });
+      } else {
+        validRows.push(row);
+      }
+    }
+    
+    if (errors.length > 0) {
+      toast.error(`${errors.length} row(s) have validation errors`);
+      setBatchErrors(errors);
+      return;
+    }
+    
+    let created = 0;
+    let skipped = 0;
+    const skippedLabels = [];
+    
+    for (const row of validRows) {
+      const label = row.label.trim();
+      
+      // Check if option already exists
+      if (checkIfOptionExists(batchCategory, label)) {
+        skipped++;
+        skippedLabels.push(label);
+        continue;
+      }
+      
       try {
         await api.post("/dropdown-options/admin", {
-          category: batchCategory, label: row.label.trim(), value: row.value.trim(), order: Number(row.order) || 0,
+          category: batchCategory,
+          label: label,
         });
         created++;
-      } catch { /* continue */ }
+      } catch (err) {
+        skipped++;
+        skippedLabels.push(label);
+      }
     }
-    toast.success(`${created} option${created !== 1 ? "s" : ""} added`);
+    
+    if (created > 0) {
+      toast.success(`${created} option${created !== 1 ? "s" : ""} added successfully`);
+    }
+    if (skipped > 0) {
+      toast.error(`${skipped} option${skipped !== 1 ? "s" : ""} skipped: ${skippedLabels.join(", ")}`);
+    }
+    
     setShowAddModal(false);
     if (batchCategory === selectedCat) fetchCategory(selectedCat);
     fetchAll();
@@ -370,21 +461,46 @@ export default function OptionsPage() {
   // ── EDIT ──────────────────────────────────────────────────────────────────
   const openEdit = (opt) => {
     setEditTarget(opt);
-    setForm({ label: opt.label, value: opt.value, order: opt.order, category: opt.category });
+    setForm({ label: opt.label, category: opt.category });
     setFormErrors({});
     setShowEditModal(true);
   };
+  
   const handleEdit = async () => {
     const errs = validateForm();
-    if (Object.keys(errs).length) { setFormErrors(errs); return; }
+    if (Object.keys(errs).length) { 
+      setFormErrors(errs); 
+      return; 
+    }
+    
+    const label = form.label.trim();
+    
+    // Check if the new label already exists (excluding current item)
+    if (label.toLowerCase() !== editTarget.label.toLowerCase()) {
+      const exists = allOptions.some(opt => 
+        opt.category === editTarget.category && 
+        opt.label.toLowerCase() === label.toLowerCase() &&
+        opt.id !== editTarget.id
+      );
+      
+      if (exists) {
+        toast.error(`"${label}" already exists in this category`);
+        setFormErrors({ label: "This option already exists in this category" });
+        return;
+      }
+    }
+    
     try {
       await api.put(`/dropdown-options/admin/${editTarget.id}`, {
-        label: form.label.trim(), value: form.value.trim(), order: Number(form.order) || 0,
+        label: label,
       });
-      toast.success("Option updated");
+      toast.success("Option updated successfully");
       setShowEditModal(false);
-      fetchCategory(selectedCat); fetchAll();
-    } catch (err) { toast.error(err.response?.data?.detail || "Failed to update"); }
+      fetchCategory(selectedCat); 
+      fetchAll();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Failed to update");
+    }
   };
 
   // ── DELETE ────────────────────────────────────────────────────────────────
@@ -392,37 +508,63 @@ export default function OptionsPage() {
   const handleDelete = async () => {
     try {
       await api.delete(`/dropdown-options/admin/${deleteTarget.id}`);
-      toast.success("Deleted");
+      toast.success(`"${deleteTarget.label}" deleted successfully`);
       setShowDeleteModal(false);
-      fetchCategory(selectedCat); fetchAll();
-    } catch { toast.error("Failed to delete"); }
+      fetchCategory(selectedCat); 
+      fetchAll();
+    } catch { 
+      toast.error("Failed to delete"); 
+    }
   };
 
   // ── TOGGLE ────────────────────────────────────────────────────────────────
   const handleToggle = async (opt) => {
-    try { await api.patch(`/dropdown-options/admin/${opt.id}/toggle`); fetchCategory(selectedCat); fetchAll(); }
+    try { 
+      await api.patch(`/dropdown-options/admin/${opt.id}/toggle`); 
+      const newStatus = !opt.is_active;
+      toast.success(`"${opt.label}" ${newStatus ? 'activated' : 'deactivated'}`);
+      fetchCategory(selectedCat); 
+      fetchAll(); 
+    }
     catch { toast.error("Failed to toggle"); }
   };
 
   // ── IMPORT ────────────────────────────────────────────────────────────────
   const handleImport = async () => {
     if (!importFile) { toast.error("Please select a CSV file"); return; }
-    setImporting(true); setImportResult(null);
+    setImporting(true); 
+    setImportResult(null);
     try {
-      const fd = new FormData(); fd.append("file", importFile);
+      const fd = new FormData(); 
+      fd.append("file", importFile);
       const res = await api.post("/dropdown-options/admin/bulk-import", fd, {
-        headers: { "Content-Type": "multipart/form-data" }, timeout: 30000,
+        headers: { "Content-Type": "multipart/form-data" }, 
+        timeout: 30000,
       });
       setImportResult(res.data);
-      if (res.data.created > 0 || res.data.updated > 0)
-        toast.success(`Import complete: ${res.data.created} created, ${res.data.updated} updated`);
-      if (res.data.skipped > 0) toast.error(`${res.data.skipped} rows skipped`);
-      fetchCategory(selectedCat); fetchAll();
+      
+      // Show appropriate toast messages
+      if (res.data.created > 0) {
+        toast.success(`✅ ${res.data.created} new option${res.data.created > 1 ? 's' : ''} added`);
+      }
+      
+      if (res.data.skipped > 0) {
+        toast.error(`⏭ ${res.data.skipped} duplicate(s) skipped`);
+      }
+      
+      if (res.data.created === 0 && res.data.skipped === 0) {
+        toast.success("No changes - all entries already exist");
+      }
+      
+      fetchCategory(selectedCat); 
+      fetchAll();
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || "Import failed";
       toast.error(msg);
-      setImportResult({ created: 0, updated: 0, skipped: 0, errors: [msg] });
-    } finally { setImporting(false); }
+      setImportResult({ created: 0, skipped: 0, errors: [msg] });
+    } finally { 
+      setImporting(false); 
+    }
   };
 
   // ── EXPORT ────────────────────────────────────────────────────────────────
@@ -431,26 +573,35 @@ export default function OptionsPage() {
       const res = await api.get("/dropdown-options/admin/export/csv", { responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement("a");
-      link.href = url; link.setAttribute("download", "dropdown_options.csv");
-      document.body.appendChild(link); link.click(); link.remove();
-      toast.success("CSV exported");
-    } catch { toast.error("Export failed"); }
+      link.href = url; 
+      link.setAttribute("download", "dropdown_options.csv");
+      document.body.appendChild(link); 
+      link.click(); 
+      link.remove();
+      toast.success("CSV exported successfully");
+    } catch { 
+      toast.error("Export failed"); 
+    }
   };
 
   const downloadTemplate = () => {
     const csv = [
-      "category,label,value,order",
-      "creator_category,UI/UX Designer,uiux,1",
-      "creator_category,Photography,photography,2",
-      "primary_niche,Art & Design,art,1",
-      "skill_category,Front-end,frontend,1",
-      "platform,Instagram,instagram,1",
+      "category,label",
+      "creator_category,UI/UX Designer",
+      "creator_category,Photography",
+      "primary_niche,Art & Design",
+      "skill_category,Front-end",
+      "platform,Instagram",
     ].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = "options_template.csv";
-    document.body.appendChild(a); a.click(); a.remove();
+    a.href = url; 
+    a.download = "options_template.csv";
+    document.body.appendChild(a); 
+    a.click(); 
+    a.remove();
+    toast.success("Template downloaded");
   };
 
   // Input border styles
@@ -527,6 +678,14 @@ export default function OptionsPage() {
     ? { borderColor: "rgba(124, 58, 237, 0.45)", color: "rgba(255,255,255,0.8)", borderWidth: "1.5px", background: "rgba(124, 58, 237, 0.08)" }
     : { borderColor: "#8b5cf6", color: "#6d28d9", background: "#faf5ff", borderWidth: "1.5px" };
 
+  // Character counter helper
+  const getCharColor = (length) => {
+    if (length === 0) return "text-gray-400";
+    if (length > 25 && length < 30) return "text-yellow-500";
+    if (length === 30) return "text-red-500";
+    return "text-green-500";
+  };
+
   return (
     <div className={`w-full h-full ${isDarkMode ? "bg-black text-white" : "bg-gray-100 text-gray-900"}`}>
       <div className="px-4 md:px-6 pt-0 pb-8 max-w-full mx-auto">
@@ -592,7 +751,7 @@ export default function OptionsPage() {
           <div className="flex-1 min-w-0">
             <div className={`rounded-xl shadow-lg overflow-hidden ${isDarkMode ? 'bg-[#1a1a1a] border border-gray-800' : 'bg-white border border-gray-200'}`}>
 
-              {/* Category Heading and Search Section - SEPARATED */}
+              {/* Category Heading and Search Section */}
               <div className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b"
                 style={{ borderBottomColor: isDarkMode ? "rgba(255,255,255,0.1)" : "#e5e7eb" }}>
                 <div className="flex items-center gap-2.5">
@@ -603,19 +762,19 @@ export default function OptionsPage() {
                 <div className="relative">
                   <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDarkMode ? "text-gray-400" : "text-gray-500"}`} />
                   <input
-  value={search}
-  onChange={(e) => setSearch(e.target.value)}
-  placeholder="Search options..."
-  className={`pl-9 pr-4 py-2 rounded-full text-sm w-full sm:w-64 outline-none transition-all shadow-sm ${
-    isDarkMode
-      ? "bg-[#1F2937] text-white placeholder-gray-500 border border-gray-600 focus:border-purple-500"
-      : "bg-white text-gray-900 placeholder-gray-400 border-2 border-gray-500 focus:border-purple-600 focus:ring-2 focus:ring-purple-200"
-  }`}
-/>
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search options..."
+                    className={`pl-9 pr-4 py-2 rounded-full text-sm w-full sm:w-64 outline-none transition-all shadow-sm ${
+                      isDarkMode
+                        ? "bg-[#1F2937] text-white placeholder-gray-500 border border-gray-600 focus:border-purple-500"
+                        : "bg-white text-gray-900 placeholder-gray-400 border-2 border-gray-500 focus:border-purple-600 focus:ring-2 focus:ring-purple-200"
+                    }`}
+                  />
                 </div>
               </div>
 
-              {/* Table - WITH FIXED HEADER BACKGROUND COLOR */}
+              {/* Table */}
               {loading ? (
                 <div className="flex items-center justify-center h-48">
                   <RefreshCw size={24} className="animate-spin text-purple-500" />
@@ -637,8 +796,6 @@ export default function OptionsPage() {
                             : { background: "linear-gradient(90deg, #4C1D95 0%, #5B21B6 100%)" }}>
                           <th className="py-3 pl-6 pr-2 text-left text-[12px] font-semibold">S.NO.</th>
                           <th className="py-3 px-4 text-left text-[12px] font-semibold">Label</th>
-                          <th className="py-3 px-4 text-left text-[12px] font-semibold">Value</th>
-                          <th className="py-3 px-4 text-center text-[12px] font-semibold">Order</th>
                           <th className="py-3 px-4 text-center text-[12px] font-semibold">Status</th>
                           <th className="py-3 pr-6 pl-4 text-right text-[12px] font-semibold">Actions</th>
                         </tr>
@@ -650,19 +807,8 @@ export default function OptionsPage() {
                             style={{ borderBottom: `1px solid ${isDarkMode ? "rgba(255,255,255,0.1)" : "#e5e7eb"}` }}>
                             <td className={`py-3 pl-6 pr-2 text-xs font-medium ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
                               {startIndex + i + 1}
-                             </td>
+                            </td>
                             <td className={`px-4 py-3 font-semibold text-sm ${isDarkMode ? "text-white" : "text-gray-800"}`}>{opt.label}</td>
-                            <td className="px-4 py-3">
-                              <code className="text-xs px-2.5 py-1 rounded-md font-mono font-medium"
-                                style={isDarkMode
-                                  ? { background: "rgba(124,58,237,0.18)", color: "#c4b5fd", border: "1px solid rgba(124,58,237,0.35)" }
-                                  : { background: "#f3f0ff", color: "#5b21b6", border: "1px solid #c4b5fd" }}>
-                                {opt.value}
-                              </code>
-                             </td>
-                            <td className={`px-4 py-3 text-center text-sm font-medium ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>
-                              {opt.order}
-                             </td>
                             <td className="px-4 py-3 text-center">
                               <button onClick={() => handleToggle(opt)}
                                 className="flex items-center gap-1 mx-auto text-xs font-semibold transition-all duration-200 hover:scale-105"
@@ -670,7 +816,7 @@ export default function OptionsPage() {
                                 {opt.is_active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
                                 {opt.is_active ? "On" : "Off"}
                               </button>
-                             </td>
+                            </td>
                             <td className="py-3 pr-6 pl-4">
                               <div className="flex items-center justify-end gap-1.5">
                                 <button onClick={() => openEdit(opt)}
@@ -686,8 +832,8 @@ export default function OptionsPage() {
                                   <Trash2 size={12} />
                                 </button>
                               </div>
-                             </td>
-                           </tr>
+                            </td>
+                          </tr>
                         ))}
                       </tbody>
                     </table>
@@ -733,39 +879,44 @@ export default function OptionsPage() {
               <div style={{ borderTop: `2px solid ${isDarkMode ? "rgba(124,58,237,0.2)" : "#ede9fe"}` }} />
 
               <div>
-                <label className={`block text-xs font-semibold mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  Label <span className="text-red-500">*</span>
-                </label>
-                <input value={form.label} onChange={e => handleLabelChange(e.target.value)}
+                <div className="flex justify-between items-center">
+                  <label className={`block text-xs font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                    Label <span className="text-red-500">*</span>
+                  </label>
+                  <span className={`text-xs font-medium ${getCharColor(form.label.length)}`}>
+                    {form.label.length}/30
+                  </span>
+                </div>
+                <input 
+                  value={form.label} 
+                  onChange={e => handleLabelChange(e.target.value)}
                   placeholder="e.g. UI/UX Designer"
-                  style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-sm ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-                {formErrors.label && <p className="text-red-500 text-xs mt-1.5 font-semibold">{formErrors.label}</p>}
-              </div>
-
-              <div>
-                <label className={`block text-xs font-semibold mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                  Value (API key) <span className="text-red-500">*</span>
-                </label>
-                <input value={form.value}
-                  onChange={e => { setForm(f => ({ ...f, value: e.target.value })); setFormErrors(e2 => ({ ...e2, value: "" })); }}
-                  placeholder="e.g. uiux"
-                  style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                  className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-mono ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-                <p className={`text-xs mt-1.5 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Auto-generated · lowercase &amp; underscores only</p>
-                {formErrors.value && <p className="text-red-500 text-xs mt-1 font-semibold">{formErrors.value}</p>}
-              </div>
-
-              <div>
-                <label className={`block text-xs font-semibold mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Display Order</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.order}
-                  onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
-                  style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                  className={`w-24 px-3.5 py-2.5 rounded-xl text-sm ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-                <p className={`text-xs mt-1.5 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Lower = appears first in dropdown</p>
+                  maxLength={30}
+                  style={inputStyle} 
+                  onFocus={onFocusInput} 
+                  onBlur={onBlurInput}
+                  className={`w-full px-3.5 py-2.5 rounded-xl text-sm mt-1.5 ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"} ${
+                    form.label.length > 25 && form.label.length < 30 ? "border-yellow-500" : ""
+                  } ${form.label.length === 30 ? "border-red-500" : ""}`} 
+                />
+                {formErrors.label && (
+                  <p className="text-red-500 text-xs mt-1.5 font-semibold">{formErrors.label}</p>
+                )}
+                {!formErrors.label && form.label.length > 25 && form.label.length < 30 && (
+                  <p className="text-yellow-500 text-xs mt-1 font-semibold">
+                    ⚠ {30 - form.label.length} characters remaining
+                  </p>
+                )}
+                {!formErrors.label && form.label.length === 30 && (
+                  <p className="text-red-500 text-xs mt-1 font-semibold">
+                    ⚠ Maximum length reached
+                  </p>
+                )}
+                {!formErrors.label && form.label.length > 0 && form.label.length <= 25 && (
+                  <p className="text-green-500 text-xs mt-1 font-semibold">
+                    ✓ Valid length
+                  </p>
+                )}
               </div>
 
               <ModalFooter onCancel={() => setShowAddModal(false)}
@@ -780,45 +931,46 @@ export default function OptionsPage() {
 
               <div style={{ borderTop: `2px solid ${isDarkMode ? "rgba(124,58,237,0.2)" : "#ede9fe"}`, marginBottom: "12px" }} />
 
-              <div className="grid grid-cols-[1fr_1fr_56px_28px] gap-2 mb-2 px-0.5">
+              <div className="grid grid-cols-[1fr_28px] gap-2 mb-2 px-0.5">
                 <p className={`text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Label</p>
-                <p className={`text-[10px] font-bold uppercase tracking-wider ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Value</p>
-                <p className={`text-[10px] font-bold uppercase tracking-wider text-center ${isDarkMode ? "text-gray-500" : "text-gray-500"}`}>Order</p>
                 <div />
               </div>
 
               <div className="space-y-2 max-h-[240px] overflow-y-auto pr-0.5">
-                {batchRows.map((row, idx) => (
-                  <div key={row.id} className="grid grid-cols-[1fr_1fr_56px_28px] gap-2 items-start">
-                    <input value={row.label}
-                      onChange={e => updateBatchRow(idx, "label", e.target.value)}
-                      placeholder={`Label ${idx + 1}`}
-                      style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                      className={`w-full px-3 py-2 rounded-lg text-xs ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-                    <div>
-                      <input value={row.value}
-                        onChange={e => updateBatchRow(idx, "value", e.target.value)}
-                        placeholder="api_key"
-                        style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                        className={`w-full px-3 py-2 rounded-lg text-xs font-mono ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-                      {batchErrors[idx]?.value && (
-                        <p className="text-red-500 text-[10px] mt-0.5 font-semibold">{batchErrors[idx].value}</p>
-                      )}
+                {batchRows.map((row, idx) => {
+                  const error = batchErrors.find(e => e.row === row.id);
+                  const charColor = getCharColor(row.label.length);
+                  
+                  return (
+                    <div key={row.id} className="grid grid-cols-[1fr_28px] gap-2 items-start">
+                      <div className="relative">
+                        <input 
+                          value={row.label}
+                          onChange={e => updateBatchRow(idx, "label", e.target.value)}
+                          placeholder={`Label ${idx + 1}`}
+                          maxLength={30}
+                          style={inputStyle} 
+                          onFocus={onFocusInput} 
+                          onBlur={onBlurInput}
+                          className={`w-full px-3 py-2 rounded-lg text-xs pr-14 ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"} ${
+                            error ? "border-red-500" : ""
+                          } ${row.label.length > 25 && row.label.length < 30 ? "border-yellow-500" : ""} ${row.label.length === 30 ? "border-red-500" : ""}`} 
+                        />
+                        <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-[10px] ${charColor}`}>
+                          {row.label.length}/30
+                        </span>
+                        {error && (
+                          <p className="text-red-500 text-[10px] mt-0.5 font-medium">{error.error}</p>
+                        )}
+                      </div>
+                      <button onClick={() => removeBatchRow(idx)} disabled={batchRows.length === 1}
+                        className={`p-1.5 rounded-lg transition-all duration-200 ${batchRows.length === 1 ? "opacity-20 cursor-not-allowed" : "hover:scale-110"}`}
+                        style={{ color: "#ef4444", background: isDarkMode ? "rgba(239,68,68,0.12)" : "#fff1f2", border: `1.5px solid ${isDarkMode ? "rgba(239,68,68,0.35)" : "#fca5a5"}` }}>
+                        <X size={12} />
+                      </button>
                     </div>
-                    <input
-                      type="number"
-                      min={0}
-                      value={row.order}
-                      onChange={e => updateBatchRow(idx, "order", e.target.value)}
-                      style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                      className={`w-full px-2 py-2 rounded-lg text-xs text-center ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-                    <button onClick={() => removeBatchRow(idx)} disabled={batchRows.length === 1}
-                      className={`p-1.5 rounded-lg transition-all duration-200 ${batchRows.length === 1 ? "opacity-20 cursor-not-allowed" : "hover:scale-110"}`}
-                      style={{ color: "#ef4444", background: isDarkMode ? "rgba(239,68,68,0.12)" : "#fff1f2", border: `1.5px solid ${isDarkMode ? "rgba(239,68,68,0.35)" : "#fca5a5"}` }}>
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <button onClick={addBatchRow}
@@ -859,37 +1011,39 @@ export default function OptionsPage() {
         <Modal title="Edit Option" onClose={() => setShowEditModal(false)} isDark={isDarkMode}>
           <div className="space-y-4">
             <div>
-              <label className={`block text-xs font-semibold mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                Label <span className="text-red-500">*</span>
-              </label>
-              <input value={form.label} onChange={e => handleLabelChange(e.target.value)}
+              <div className="flex justify-between items-center">
+                <label className={`block text-xs font-semibold ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
+                  Label <span className="text-red-500">*</span>
+                </label>
+                <span className={`text-xs font-medium ${getCharColor(form.label.length)}`}>
+                  {form.label.length}/30
+                </span>
+              </div>
+              <input 
+                value={form.label} 
+                onChange={e => handleLabelChange(e.target.value)}
                 placeholder="e.g. UI/UX Designer"
-                style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-sm ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-              {formErrors.label && <p className="text-red-500 text-xs mt-1.5 font-semibold">{formErrors.label}</p>}
-            </div>
-            <div>
-              <label className={`block text-xs font-semibold mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-                Value (API key) <span className="text-red-500">*</span>
-              </label>
-              <input value={form.value}
-                onChange={e => { setForm(f => ({ ...f, value: e.target.value })); setFormErrors(e2 => ({ ...e2, value: "" })); }}
-                placeholder="e.g. uiux"
-                style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                className={`w-full px-3.5 py-2.5 rounded-xl text-sm font-mono ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-              <p className={`text-xs mt-1.5 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Lowercase &amp; underscores only</p>
-              {formErrors.value && <p className="text-red-500 text-xs mt-1 font-semibold">{formErrors.value}</p>}
-            </div>
-            <div>
-              <label className={`block text-xs font-semibold mb-1.5 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>Display Order</label>
-              <input
-                type="number"
-                min={0}
-                value={form.order}
-                onChange={e => setForm(f => ({ ...f, order: e.target.value }))}
-                style={inputStyle} onFocus={onFocusInput} onBlur={onBlurInput}
-                className={`w-24 px-3.5 py-2.5 rounded-xl text-sm ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"}`} />
-              <p className={`text-xs mt-1.5 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Lower = appears first in dropdown</p>
+                maxLength={30}
+                style={inputStyle} 
+                onFocus={onFocusInput} 
+                onBlur={onBlurInput}
+                className={`w-full px-3.5 py-2.5 rounded-xl text-sm mt-1.5 ${isDarkMode ? "bg-[#1F2937] text-white" : "bg-white text-gray-900"} ${
+                  form.label.length > 25 && form.label.length < 30 ? "border-yellow-500" : ""
+                } ${form.label.length === 30 ? "border-red-500" : ""}`} 
+              />
+              {formErrors.label && (
+                <p className="text-red-500 text-xs mt-1.5 font-semibold">{formErrors.label}</p>
+              )}
+              {!formErrors.label && form.label.length > 25 && form.label.length < 30 && (
+                <p className="text-yellow-500 text-xs mt-1 font-semibold">
+                  ⚠ {30 - form.label.length} characters remaining
+                </p>
+              )}
+              {!formErrors.label && form.label.length === 30 && (
+                <p className="text-red-500 text-xs mt-1 font-semibold">
+                  ⚠ Maximum length reached
+                </p>
+              )}
             </div>
           </div>
           <ModalFooter onCancel={() => setShowEditModal(false)}
@@ -906,7 +1060,6 @@ export default function OptionsPage() {
               ? { background: "rgba(239,68,68,0.08)", border: "1.5px solid rgba(239,68,68,0.35)" }
               : { background: "#fff1f2", border: "1.5px solid #fca5a5" }}>
             <p className="font-semibold text-red-500 text-sm">{deleteTarget?.label}</p>
-            <code className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}>{deleteTarget?.value}</code>
           </div>
           <p className={`text-xs ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
             This cannot be undone. Profiles using this option won't be affected.
@@ -925,11 +1078,11 @@ export default function OptionsPage() {
               : { background: "#faf5ff", border: "1.5px solid #c4b5fd" }}>
             <p className={`text-xs font-bold mb-1 ${isDarkMode ? "text-purple-300" : "text-purple-800"}`}>CSV Format</p>
             <code className={`text-xs block font-medium ${isDarkMode ? "text-purple-300/75" : "text-purple-700"}`}>
-              category, label, value, order
+              category, label
             </code>
-            <p className={`text-xs mt-2 font-medium ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Re-uploading an existing row updates it — no duplicates.</p>
+            <p className={`text-xs mt-2 font-medium ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>Duplicates will be skipped automatically.</p>
             <p className={`text-xs mt-1.5 font-semibold ${isDarkMode ? "text-amber-400" : "text-amber-700"}`}>
-              ⚠ "language" and "location" handled by external APIs
+              ⚠ Labels must be 1-30 characters
             </p>
           </div>
 
@@ -968,16 +1121,9 @@ export default function OptionsPage() {
                 : { background: "#f0fdf4", border: "1.5px solid #86efac" }}>
               <p className="font-semibold text-emerald-500 text-sm mb-2">Import complete</p>
               <div className="flex gap-5 text-xs">
-                <span className={`font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>✅ Created: <strong>{importResult.created}</strong></span>
-                <span className={`font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>🔄 Updated: <strong>{importResult.updated}</strong></span>
-                <span className={`font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>⏭ Skipped: <strong>{importResult.skipped}</strong></span>
+                <span className={`font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>✅ Added: <strong>{importResult.created || 0}</strong></span>
+                <span className={`font-medium ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>⏭ Skipped: <strong>{importResult.skipped || 0}</strong></span>
               </div>
-              {importResult.errors?.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-red-500 text-xs font-semibold">Errors:</p>
-                  {importResult.errors.map((e, i) => <p key={i} className="text-red-400 text-xs font-medium">{e}</p>)}
-                </div>
-              )}
             </div>
           )}
 
