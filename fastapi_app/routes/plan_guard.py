@@ -205,7 +205,7 @@ def check_job_limit(user: UserData):
             403, 
             f"Active job limit reached ({max_jobs} active jobs). "
             f"You have {active_jobs} active job{'s' if active_jobs > 1 else ''}. "
-            f"Delete a job to post a new one."
+            f"Upgrade your plan for more jobs."
         )
 
     # ✅ Check TOTAL jobs ever created
@@ -245,7 +245,7 @@ def check_proposal_limit(user: UserData):
             403,
             f"Active proposal limit reached ({max_proposals} active proposals). "
             f"You have {active_proposals} active proposal{'s' if active_proposals > 1 else ''}. "
-            f"Withdraw a proposal to submit a new one."
+            f"Upgrade your plan for more proposals."
         )
 
     # ✅ Check TOTAL proposals ever created
