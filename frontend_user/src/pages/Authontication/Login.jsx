@@ -26,26 +26,27 @@ const Login = () => {
 
   const isEmailValid = email && email.endsWith("@gmail.com") && !emailError;
 
-  const hasValidationErrors =
-    (emailError && emailError !== "Email not found. Please check your email address.") ||
-    (passwordError && passwordError !== "Invalid password. Please try again.");
+  const hasValidationErrors = Boolean(emailError || passwordError);
 
-  const isButtonDisabled = !email || !password || isLoading || isSubmitting || hasValidationErrors;
+  const isButtonDisabled = !email || !password || isLoading || isSubmitting || Boolean(emailError || passwordError);
 
   const handleEmailChange = (e) => {
-    const value = e.target.value;
-    setEmail(value);
-    if (value !== initialEmailRef.current) hasAttemptedSubmitRef.current = false;
-    if (hasAttemptedSubmitRef.current && value !== initialEmailRef.current) {
-      setIsSubmitting(false);
-      hasAttemptedSubmitRef.current = false;
-    }
-    if (value && !value.endsWith("@gmail.com")) {
-      setEmailError("Email must be a Gmail address");
-    } else {
-      setEmailError("");
-    }
-  };
+  const value = e.target.value;
+  setEmail(value);
+  
+  // Reset submitting state when email changes
+  if (hasAttemptedSubmitRef.current) {
+    setIsSubmitting(false);
+    hasAttemptedSubmitRef.current = false;
+  }
+  
+  // Validate email
+  if (value && !value.endsWith("@gmail.com")) {
+    setEmailError("Email must be a Gmail address");
+  } else {
+    setEmailError("");
+  }
+};
 
   const handleEmailKeyPress = (e) => {
     if (e.key === "Enter" && isEmailValid && !isLoading) {
@@ -55,81 +56,99 @@ const Login = () => {
   };
 
   const handlePasswordChange = (e) => {
-    const value = e.target.value;
-    setPassword(value);
-    if (hasAttemptedSubmitRef.current && value !== initialPasswordRef.current) {
-      setIsSubmitting(false);
-      hasAttemptedSubmitRef.current = false;
-    }
-    if (passwordError) setPasswordError("");
-  };
-
+  const value = e.target.value;
+  setPassword(value);
+  
+  // Reset submitting state when password changes
+  if (hasAttemptedSubmitRef.current) {
+    setIsSubmitting(false);
+    hasAttemptedSubmitRef.current = false;
+  }
+  
+  if (passwordError) setPasswordError("");
+};
   const handleBack = () => navigate("/", { replace: true });
 
   const handleLogin = async () => {
-    if (!email) { setEmailError("Email is required"); return; }
-    if (emailError && emailError !== "Email not found. Please check your email address.") return;
-    if (!password) { setPasswordError("Password is required"); return; }
-    if (passwordError && passwordError !== "Invalid password. Please try again.") return;
+  // Clear previous errors
+  setEmailError("");
+  setPasswordError("");
+  
+  // Validate email
+  if (!email) {
+    setEmailError("Email is required");
+    return;
+  }
+  if (!email.endsWith("@gmail.com")) {
+    setEmailError("Email must be a Gmail address");
+    return;
+  }
+  
+  // Validate password
+  if (!password) {
+    setPasswordError("Password is required");
+    return;
+  }
 
-    initialEmailRef.current = email;
-    initialPasswordRef.current = password;
-    setIsSubmitting(true);
-    setIsLoading(true);
-    const loadingToastId = toast.loading("Logging you in...");
+  initialEmailRef.current = email;
+  initialPasswordRef.current = password;
+  setIsSubmitting(true);
+  setIsLoading(true);
+  const loadingToastId = toast.loading("Logging you in...");
 
-    try {
-      const response = await api.post("/auth/login", null, {
-        params: { email: email.toLowerCase().trim(), password },
-      });
+  try {
+    const response = await api.post("/auth/login", null, {
+      params: { email: email.toLowerCase().trim(), password },
+    });
 
-      if (response.status === 200) {
-        const user = await fetchUserData();
-        toast.dismiss(loadingToastId);
-
-        let displayName;
-        if (user?.full_name && user.full_name.trim() !== "") displayName = user.full_name;
-        else if (response.data?.full_name && response.data.full_name.trim() !== "") displayName = response.data.full_name;
-        else displayName = email.split("@")[0];
-
-        toast.success("Login Successful!", `Welcome back, ${displayName}! 🎉`);
-
-        setTimeout(() => {
-          if (!user?.role) navigate("/role-section", { replace: true });
-          else if (user.role === "creator") navigate("/home", { replace: true });
-          else if (user.role === "collaborator") navigate("/col-home", { replace: true });
-          else navigate("/", { replace: true });
-        }, 2000);
-      }
-    } catch (err) {
+    if (response.status === 200) {
+      const user = await fetchUserData();
       toast.dismiss(loadingToastId);
-      hasAttemptedSubmitRef.current = true;
 
-      const errorDetail = err.response?.data?.detail;
-      const statusCode = err.response?.status;
+      let displayName;
+      if (user?.full_name && user.full_name.trim() !== "") displayName = user.full_name;
+      else if (response.data?.full_name && response.data.full_name.trim() !== "") displayName = response.data.full_name;
+      else displayName = email.split("@")[0];
 
-      if (errorDetail === "email_not_found") {
-        setPasswordError("");
-        setEmailError("Email not found. Please check your email address.");
-        toast.error("Login Failed", "Email not found. Please check your email address.");
-      } else if (errorDetail === "invalid_password") {
-        setEmailError("");
-        setPasswordError("Invalid password. Please try again.");
-        toast.error("Login Failed", "Invalid password. Please try again.");
-      } else if (statusCode === 403) {
-        setEmailError(""); setPasswordError("");
-        toast.error("Account Banned", errorDetail || "Your account has been banned.");
-      } else if (err.request && !err.response) {
-        setEmailError(""); setPasswordError("");
-        toast.error("Network Error", "Please check your connection and try again.");
-      } else {
-        setEmailError(""); setPasswordError("");
-        toast.error("Error", errorDetail || "An unexpected error occurred.");
-      }
-    } finally {
-      setIsLoading(false);
+      toast.success("Login Successful!", `Welcome back, ${displayName}! 🎉`);
+
+      setTimeout(() => {
+        if (!user?.role) navigate("/role-section", { replace: true });
+        else if (user.role === "creator") navigate("/home", { replace: true });
+        else if (user.role === "collaborator") navigate("/col-home", { replace: true });
+        else navigate("/", { replace: true });
+      }, 2000);
     }
-  };
+  } catch (err) {
+    toast.dismiss(loadingToastId);
+    hasAttemptedSubmitRef.current = true;
+    setIsSubmitting(false); // Reset submitting state on error
+
+    const errorDetail = err.response?.data?.detail;
+    const statusCode = err.response?.status;
+
+    if (errorDetail === "email_not_found") {
+      setPasswordError("");
+      setEmailError("Email not found. Please check your email address.");
+      toast.error("Login Failed", "Email not found. Please check your email address.");
+    } else if (errorDetail === "invalid_password") {
+      setEmailError("");
+      setPasswordError("Invalid password. Please try again.");
+      toast.error("Login Failed", "Invalid password. Please try again.");
+    } else if (statusCode === 403) {
+      setEmailError(""); setPasswordError("");
+      toast.error("Account Banned", errorDetail || "Your account has been banned.");
+    } else if (err.request && !err.response) {
+      setEmailError(""); setPasswordError("");
+      toast.error("Network Error", "Please check your connection and try again.");
+    } else {
+      setEmailError(""); setPasswordError("");
+      toast.error("Error", errorDetail || "An unexpected error occurred.");
+    }
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 overflow-hidden">
