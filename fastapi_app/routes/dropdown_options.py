@@ -111,7 +111,7 @@ def admin_create_option(payload: OptionCreate):
     obj = DropdownOption.objects.create(
         category  = payload.category,
         label     = payload.label.strip(),
-        value     = payload.value.strip().lower().replace(" ", "_"),
+        value = payload.value.strip().lower(),
         order     = payload.order,
         is_active = payload.is_active,
     )
@@ -236,7 +236,7 @@ def bulk_import(file: UploadFile = File(...)):
             
             # Convert value to API-friendly format
             if value_raw:
-                value = value_raw.lower().replace(" ", "_")
+                value = value_raw.lower()
             else:
                 value = ""
             

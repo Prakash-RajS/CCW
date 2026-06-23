@@ -355,16 +355,16 @@ const Subscription = () => {
   };
 
   const scrollLeft = () => {
-  if (activeIndex > 0) {
-    setActiveIndex(activeIndex - 1);
-  }
-};
+    if (activeIndex > 0) {
+      setActiveIndex(activeIndex - 1);
+    }
+  };
 
-const scrollRight = () => {
-  if (activeIndex < currentPlans.length - 1) {
-    setActiveIndex(activeIndex + 1);
-  }
-};
+  const scrollRight = () => {
+    if (activeIndex < currentPlans.length - 1) {
+      setActiveIndex(activeIndex + 1);
+    }
+  };
 
   const getPlanFeatures = (plan) => {
     if (!plan) return [];
@@ -378,8 +378,8 @@ const scrollRight = () => {
   const getPlanDuration = (plan) =>
     plan.duration?.toLowerCase().includes("year") ? "year" : "month";
 
-const hasDiscount = (plan) =>
-  Number(plan.discount_percentage) > 0;
+  const hasDiscount = (plan) =>
+    Number(plan.discount_percentage) > 0;
   const getButtonText = (plan) => {
     if (isVerifyingPayment) return "Processing...";
     if (loadingPlanId === plan.id) return "Loading...";
@@ -403,18 +403,18 @@ const hasDiscount = (plan) =>
   };
 
   const renderPlanCard = (plan, index) => {
-  const features = getPlanFeatures(plan);
-  const showDiscount = hasDiscount(plan);
-  const displayPrice = showDiscount ? plan.discounted_price : plan.price;
-  const isCurrentPlan = isCurrentUserPlan(plan);
-  const isThisLoading = loadingPlanId === plan.id;
-  const action = getPlanAction(plan);
-  const isBlocked = action === "basic" || action === "downgrade";
+    const features = getPlanFeatures(plan);
+    const showDiscount = hasDiscount(plan);
+    const displayPrice = showDiscount ? plan.discounted_price : plan.price;
+    const isCurrentPlan = isCurrentUserPlan(plan);
+    const isThisLoading = loadingPlanId === plan.id;
+    const action = getPlanAction(plan);
+    const isBlocked = action === "basic" || action === "downgrade";
 
-  return (
-    <div className="w-full">
-      <div
-        className={`
+    return (
+      <div className="w-full">
+        <div
+          className={`
           w-full max-w-[380px] mx-auto
           h-auto min-h-[780px]
           rounded-[24px] p-5 sm:p-6
@@ -423,121 +423,127 @@ const hasDiscount = (plan) =>
           transform hover:scale-[1.02] hover:-translate-y-2
           ${!isCurrentPlan ? "hover:border-[3px] hover:border-[#FFD700] hover:shadow-[0_0_25px_rgba(255,215,0,0.5),0_20px_50px_rgba(255,215,0,0.3)]" : ""}
           ${activeCard === index + 1
-            ? "border-[3px] border-[#FFD700] shadow-[0_0_25px_rgba(255,215,0,0.6),0_25px_60px_rgba(255,215,0,0.4)]"
-            : "border-transparent"
-          }
+              ? "border-[3px] border-[#FFD700] shadow-[0_0_25px_rgba(255,215,0,0.6),0_25px_60px_rgba(255,215,0,0.4)]"
+              : "border-transparent"
+            }
         `}
-        style={{
-          backgroundImage: `url(${cardBackgrounds[index % cardBackgrounds.length]})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        {/* Popular Badge */}
-        {plan.is_popular && (
-          <div className="absolute top-4 left-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-full z-20 shadow-lg">
-            ⭐ POPULAR
-          </div>
-        )}
-
-        {/* Icon */}
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
-          <div className="flex items-center justify-center w-12 h-12 bg-[#3e1c71] rounded-full border border-white/20 shadow-lg">
-            <svg className="w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Plan Name & Price */}
-        <div className="pt-16 flex flex-col items-center">
-          <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">{plan.name}</h3>
-          <div className="flex flex-col items-center mt-2">
-            {showDiscount && (
-              <p className="text-lg text-gray-300 line-through">₹{plan.price}</p>
-            )}
-            <p className="text-4xl sm:text-5xl font-extrabold text-white leading-[1.1] flex items-end gap-1">
-              ₹{displayPrice}
-              <span className="text-base sm:text-lg font-medium mb-1">/{getPlanDuration(plan)}</span>
-            </p>
-          </div>
-
-          {/* Discount Badge */}
-          {showDiscount ? (
-            <div className="mt-4 bg-yellow-400/10 px-4 py-2 rounded-lg border border-yellow-500/30 w-full">
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-1">
-                <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full">{plan.discount_percentage}% OFF</span>
-              </div>
-              {plan.discount_description && <p className="text-yellow-200 text-xs text-center">{plan.discount_description}</p>}
-            </div>
-          ) : (
-            <div className="mt-4 bg-gray-800/50 px-4 py-2 rounded-lg border border-gray-600 w-full">
-              <p className="text-gray-300 text-xs font-medium text-center">No discount available</p>
+          style={{
+            backgroundImage: `url(${cardBackgrounds[index % cardBackgrounds.length]})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          {/* Popular Badge */}
+          {plan.is_popular && (
+            <div className="absolute top-4 left-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-full z-20 shadow-lg">
+              ⭐ POPULAR
             </div>
           )}
-        </div>
 
-        {/* Features List */}
-        <div className="mt-6 mb-4 text-left flex-1">
-          <div className="h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-            <ul className="space-y-3 text-white">
-              {features.length > 0 ? (
-                features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start gap-2.5 list-none">
-                    <div className="mt-0.5 flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-transparent shrink-0">
-                      <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-semibold text-sm sm:text-base">{feature.title || `Feature ${idx + 1}`}</span>
-                      {feature.description && <p className="text-white/70 text-xs sm:text-sm mt-0.5">{feature.description}</p>}
-                    </div>
-                  </li>
-                ))
-              ) : (
-                <li className="text-white/70 text-sm text-center py-8">No features listed</li>
-              )}
-            </ul>
+          {/* Icon */}
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+            <div className="flex items-center justify-center w-12 h-12 bg-[#3e1c71] rounded-full border border-white/20 shadow-lg">
+              <svg className="w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
           </div>
-        </div>
 
-        {/* Subscribe Button */}
-        <div className="w-full flex justify-center mt-auto pt-4">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
-            className={`
+          {/* Plan Name & Price */}
+          <div className="pt-16 flex flex-col items-center">
+            <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">{plan.name}</h3>
+            <div className="flex flex-col items-center mt-2">
+              {showDiscount && (
+                <p className="text-lg text-gray-300 line-through">₹{plan.price}</p>
+              )}
+              <p className="text-4xl sm:text-5xl font-extrabold text-white leading-[1.1] flex items-end gap-1">
+                ₹{displayPrice}
+                <span className="text-base sm:text-lg font-medium mb-1">/{getPlanDuration(plan)}</span>
+              </p>
+            </div>
+            {plan.description && (
+              <p className="text-white/80 text-sm text-center mt-2 mb-3 px-2">
+                {plan.description}
+              </p>
+            )}
+
+            {/* Discount Badge */}
+            {showDiscount ? (
+              <div className="mt-4 bg-yellow-400/10 px-4 py-2 rounded-lg border border-yellow-500/30 w-full">
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-1">
+                  <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full">{plan.discount_percentage}% OFF</span>
+                </div>
+                {plan.discount_description && <p className="text-yellow-200 text-xs text-center">{plan.discount_description}</p>}
+              </div>
+            ) : (
+              <div className="mt-4 bg-gray-800/50 px-4 py-2 rounded-lg border border-gray-600 w-full">
+                <p className="text-gray-300 text-xs font-medium text-center">No discount available</p>
+              </div>
+            )}
+          </div>
+
+          {/* Features List */}
+          <div className="mt-6 mb-4 text-left flex-1">
+            <div className="h-[320px] overflow-y-auto pr-2 custom-scrollbar">
+              <ul className="space-y-3 text-white">
+                {features.length > 0 ? (
+                  features.map((feature, idx) => (
+                    <li key={idx} className="flex items-start gap-2.5 list-none">
+                      <div className="mt-0.5 flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-transparent shrink-0">
+                        <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <span className="font-semibold text-sm sm:text-base">
+                          {feature.title || feature.description || `Feature ${idx + 1}`}
+                        </span>
+                      </div>
+                    </li>
+                  ))
+                ) : (
+                  <li className="text-white/70 text-sm text-center py-8">No features listed</li>
+                )}
+              </ul>
+            </div>
+          </div>
+
+          {/* Subscribe Button */}
+          <div className="w-full flex justify-center mt-auto pt-4">
+            <button
+              onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
+              className={`
               w-full py-3.5 rounded-full font-bold text-sm sm:text-base
               transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg
               flex items-center justify-center gap-2
               ${!user
-                ? "text-white bg-transparent border-2 border-white hover:bg-white hover:text-black"
-                : !userHasEmail
-                  ? "bg-gray-700 text-white border-2 border-yellow-500 cursor-pointer hover:bg-gray-600"
-                  : isCurrentPlan || action === "disabled_basic"
-                    ? "bg-[#5822b4] text-white border-2 border-[#9f7aea] cursor-default opacity-80"
-                    : isBlocked
-                      ? "bg-gray-600 text-white border-2 border-gray-500 cursor-not-allowed opacity-70"
-                      : getPlanPrice(plan) === 0
-                        ? "bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 border-2 border-green-500"
-                        : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-2 border-blue-500"
-              }
+                  ? "text-white bg-transparent border-2 border-white hover:bg-white hover:text-black"
+                  : !userHasEmail
+                    ? "bg-gray-700 text-white border-2 border-yellow-500 cursor-pointer hover:bg-gray-600"
+                    : isCurrentPlan || action === "disabled_basic"
+                      ? "bg-[#5822b4] text-white border-2 border-[#9f7aea] cursor-default opacity-80"
+                      : isBlocked
+                        ? "bg-gray-600 text-white border-2 border-gray-500 cursor-not-allowed opacity-70"
+                        : getPlanPrice(plan) === 0
+                          ? "bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 border-2 border-green-500"
+                          : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-2 border-blue-500"
+                }
             `}
-            disabled={isButtonDisabled(plan)}
-          >
-            {isThisLoading && (
-              <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-            )}
-            {getButtonText(plan)}
-          </button>
+              disabled={isButtonDisabled(plan)}
+            >
+              {isThisLoading && (
+                <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+              )}
+              {getButtonText(plan)}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   return (
     <div
@@ -603,35 +609,35 @@ const hasDiscount = (plan) =>
 
           {/* 🔹 SIMPLE HELPER TEXT - ONLY SHOWN WHEN USER HAS NO EMAIL */}
           {!loading && user && !userHasEmail && (
-  <div className="max-w-2xl mx-auto mt-8 px-4">
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900/60 via-purple-800/40 to-purple-900/60 backdrop-blur-sm border border-yellow-500/40 shadow-lg">
-      <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-transparent pointer-events-none" />
-      <div className="relative p-4 md:p-5 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-        {/* Icon */}
-        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/40">
-          <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-        </div>
-        {/* Text & action */}
-        <div className="flex-1 text-center sm:text-left">
-          <p className="text-white font-semibold text-base md:text-lg">
-            Email address missing
-          </p>
-          <p className="text-yellow-200/90 text-sm md:text-base">
-            Please add your email address in your profile to subscribe to any plan.
-          </p>
-        </div>
-        <button
-          onClick={() => navigate("/creator-edit-profile")}
-          className="px-5 py-2 rounded-full bg-white text-purple-900 font-bold text-sm hover:bg-yellow-400 hover:text-purple-900 transition-all duration-200 shadow-md whitespace-nowrap"
-        >
-          Add Email →
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+            <div className="max-w-2xl mx-auto mt-8 px-4">
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-purple-900/60 via-purple-800/40 to-purple-900/60 backdrop-blur-sm border border-yellow-500/40 shadow-lg">
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-transparent pointer-events-none" />
+                <div className="relative p-4 md:p-5 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                  {/* Icon */}
+                  <div className="flex-shrink-0 w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center border border-yellow-500/40">
+                    <svg className="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  {/* Text & action */}
+                  <div className="flex-1 text-center sm:text-left">
+                    <p className="text-white font-semibold text-base md:text-lg">
+                      Email address missing
+                    </p>
+                    <p className="text-yellow-200/90 text-sm md:text-base">
+                      Please add your email address in your profile to subscribe to any plan.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => navigate("/creator-edit-profile")}
+                    className="px-5 py-2 rounded-full bg-white text-purple-900 font-bold text-sm hover:bg-yellow-400 hover:text-purple-900 transition-all duration-200 shadow-md whitespace-nowrap"
+                  >
+                    Add Email →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {loading && (
@@ -665,87 +671,86 @@ const hasDiscount = (plan) =>
           </div>
         )}
 
-        
 
-{!loading && !error && (plans.monthly.length > 0 || plans.yearly.length > 0) && (
-  <>
-    {/* Mobile/Tablet: Single Card Carousel (320px - 1023px) */}
-    <div className="md:hidden">
-      {/* Single Card Container */}
-      <div className="flex justify-center px-4">
-        <div className="w-full max-w-[380px] mx-auto transition-all duration-300">
-          {currentPlans[activeIndex] && renderPlanCard(currentPlans[activeIndex], activeIndex)}
-        </div>
-      </div>
 
-      {/* Arrows and Dots - Centered below cards (original position) */}
-      {currentPlans.length > 1 && (
-        <div className="flex flex-col items-center justify-center gap-4 mt-6">
-          {/* Arrows */}
-          <div className="flex items-center gap-4">
-            <button
-              onClick={scrollLeft}
-              disabled={activeIndex === 0}
-              className={`
+        {!loading && !error && (plans.monthly.length > 0 || plans.yearly.length > 0) && (
+          <>
+            {/* Mobile/Tablet: Single Card Carousel (320px - 1023px) */}
+            <div className="md:hidden">
+              {/* Single Card Container */}
+              <div className="flex justify-center px-4">
+                <div className="w-full max-w-[380px] mx-auto transition-all duration-300">
+                  {currentPlans[activeIndex] && renderPlanCard(currentPlans[activeIndex], activeIndex)}
+                </div>
+              </div>
+
+              {/* Arrows and Dots - Centered below cards (original position) */}
+              {currentPlans.length > 1 && (
+                <div className="flex flex-col items-center justify-center gap-4 mt-6">
+                  {/* Arrows */}
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={scrollLeft}
+                      disabled={activeIndex === 0}
+                      className={`
                 w-10 h-10 rounded-full bg-gradient-to-b from-[#4c1d95] to-[#1e1b4b] 
                 flex items-center justify-center text-white shadow-md active:scale-90 transition-all
-                ${activeIndex === 0 
-                  ? 'opacity-40 cursor-not-allowed' 
-                  : 'hover:from-[#5b24ad] hover:to-[#2a1f5e]'
-                }
+                ${activeIndex === 0
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:from-[#5b24ad] hover:to-[#2a1f5e]'
+                        }
               `}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            
-            {/* Dots */}
-            <div className="flex items-center gap-2">
-              {currentPlans.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveIndex(idx)}
-                  className={`h-2 rounded-full transition-all duration-300 ${
-                    idx === activeIndex 
-                      ? 'w-8 bg-[#FFD700]' 
-                      : 'w-2 bg-white/40 hover:bg-white/60'
-                  }`}
-                />
-              ))}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
+
+                    {/* Dots */}
+                    <div className="flex items-center gap-2">
+                      {currentPlans.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveIndex(idx)}
+                          className={`h-2 rounded-full transition-all duration-300 ${idx === activeIndex
+                            ? 'w-8 bg-[#FFD700]'
+                            : 'w-2 bg-white/40 hover:bg-white/60'
+                            }`}
+                        />
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={scrollRight}
+                      disabled={activeIndex === currentPlans.length - 1}
+                      className={`
+                w-10 h-10 rounded-full bg-gradient-to-b from-[#4c1d95] to-[#1e1b4b] 
+                flex items-center justify-center text-white shadow-md active:scale-90 transition-all
+                ${activeIndex === currentPlans.length - 1
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:from-[#5b24ad] hover:to-[#2a1f5e]'
+                        }
+              `}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-            
-            <button
-              onClick={scrollRight}
-              disabled={activeIndex === currentPlans.length - 1}
-              className={`
-                w-10 h-10 rounded-full bg-gradient-to-b from-[#4c1d95] to-[#1e1b4b] 
-                flex items-center justify-center text-white shadow-md active:scale-90 transition-all
-                ${activeIndex === currentPlans.length - 1 
-                  ? 'opacity-40 cursor-not-allowed' 
-                  : 'hover:from-[#5b24ad] hover:to-[#2a1f5e]'
-                }
-              `}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
 
-    {/* Desktop: Grid Layout (1024px and above) */}
-    <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-[1200px] mx-auto px-4 md:px-6">
-      {currentPlans.map((plan, index) => renderPlanCard(plan, index))}
-    </div>
-  </>
-)}
+            {/* Desktop: Grid Layout (1024px and above) */}
+            <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-[1200px] mx-auto px-4 md:px-6">
+              {currentPlans.map((plan, index) => renderPlanCard(plan, index))}
+            </div>
+          </>
+        )}
 
         <div className="-mx-4 mt-12 sm:mt-16 md:mt-20">
-  <Footer />
-</div>
+          <Footer />
+        </div>
       </div>
 
       <style>{`

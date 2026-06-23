@@ -468,7 +468,7 @@ const SubscriptionPage = () => {
     if (!description || description.trim() === "") {
       return "";
     }
-    if (description.length > 100) return "Description must be 100 characters or less";
+    if (description.length > 30) return "Description must be 30 characters or less";
     const regex = /^[A-Za-z\s]+$/;
     if (!regex.test(description)) {
       return "Only alphabets and spaces allowed (no numbers or special characters like @, #, $, etc.)";
@@ -1771,13 +1771,13 @@ const { duplicateByName, duplicateByPrice } =
                   <label className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}>
                     Description
                     <span className={`text-xs ml-2 ${planForm.description.length > 100 ? "text-red-500" : "text-gray-500"}`}>
-                      ({planForm.description.length}/100)
+                      ({planForm.description.length}/30)
                     </span>
                   </label>
                   <textarea
                     value={planForm.description}
                     onChange={(e) => {
-                      const newValue = e.target.value.slice(0, 100);
+                      const newValue = e.target.value.slice(0, 30);
                       setPlanForm({ ...planForm, description: newValue });
                       if (touchedFields.description) {
                         setValidationErrors({ ...validationErrors, description: validateDescription(newValue) });
@@ -1788,9 +1788,9 @@ const { duplicateByName, duplicateByPrice } =
                       setValidationErrors({ ...validationErrors, description: validateDescription(planForm.description) });
                     }}
                     style={getTextareaStyle(isDarkMode)}
-                    placeholder="Brief description of the plan (alphabets and spaces only)"
+                    placeholder="Enter description for the plan Like (Billing Monthly or Billing Yearly)"
                     rows="3"
-                    maxLength={100}
+                    maxLength={30}
                   />
                   {touchedFields.description && validationErrors.description && (
                     <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><span>⚠️</span> {validationErrors.description}</p>

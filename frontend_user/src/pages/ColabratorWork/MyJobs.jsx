@@ -383,7 +383,7 @@ const MyJobs = () => {
               <div className="flex flex-row gap-3 sm:gap-4 md:gap-6">
                 <div className="flex-1 flex items-center gap-2 sm:gap-3 rounded-lg px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 shadow-sm">
                   <div className="w-8 h-8 sm:w-[36px] sm:h-[36px] border border-gray-200 flex items-center justify-center rounded-md bg-gray-50">
-                    <img src={jobIcon} className="w-4 h-4 sm:w-[20px] sm:h-[20px]" alt="jobs" />
+                    <span className="text-[#51218F] text-lg font-bold">💼</span>
                   </div>
                   <div>
                     <p className="text-sm sm:text-[20px] font-bold text-gray-900">{stats.totalJobs}</p>
@@ -496,27 +496,27 @@ const MyJobs = () => {
 
                             {/* DESCRIPTION + DATES (replaces earnings display) */}
                             <p className="text-xs sm:text-[13px] text-gray-600 mb-2 line-clamp-2">
-  <span className="font-semibold text-[#51218F]">
-    Description:
-  </span>{" "}
-  {contractDescription}
-</p>
+                              <span className="font-semibold text-[#51218F]">
+                                Description:
+                              </span>{" "}
+                              {contractDescription}
+                            </p>
 
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-[13px] text-gray-600 mb-3">
-  <span>
-    <span className="font-semibold text-[#51218F]">
-      Start Date:
-    </span>{" "}
-    {formatDate(contract.start_date) || "Not set"}
-  </span>
+                              <span>
+                                <span className="font-semibold text-[#51218F]">
+                                  Start Date:
+                                </span>{" "}
+                                {formatDate(contract.start_date) || "Not set"}
+                              </span>
 
-  <span>
-    <span className="font-semibold text-[#51218F]">
-      End Date:
-    </span>{" "}
-    {formatDate(contract.end_date) || "Not set"}
-  </span>
-</div>
+                              <span>
+                                <span className="font-semibold text-[#51218F]">
+                                  End Date:
+                                </span>{" "}
+                                {formatDate(contract.end_date) || "Not set"}
+                              </span>
+                            </div>
 
                             {/* SKILLS - Responsive wrapping */}
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-3">

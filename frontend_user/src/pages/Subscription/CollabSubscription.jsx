@@ -378,8 +378,8 @@ const CollabSubscription = () => {
   const getPlanDuration = (plan) =>
     plan.duration?.toLowerCase().includes("year") ? "year" : "month";
 
-const hasDiscount = (plan) =>
-  Number(plan.discount_percentage) > 0;
+  const hasDiscount = (plan) =>
+    Number(plan.discount_percentage) > 0;
 
   const getButtonText = (plan) => {
     if (isVerifyingPayment) return "Processing...";
@@ -462,6 +462,11 @@ const hasDiscount = (plan) =>
                 <span className="text-base sm:text-lg font-medium mb-1">/{getPlanDuration(plan)}</span>
               </p>
             </div>
+            {plan.description && (
+              <p className="text-white/80 text-sm text-center mt-2 mb-3 px-2">
+                {plan.description}
+              </p>
+            )}
 
             {/* Discount Badge */}
             {showDiscount ? (
@@ -491,8 +496,9 @@ const hasDiscount = (plan) =>
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <span className="font-semibold text-sm sm:text-base">{feature.title || `Feature ${idx + 1}`}</span>
-                        {feature.description && <p className="text-white/70 text-xs sm:text-sm mt-0.5">{feature.description}</p>}
+                        <span className="font-semibold text-sm sm:text-base">
+                          {feature.title || feature.description || `Feature ${idx + 1}`}
+                        </span>
                       </div>
                     </li>
                   ))
@@ -681,8 +687,8 @@ const hasDiscount = (plan) =>
                       className={`
                         w-10 h-10 rounded-full bg-gradient-to-b from-[#4c1d95] to-[#1e1b4b] 
                         flex items-center justify-center text-white shadow-md active:scale-90 transition-all
-                        ${activeIndex === 0 
-                          ? 'opacity-40 cursor-not-allowed' 
+                        ${activeIndex === 0
+                          ? 'opacity-40 cursor-not-allowed'
                           : 'hover:from-[#5b24ad] hover:to-[#2a1f5e]'
                         }
                       `}
@@ -691,30 +697,29 @@ const hasDiscount = (plan) =>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                       </svg>
                     </button>
-                    
+
                     {/* Dots */}
                     <div className="flex items-center gap-2">
                       {currentPlans.map((_, idx) => (
                         <button
                           key={idx}
                           onClick={() => setActiveIndex(idx)}
-                          className={`h-2 rounded-full transition-all duration-300 ${
-                            idx === activeIndex 
-                              ? 'w-8 bg-[#FFD700]' 
-                              : 'w-2 bg-white/40 hover:bg-white/60'
-                          }`}
+                          className={`h-2 rounded-full transition-all duration-300 ${idx === activeIndex
+                            ? 'w-8 bg-[#FFD700]'
+                            : 'w-2 bg-white/40 hover:bg-white/60'
+                            }`}
                         />
                       ))}
                     </div>
-                    
+
                     <button
                       onClick={scrollRight}
                       disabled={activeIndex === currentPlans.length - 1}
                       className={`
                         w-10 h-10 rounded-full bg-gradient-to-b from-[#4c1d95] to-[#1e1b4b] 
                         flex items-center justify-center text-white shadow-md active:scale-90 transition-all
-                        ${activeIndex === currentPlans.length - 1 
-                          ? 'opacity-40 cursor-not-allowed' 
+                        ${activeIndex === currentPlans.length - 1
+                          ? 'opacity-40 cursor-not-allowed'
                           : 'hover:from-[#5b24ad] hover:to-[#2a1f5e]'
                         }
                       `}

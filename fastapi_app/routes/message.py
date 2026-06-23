@@ -975,25 +975,36 @@ async def heartbeat(user_id: int):
         #print(f"Error in heartbeat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# fastapi_app/routes/message.py - Complete send_message_for_proposal endpoint
+
 @router.post("/send-for-proposal")
 async def send_message_for_proposal(
+    request: Request,
     background_tasks: BackgroundTasks,
     job_id: int = Form(...),
     sender_id: int = Form(...),
     content: str = Form(None),
     file: UploadFile = File(None)
 ):
+    """
+    Send a message related to a job proposal with S3 support for file attachments.
+    S3 Folder Used: chat_files/
+    File Type: chat
+    """
     try:
+        # Get sender
         sender = await sync_to_async(UserData.objects.filter(id=sender_id).first)()
         if not sender:
             raise HTTPException(status_code=404, detail="Sender not found")
 
+        # Get job with employer
         job = await sync_to_async(JobPost.objects.select_related("employer").filter(id=job_id).first)()
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
 
         receiver = job.employer
 
+        # Get or create conversation
         if sender.id < receiver.id:
             convo = await sync_to_async(Conversation.objects.filter(user1=sender, user2=receiver).first)()
             if not convo:
@@ -1007,17 +1018,25 @@ async def send_message_for_proposal(
         message_type = "text"
         final_content = content or ""
 
+        # Handle file upload with S3 support
         if file:
-            safe_filename = file.filename.replace("..", "").replace("/", "").replace("\\", "")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_filename = file.filename.replace("..", "").replace("/", "").replace("\\", "")
             filename = f"{timestamp}_{safe_filename}"
-            save_path = CHAT_FILES_DIR / filename
             
-            with open(save_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            
-            file_path = f"chat_files/{filename}"
+            # ✅ S3-aware file saving
+            if USE_S3:
+                # S3 path will be chat_files/filename
+                file_path = f"chat_files/{filename}"
+                await save_upload_file(file, file_path)
+            else:
+                # Local storage
+                save_path = CHAT_FILES_DIR / filename
+                with open(save_path, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+                file_path = f"chat_files/{filename}"
 
+            # Detect file type
             ext = filename.split(".")[-1].lower() if '.' in filename else ''
             image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico']
             
@@ -1032,6 +1051,7 @@ async def send_message_for_proposal(
         if final_content is None:
             final_content = ""
 
+        # Create message in database
         msg = await sync_to_async(Message.objects.create)(
             conversation=convo,
             sender=sender,
@@ -1040,13 +1060,23 @@ async def send_message_for_proposal(
             message_type=message_type
         )
 
-        background_tasks.add_task(
-        sync_to_async(create_message_notification),
-        msg, receiver, sender
-    )
-        base_url = "http://localhost:8000"
-        file_url = f"{base_url}/media/{file_path}".replace("\\", "/") if file_path else None
+        # ✅ Build file URL with S3 support
+        if file_path:
+            file_url = build_full_url(
+                request=request,
+                path=file_path,
+                file_type="chat"
+            )
+        else:
+            file_url = None
 
+        # Send notification to receiver
+        background_tasks.add_task(
+            sync_to_async(create_message_notification),
+            msg, receiver, sender
+        )
+
+        # Send WebSocket notification
         await manager.send_personal_message({
             "type": "new_message",
             "sender_id": sender_id,
@@ -1054,7 +1084,9 @@ async def send_message_for_proposal(
             "message_id": msg.id,
             "content": final_content,
             "file_url": file_url,
-            "message_type": message_type
+            "message_type": message_type,
+            "timestamp": msg.created_at.isoformat(),
+            "storage_mode": "s3" if USE_S3 else "local"
         }, receiver.id)
 
         return {
@@ -1065,13 +1097,17 @@ async def send_message_for_proposal(
             "file_url": file_url,
             "file_name": file.filename if file else None,
             "message_type": message_type,
-            "created_at": msg.created_at.isoformat()
+            "created_at": msg.created_at.isoformat(),
+            "storage_mode": "s3" if USE_S3 else "local"
         }
+
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        #print(f"Error in send_message_for_proposal: {e}")
+        print(f"❌ Error in send_message_for_proposal: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 # ===================================================
 # NEW ENDPOINTS - ADDED FOR UNREAD MESSAGE COUNT BADGE
@@ -1242,16 +1278,47 @@ async def mark_all_messages_read(
 
 
 
-@router.get("/download/{file_type}/{filename}")   
+# fastapi_app/routes/message.py - Updated download_file endpoint with force download
+
+@router.get("/download/{file_type}/{filename}")
 async def download_file(file_type: str, filename: str):
     """
-    Download a file from message_files or chat_files directory
-    
-    Args:
-        file_type: Either "message_files" or "chat_files"
-        filename: Name of the file to download
+    Download a file from message_files or chat_files with S3 support.
+    Forces download for all files (no inline viewing).
     """
     try:
+        # ✅ If using S3, generate a presigned URL with force download
+        if USE_S3:
+            # Determine the S3 folder path
+            if file_type == "message_files":
+                s3_folder = "message_files"
+            elif file_type == "chat_files":
+                s3_folder = "chat_files"
+            else:
+                raise HTTPException(status_code=400, detail="Invalid file type")
+            
+            # Build the S3 key
+            s3_key = f"{s3_folder}/{filename}"
+            
+            # ✅ Generate presigned URL with FORCE DOWNLOAD
+            presigned_url = generate_presigned_url(
+                s3_key=s3_key,
+                expires_in=ExpiryPreset.DAILY,
+                force_download=True  # ✅ THIS FORCES DOWNLOAD
+            )
+            
+            if presigned_url:
+                # ✅ Return the download URL directly (frontend will handle download)
+                return {
+                    "success": True,
+                    "download_url": presigned_url,
+                    "filename": filename,
+                    "storage_mode": "s3"
+                }
+            else:
+                raise HTTPException(status_code=404, detail="File not found in S3")
+        
+        # ✅ Local storage mode - return FileResponse with download headers
         # Determine the file path based on type
         if file_type == "message_files":
             file_path = MESSAGE_FILES_DIR / filename
@@ -1260,7 +1327,7 @@ async def download_file(file_type: str, filename: str):
         else:
             raise HTTPException(status_code=400, detail="Invalid file type")
         
-        # Check if file exists
+        # Check if file exists locally
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
         
@@ -1269,34 +1336,27 @@ async def download_file(file_type: str, filename: str):
         if not mime_type:
             mime_type = "application/octet-stream"
         
-        # Return file with proper headers
+        # ✅ Force download with attachment header
         return FileResponse(
             path=file_path,
             media_type=mime_type,
             filename=filename,
             headers={
-                "Access-Control-Allow-Origin": "*",  # Allow any origin
+                "Content-Disposition": f'attachment; filename="{filename}"',  # ✅ Forces download
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
+                "Cache-Control": "public, max-age=86400",
             }
         )
     
     except HTTPException:
         raise
     except Exception as e:
-        #print(f"❌ Error downloading file: {str(e)}")
+        print(f"❌ Error downloading file: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
-
-# Optional: Add OPTIONS handler for CORS preflight
-@router.options("/download/{file_type}/{filename}")
-async def download_file_options():
-    return Response(
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-        }
-    )
 # Health check endpoint
 @router.get("/health")
 async def health_check():

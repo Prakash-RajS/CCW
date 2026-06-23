@@ -1411,23 +1411,57 @@ export default function Message() {
     }
   }, [currentUserId, navigate]);
 
-  const handleFileDownload = async (fileUrl, fileName) => {
-    try {
-      let actualFileName = fileName || fileUrl.split("/").pop();
-      let fileType = fileUrl.includes("chat_files") ? "chat_files" : "message_files";
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      const downloadUrl = `${baseUrl}/message/download/${fileType}/${actualFileName}`;
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.setAttribute("download", actualFileName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("File downloaded successfully");
-    } catch (error) {
-      toast.error("Failed to download file");
+ const handleFileDownload = async (fileUrl, fileName) => {
+  try {
+    let actualFileName = fileName || fileUrl.split("/").pop();
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    
+    // ✅ Determine file type from URL
+    let fileType = fileUrl.includes("chat_files") ? "chat_files" : "message_files";
+    const downloadUrl = `${baseUrl}/message/download/${fileType}/${actualFileName}`;
+    
+    // ✅ Fetch the download URL (for S3 mode) or file (for local mode)
+    const response = await fetch(downloadUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': '*/*',
+      },
+    });
+    
+    // ✅ Check if response is JSON (S3 mode with download_url)
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      const data = await response.json();
+      if (data.success && data.download_url) {
+        // ✅ S3 mode - download using the presigned URL
+        const link = document.createElement('a');
+        link.href = data.download_url;
+        link.download = actualFileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success('Download started!');
+        return;
+      }
     }
-  };
+    
+    // ✅ Local mode - download the blob
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = actualFileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success('File downloaded successfully');
+    
+  } catch (error) {
+    console.error('Download failed:', error);
+    toast.error('Failed to download file');
+  }
+};
 
   useEffect(() => {
     if (!chatSearch.trim()) {

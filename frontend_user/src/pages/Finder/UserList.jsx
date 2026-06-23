@@ -1384,7 +1384,7 @@ const SimpleDropdown = ({ value, setValue, options, name, className }) => {
             <span className="md:hidden"> </span>next projects
           </h1>
           <h2 className="absolute w-full top-[180px] md:top-[290px] left-0 text-center text-white poppins-font font-normal text-[12px] md:text-[24px] leading-[100%] z-10 px-4 py-2">
-            Search creator by Niche, Location, audience, skills and more
+            Search Collaborator by Niche, Location, audience, skills and more
           </h2>
         </>
 

@@ -66,7 +66,7 @@ const allSkills = [
   "Cybersecurity",
 ];
 
-// ========== LEVENSHTEIN DISTANCE FUNCTION FOR EMAIL VALIDATION ==========
+// ========== LEVENSHTEIN DISTANCE FUNCTION ==========
 function levenshteinDistance(a, b) {
   const matrix = [];
   for (let i = 0; i <= b.length; i++) {
@@ -256,6 +256,7 @@ export default function ColabProfile() {
     title: "",
     file: "",
     media_link: "",
+    description: "",
   });
 
   // Edit Form
@@ -274,8 +275,8 @@ export default function ColabProfile() {
     badges: "",
     about: "",
     location: "",
-    collaboration_type: "",
-    followers: "",
+    // collaboration_type: "",   // REMOVED
+    // followers: "",             // REMOVED
     skills_rating: "",
     phone_number: "",
     address: "",
@@ -295,8 +296,8 @@ export default function ColabProfile() {
     about: "",
     skill_category: "",
     badges: "",
-    collaboration_type: "",
-    followers: "",
+    // collaboration_type: "",   // REMOVED
+    // followers: "",             // REMOVED
     skills_rating: "",
     phone_number: "",
     email: "",
@@ -359,33 +360,102 @@ export default function ColabProfile() {
     date_range: "",
   });
 
+  // ========== VALIDATION FUNCTIONS ==========
+
+
+  // Description for Work & Education: only alphabets, spaces, and punctuation (no numbers)
+const validateTextDescription = (value, maxLength = 200) => {
+  if (!value.trim()) return "";
+  const allowedPattern = /^[A-Za-z\s.,!?\-_:;"'()\/&@#$%*]+$/;
+  if (!allowedPattern.test(value)) {
+    return "Description can only contain letters, spaces, and punctuation (no numbers)";
+  }
+  if (value.length > maxLength) {
+    return `Description should be less than ${maxLength} characters`;
+  }
+  return "";
+};
+
+const validateSkillCategory = (value) => {
+  if (!value.trim()) return "";
+  if (!/^[A-Za-z\s\-_/]+$/.test(value)) {
+    return "Only letters, spaces, -, _, and / are allowed (no numbers)";
+  }
+  if (value.length > 50) {
+    return "Skill category should be less than 50 characters";
+  }
+  return "";
+};
+
+  // Timing: flexible – allow letters, numbers, spaces, and basic punctuation
+  const validateTimingFlexible = (value) => {
+    if (!value.trim()) return "Timing is required";
+    if (!/^[A-Za-z0-9\s\-_:;,.()/]+$/.test(value)) {
+      return "Only letters, numbers, spaces, and basic punctuation are allowed";
+    }
+    if (value.length > 100) {
+      return "Timing should be less than 100 characters";
+    }
+    return "";
+  };
+
+  // Portfolio Description: only letters, spaces, and punctuation (no numbers)
+const validatePortfolioDescription = (value, maxLength = 200) => {
+  if (!value.trim()) return "";
+  // Allow letters (A-Z a-z), spaces, and common punctuation only
+  const allowedPattern = /^[A-Za-z\s.,!?\-_:;"'()\/&@#$%*]+$/;
+  if (!allowedPattern.test(value)) {
+    return "Description can only contain letters, spaces, and punctuation (no numbers)";
+  }
+  if (value.length > maxLength) {
+    return `Description should be less than ${maxLength} characters`;
+  }
+  return "";
+};
+
+  // About: allow letters, spaces, and basic punctuation (NO numbers)
+const validateAbout = (value) => {
+  if (!value.trim()) return "";
+  if (!/^[A-Za-z\s.,!?;:'"()\-]+$/.test(value)) {
+    return "Only letters, spaces, and basic punctuation are allowed (no numbers)";
+  }
+  if (value.length > 200) {
+    return "About should be less than 200 characters";
+  }
+  return "";
+};
+
+  const validatePhoneRequired = (value) => {
+    if (!value || value.trim() === "") {
+      return "Phone number is required";
+    }
+    if (!/^\d{10}$/.test(value)) {
+      return "Please enter a valid 10-digit phone number";
+    }
+    return "";
+  };
+
+  // ========== VALIDATION FUNCTIONS (existing) ==========
   const validateTiming = (value) => {
     if (!value || typeof value !== 'string') return "";
-
     if (!value.trim()) return "Timing is required";
-
     const val = value.toLowerCase().trim();
-
     const regex24 =
       /^([01]?\d|2[0-3])(:[0-5]\d)?\s*-\s*([01]?\d|2[0-3])(:[0-5]\d)?$/;
     const regex12 = /^(1[0-2]|[1-9])\s*(am|pm)\s*-\s*(1[0-2]|[1-9])\s*(am|pm)$/;
-
     if (!regex24.test(val) && !regex12.test(val)) {
       return "Enter valid timing (e.g., 9am - 6pm)";
     }
-
     return "";
   };
 
   const validateAlphabetsSpacesHyphen = (value) => {
-  if (!value.trim()) return "";
- 
-  if (!/^[A-Za-z\s-]+$/.test(value)) {
-    return "Only alphabets, spaces, and hyphens (-) are allowed";
-  }
- 
-  return "";
-};
+    if (!value.trim()) return "";
+    if (!/^[A-Za-z\s-]+$/.test(value)) {
+      return "Only alphabets, spaces, and hyphens (-) are allowed";
+    }
+    return "";
+  };
 
   // Get user ID from context
   const userId = userData?.id;
@@ -527,19 +597,15 @@ export default function ColabProfile() {
   };
 
   const validateCompanyName = (value) => {
-  if (!value.trim()) return "Company name is required";
-
-  if (!/^[A-Za-z0-9\s&.-]+$/.test(value)) {
-    return "Only alphabets, numbers, spaces, &, -, and . are allowed";
-  }
-
-  if (value.length > 50) {
-    return "Company name should be less than 50 characters";
-  }
-
-  return "";
-};
- 
+    if (!value.trim()) return "Company name is required";
+    if (!/^[A-Za-z0-9\s&.-]+$/.test(value)) {
+      return "Only alphabets, numbers, spaces, &, -, and . are allowed";
+    }
+    if (value.length > 50) {
+      return "Company name should be less than 50 characters";
+    }
+    return "";
+  };
 
   const validateRole = (value) => {
     if (!value.trim()) return "Role is required";
@@ -560,6 +626,7 @@ export default function ColabProfile() {
 
   const validateDescription = (value, maxLength = 200) => {
     if (!value.trim()) return "";
+    // Allow letters, numbers, spaces, and common punctuation
     const allowedPattern = /^[A-Za-z0-9\s.,!?\-_:;"'()\/&@#$%*]+$/;
     if (!allowedPattern.test(value)) {
       return "Description contains invalid characters";
@@ -606,62 +673,60 @@ export default function ColabProfile() {
 
   // Email validation with Levenshtein suggestions
   const validateEmailWithSuggestions = (emailValue) => {
-  if (!emailValue || emailValue.trim() === "") {
-    return {
-      isValid: false,
-      error: "Email is required",
-      suggestion: null,
-    };
-  }
+    if (!emailValue || emailValue.trim() === "") {
+      return {
+        isValid: false,
+        error: "Email is required",
+        suggestion: null,
+      };
+    }
 
-  const trimmedEmail = emailValue.trim().toLowerCase();
+    const trimmedEmail = emailValue.trim().toLowerCase();
 
-  const emailRegex =
-    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const emailRegex =
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-  const commonDomains = [
-    "gmail.com",
-    "yahoo.com",
-    "hotmail.com",
-    "outlook.com",
-    "protonmail.com",
-  ];
+    const commonDomains = [
+      "gmail.com",
+      "yahoo.com",
+      "hotmail.com",
+      "outlook.com",
+      "protonmail.com",
+    ];
 
-  const [localPart, domain] = trimmedEmail.split("@");
+    const [localPart, domain] = trimmedEmail.split("@");
 
-  // Basic format validation
-  if (!emailRegex.test(trimmedEmail)) {
-    return {
-      isValid: false,
-      error: "Please enter a valid email address",
-      suggestion: null,
-    };
-  }
+    if (!emailRegex.test(trimmedEmail)) {
+      return {
+        isValid: false,
+        error: "Please enter a valid email address",
+        suggestion: null,
+      };
+    }
 
-  // Levenshtein typo detection
-  if (domain) {
-    for (const commonDomain of commonDomains) {
-      const distance = levenshteinDistance(
-        domain,
-        commonDomain
-      );
+    if (domain) {
+      for (const commonDomain of commonDomains) {
+        const distance = levenshteinDistance(
+          domain,
+          commonDomain
+        );
 
-      if (distance > 0 && distance <= 2) {
-        return {
-          isValid: false,
-          error: `Did you mean ${localPart}@${commonDomain}?`,
-          suggestion: `${localPart}@${commonDomain}`,
-        };
+        if (distance > 0 && distance <= 2) {
+          return {
+            isValid: false,
+            error: `Did you mean ${localPart}@${commonDomain}?`,
+            suggestion: `${localPart}@${commonDomain}`,
+          };
+        }
       }
     }
-  }
 
-  return {
-    isValid: true,
-    error: "",
-    suggestion: null,
+    return {
+      isValid: true,
+      error: "",
+      suggestion: null,
+    };
   };
-};
   // Track screen width
   useEffect(() => {
     const handleResize = () => {
@@ -771,8 +836,8 @@ export default function ColabProfile() {
         availability: profileData.availability || "",
         timing: profileData.timing || "",
         badges: profileData.badges || "",
-        collaboration_type: profileData.collaboration_type || "",
-        followers: profileData.followers || "",
+        // collaboration_type: profileData.collaboration_type || "",
+        // followers: profileData.followers || "",
         skills_rating: profileData.skills_rating || "",
       });
 
@@ -1245,8 +1310,8 @@ export default function ColabProfile() {
         availability: profile.availability || "",
         timing: profile.timing || "",
         badges: profile.badges || "",
-        collaboration_type: profile.collaboration_type || "",
-        followers: profile.followers || "",
+        // collaboration_type: profile.collaboration_type || "",
+        // followers: profile.followers || "",
         skills_rating: profile.skills_rating || "",
       });
 
@@ -1304,18 +1369,18 @@ export default function ColabProfile() {
   };
 
   const fetchReviews = async () => {
-  if (!userId) return;
-  try {
-    const response = await api.get(
-      `${API_BASE_URL}/collaborator/reviews/list/${userId}`,
-    );
-    console.log("🔍 Full reviews response:", response.data);
-    setReviews(response.data);
-  } catch (err) {
-    console.error("Error fetching reviews:", err);
-    setReviews([]);
-  }
-};
+    if (!userId) return;
+    try {
+      const response = await api.get(
+        `${API_BASE_URL}/collaborator/reviews/list/${userId}`,
+      );
+      console.log("🔍 Full reviews response:", response.data);
+      setReviews(response.data);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+      setReviews([]);
+    }
+  };
 
   const fetchPortfolioItems = async () => {
     if (!userId) return;
@@ -1432,24 +1497,24 @@ export default function ColabProfile() {
   };
 
   // Replace the getProfilePictureUrl function with this:
-const getProfilePictureUrl = () => {
-  if (profilePicturePreview) return profilePicturePreview;
-  if (profileData?.profile_picture_url) {
-    // Check if it's already a full URL (S3)
-    if (profileData.profile_picture_url.startsWith('http')) {
-      return profileData.profile_picture_url;
+  const getProfilePictureUrl = () => {
+    if (profilePicturePreview) return profilePicturePreview;
+    if (profileData?.profile_picture_url) {
+      // Check if it's already a full URL (S3)
+      if (profileData.profile_picture_url.startsWith('http')) {
+        return profileData.profile_picture_url;
+      }
+      // If it's a relative path, prepend API_BASE_URL
+      return `${API_BASE_URL}${profileData.profile_picture_url}`;
     }
-    // If it's a relative path, prepend API_BASE_URL
-    return `${API_BASE_URL}${profileData.profile_picture_url}`;
-  }
-  if (profileData?.profile_picture) {
-    if (profileData.profile_picture.startsWith('http')) {
-      return profileData.profile_picture;
+    if (profileData?.profile_picture) {
+      if (profileData.profile_picture.startsWith('http')) {
+        return profileData.profile_picture;
+      }
+      return `${API_BASE_URL}${profileData.profile_picture}`;
     }
-    return `${API_BASE_URL}${profileData.profile_picture}`;
-  }
-  return Rectangle;
-};
+    return Rectangle;
+  };
 
   const handleProfilePictureChange = (e) => {
     const file = e.target.files[0];
@@ -1478,103 +1543,89 @@ const getProfilePictureUrl = () => {
     }
   };
 
- const handlePortfolioFileChange = (e) => {
-  const file = e.target.files[0];
+  const handlePortfolioFileChange = (e) => {
+    const file = e.target.files[0];
 
-  if (!file) return;
+    if (!file) return;
 
-  setPortfolioValidationErrors((prev) => ({
-    ...prev,
-    file: "",
-  }));
-
-  const fileExtension = file.name.split('.').pop().toLowerCase();
-  
-  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-  const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
-
-  if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
-    const errorMessage = "Only JPG, JPEG, PNG, and WEBP image files are allowed";
-    toast.error(errorMessage);
-    e.target.value = "";
-    setFileName("No file chosen");
-    
     setPortfolioValidationErrors((prev) => ({
       ...prev,
-      file: errorMessage,
+      file: "",
     }));
-    
+
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
+
+    if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
+      const errorMessage = "Only JPG, JPEG, PNG, and WEBP image files are allowed";
+      toast.error(errorMessage);
+      e.target.value = "";
+      setFileName("No file chosen");
+
+      setPortfolioValidationErrors((prev) => ({
+        ...prev,
+        file: errorMessage,
+      }));
+
+      setPortfolioForm((prev) => ({
+        ...prev,
+        file: null,
+      }));
+
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      const errorMessage = "Image size must be less than 5 MB";
+      toast.error(errorMessage);
+      e.target.value = "";
+      setFileName("No file chosen");
+
+      setPortfolioValidationErrors((prev) => ({
+        ...prev,
+        file: errorMessage,
+      }));
+
+      setPortfolioForm((prev) => ({
+        ...prev,
+        file: null,
+      }));
+
+      return;
+    }
+
     setPortfolioForm((prev) => ({
       ...prev,
-      file: null,
+      file,
     }));
-    
-    return;
-  }
 
-  const maxSize = 5 * 1024 * 1024;
+    setFileName(file.name);
 
-  if (file.size > maxSize) {
-    const errorMessage = "Image size must be less than 5 MB";
-    toast.error(errorMessage);
-    e.target.value = "";
-    setFileName("No file chosen");
-    
     setPortfolioValidationErrors((prev) => ({
       ...prev,
-      file: errorMessage,
+      file: "",
     }));
-    
-    setPortfolioForm((prev) => ({
-      ...prev,
-      file: null,
-    }));
-    
-    return;
-  }
-
-  setPortfolioForm((prev) => ({
-    ...prev,
-    file,
-  }));
-
-  setFileName(file.name);
-  
-  setPortfolioValidationErrors((prev) => ({
-    ...prev,
-    file: "",
-  }));
-};
-
+  };
 
   const validateEditForm = () => {
     const errors = {
       name: validateName(editFormData.name),
-      language: validateTextRequiredAlphabets(
-        editFormData.language,
-        "Language",
-      ),
+      language: validateTextRequiredAlphabets(editFormData.language, "Language"),
       location: validateLocationField(editFormData.location),
       experience: validateExperience(editFormData.experience),
-      availability: validateTextRequiredAlphabets(
-        editFormData.availability,
-        "Availability",
-      ),
-      timing: validateTiming(editFormData.timing),
-      about:
-        editFormData.about.length > 200
-          ? "About should be less than 200 characters"
-          : "",
-      skill_category: validateAlphabetsOnly(editFormData.skill_category),
+      availability: validateTextRequiredAlphabets(editFormData.availability, "Availability"),
+      timing: validateTimingFlexible(editFormData.timing),
+      about: validateAbout(editFormData.about),
+      skill_category: validateSkillCategory(editFormData.skill_category),
       badges: validateAlphabetsNumbersSpaces(editFormData.badges),
-      collaboration_type: validateAlphabetsNumbersSpaces(
-        editFormData.collaboration_type,
-      ),
-      followers: validateNumbersOnly(editFormData.followers),
+      // collaboration_type: validateAlphabetsNumbersSpaces(editFormData.collaboration_type),
+      // followers: validateNumbersOnly(editFormData.followers),
       skills_rating: validateDecimalNumbers(editFormData.skills_rating),
-      phone_number: editFormData.phone_number
-        ? validatePhoneNumber(editFormData.phone_number)
-        : "",
+      phone_number: validatePhoneRequired(editFormData.phone_number),
       email: !profileData?.email ? validateEmailWithSuggestions(editFormData.email).error : "",
     };
     setEditFormErrors(errors);
@@ -1629,8 +1680,8 @@ const getProfilePictureUrl = () => {
         availability: profileData.availability || "",
         timing: profileData.timing || "",
         badges: profileData.badges || "",
-        collaboration_type: profileData.collaboration_type || "",
-        followers: profileData.followers || "",
+        // collaboration_type: profileData.collaboration_type || "",
+        // followers: profileData.followers || "",
         skills_rating: profileData.skills_rating || "",
       });
 
@@ -1654,8 +1705,8 @@ const getProfilePictureUrl = () => {
         about: "",
         skill_category: "",
         badges: "",
-        collaboration_type: "",
-        followers: "",
+        // collaboration_type: "",
+        // followers: "",
         skills_rating: "",
         phone_number: "",
         email: "",
@@ -1680,7 +1731,7 @@ const getProfilePictureUrl = () => {
       name: editFormData.name?.trim(),
       language: editFormData.language?.trim(),
       location: editFormData.location?.trim(),
-      followers: editFormData.followers ? parseInt(editFormData.followers) : 0,
+      // followers: editFormData.followers ? parseInt(editFormData.followers) : 0,
       skills_rating: editFormData.skills_rating ? parseFloat(editFormData.skills_rating) : 0,
       pricing_amount: editFormData.pricing_amount ? parseFloat(editFormData.pricing_amount) : 0,
       phone_number: editFormData.phone_number || "",
@@ -1819,76 +1870,76 @@ const getProfilePictureUrl = () => {
     toast.success(`Skill "${skillToRemove}" removed`);
   };
 
- const handleSaveSkills = async () => {
-  if (!userId) return;
+  const handleSaveSkills = async () => {
+    if (!userId) return;
 
-  let updatedSkills = [...selectedSkills];
+    let updatedSkills = [...selectedSkills];
 
-  if (currentSkill && currentSkill.trim() !== "") {
-    const trimmedSkill = currentSkill.trim();
+    if (currentSkill && currentSkill.trim() !== "") {
+      const trimmedSkill = currentSkill.trim();
 
-    if (updatedSkills.some(s => s.toLowerCase() === trimmedSkill.toLowerCase())) {
-      toast.error(`"${trimmedSkill}" is already added`);
+      if (updatedSkills.some(s => s.toLowerCase() === trimmedSkill.toLowerCase())) {
+        toast.error(`"${trimmedSkill}" is already added`);
+        setCurrentSkill("");
+        setSearchQuery("");
+        setSearchResults([]);
+        setShowResults(false);
+        return;
+      }
+
+      if (updatedSkills.length >= 15) {
+        toast.error("Maximum 15 skills allowed");
+        return;
+      }
+
+      updatedSkills = [...updatedSkills, trimmedSkill];
+      setSelectedSkills(updatedSkills);
+      toast.success(`"${trimmedSkill}" added`);
       setCurrentSkill("");
       setSearchQuery("");
       setSearchResults([]);
       setShowResults(false);
+    }
+
+    if (!updatedSkills || updatedSkills.length === 0) {
+      toast.error("❌ Please add at least one skill before saving");
       return;
     }
 
-    if (updatedSkills.length >= 15) {
-      toast.error("Maximum 15 skills allowed");
+    const originalSkills = profileData?.skills
+      ? (typeof profileData.skills === "string" ? profileData.skills.split(",") : profileData.skills)
+      : [];
+
+    const skillsChanged =
+      updatedSkills.length !== originalSkills.length ||
+      updatedSkills.some(skill => !originalSkills.includes(skill)) ||
+      originalSkills.some(skill => !updatedSkills.includes(skill));
+
+    if (!skillsChanged) {
+      toast.info("No changes to save");
       return;
     }
 
-    updatedSkills = [...updatedSkills, trimmedSkill];
-    setSelectedSkills(updatedSkills);
-    toast.success(`"${trimmedSkill}" added`);
-    setCurrentSkill("");
-    setSearchQuery("");
-    setSearchResults([]);
-    setShowResults(false);
-  }
+    setIsSavingProfile(true);
 
-  if (!updatedSkills || updatedSkills.length === 0) {
-    toast.error("❌ Please add at least one skill before saving");
-    return;
-  }
+    setEditFormData({ ...editFormData, skills: updatedSkills });
 
-  const originalSkills = profileData?.skills
-    ? (typeof profileData.skills === "string" ? profileData.skills.split(",") : profileData.skills)
-    : [];
+    const formData = new FormData();
+    formData.append("skills", updatedSkills.join(","));
 
-  const skillsChanged =
-    updatedSkills.length !== originalSkills.length ||
-    updatedSkills.some(skill => !originalSkills.includes(skill)) ||
-    originalSkills.some(skill => !updatedSkills.includes(skill));
-
-  if (!skillsChanged) {
-    toast.info("No changes to save");
-    return;
-  }
-
-  setIsSavingProfile(true);
-
-  setEditFormData({ ...editFormData, skills: updatedSkills });
-
-  const formData = new FormData();
-  formData.append("skills", updatedSkills.join(","));
-
-  try {
-    await api.put(`${API_BASE_URL}/collaborator/edit/${userId}`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    toast.success(`${updatedSkills.length} skill(s) updated successfully!`);
-    await fetchProfileData();
-  } catch (err) {
-    console.error("Error saving skills:", err);
-    toast.error("Failed to save skills");
-  } finally {
-    setIsSavingProfile(false);
-  }
-};
+    try {
+      await api.put(`${API_BASE_URL}/collaborator/edit/${userId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success(`${updatedSkills.length} skill(s) updated successfully!`);
+      await fetchProfileData();
+    } catch (err) {
+      console.error("Error saving skills:", err);
+      toast.error("Failed to save skills");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   // ========== PORTFOLIO CRUD ==========
 
@@ -1919,9 +1970,10 @@ const getProfilePictureUrl = () => {
       return;
     }
 
-    if (portfolioForm.description && portfolioForm.description.length > 200) {
-      toast.error("Work description should be less than 200 characters");
-      setPortfolioValidationErrors((prev) => ({ ...prev, title: "Work description should be less than 200 characters" }));
+    const descError = validatePortfolioDescription(portfolioForm.description, 200);
+    if (descError) {
+      toast.error(descError);
+      setPortfolioValidationErrors((prev) => ({ ...prev, description: descError }));
       return;
     }
 
@@ -1955,7 +2007,7 @@ const getProfilePictureUrl = () => {
         id: null,
       });
       setFileName("No file chosen");
-      setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
+      setPortfolioValidationErrors({ title: "", file: "", media_link: "", description: "" });
       await fetchPortfolioItems();
     } catch (err) {
       console.error("Error saving portfolio:", err);
@@ -2000,9 +2052,10 @@ const getProfilePictureUrl = () => {
       return;
     }
 
-    if (portfolioForm.description && portfolioForm.description.length > 200) {
-      toast.error("Work description should be less than 200 characters");
-      setPortfolioValidationErrors((prev) => ({ ...prev, title: "Work description should be less than 200 characters" }));
+    const descError = validatePortfolioDescription(portfolioForm.description, 200);
+    if (descError) {
+      toast.error(descError);
+      setPortfolioValidationErrors((prev) => ({ ...prev, description: descError }));
       return;
     }
 
@@ -2037,7 +2090,7 @@ const getProfilePictureUrl = () => {
         id: null,
       });
       setFileName("No file chosen");
-      setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
+      setPortfolioValidationErrors({ title: "", file: "", media_link: "", description: "" });
       await fetchPortfolioItems();
     } catch (err) {
       console.error("Error updating portfolio:", err);
@@ -2067,7 +2120,7 @@ const getProfilePictureUrl = () => {
           id: null,
         });
         setFileName("No file chosen");
-        setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
+        setPortfolioValidationErrors({ title: "", file: "", media_link: "", description: "" });
         await fetchPortfolioItems();
       } catch (err) {
         console.error("Error deleting portfolio:", err);
@@ -2120,28 +2173,28 @@ const getProfilePictureUrl = () => {
       media_link: item.media_link || "",
       file: null,
     });
-    setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
+    setPortfolioValidationErrors({ title: "", file: "", media_link: "", description: "" });
     setActiveModal("portfolio");
   };
 
   // Replace the getPortfolioImage function with this:
-const getPortfolioImage = (item) => {
-  if (item.file_url) {
-    // Check if it's already a full URL (S3)
-    if (item.file_url.startsWith('http')) {
-      return item.file_url;
+  const getPortfolioImage = (item) => {
+    if (item.file_url) {
+      // Check if it's already a full URL (S3)
+      if (item.file_url.startsWith('http')) {
+        return item.file_url;
+      }
+      // If it's a relative path, prepend API_BASE_URL
+      return `${API_BASE_URL}${item.file_url}`;
     }
-    // If it's a relative path, prepend API_BASE_URL
-    return `${API_BASE_URL}${item.file_url}`;
-  }
-  if (item.media_link) {
-    if (item.media_link.startsWith('http')) {
-      return item.media_link;
+    if (item.media_link) {
+      if (item.media_link.startsWith('http')) {
+        return item.media_link;
+      }
+      return `${API_BASE_URL}${item.media_link}`;
     }
-    return `${API_BASE_URL}${item.media_link}`;
-  }
-  return Portfolio1;
-};
+    return Portfolio1;
+  };
 
   const openPortfolioLink = (item) => {
     if (item.media_link) {
@@ -2183,7 +2236,7 @@ const getPortfolioImage = (item) => {
       company_name: validateCompanyName(workForm.company_name),
       role: validateRole(workForm.role),
       location: validateLocation(workForm.location),
-      description: workForm.description ? validateDescription(workForm.description, 200) : "",
+      description: workForm.description ? validateTextDescription(workForm.description, 200) : "", 
       start_year: validateYear(workForm.start_year),
       end_year:
         !workForm.is_current && workForm.end_year
@@ -2297,7 +2350,7 @@ const getPortfolioImage = (item) => {
       degree: validateDegree(educationForm.degree),
       field_of_study: validateFieldOfStudy(educationForm.field_of_study),
       location: validateLocation(educationForm.location),
-      description: educationForm.description ? validateDescription(educationForm.description, 200) : "",
+      description: educationForm.description ? validateTextDescription(educationForm.description, 200) : "",
       start_year: validateYear(educationForm.start_year),
       end_year:
         !educationForm.is_current && educationForm.end_year
@@ -2502,7 +2555,7 @@ const getPortfolioImage = (item) => {
 
       <div className="flex-1 w-full sm:max-w-none max-sm:w-full max-sm:bg-white max-sm:shadow-xl">
         {/* BANNER + HEADER */}
-       <div className="relative w-full h-[582px] max-sm:h-[260px] sm:h-[380px] xl:h-[582px]">
+        <div className="relative w-full h-[582px] max-sm:h-[260px] sm:h-[380px] xl:h-[582px]">
           <img src={TopBanner} alt="banner" className="absolute inset-0 w-full h-full object-cover" />
           <div className="absolute top-0 left-0 w-full z-[100] sm:top-[24px] sm:left-1/2 sm:-translate-x-1/2 sm:max-w-[1280px] sm:px-6">
             <div className="flex items-center justify-between text-white px-4 sm:px-0">
@@ -2513,21 +2566,21 @@ const getPortfolioImage = (item) => {
 
         {/* MAIN CONTENT */}
         <div className="origin-top transition-all duration-300">
-        <div className="max-w-[1280px] mx-auto mt-[-260px] max-sm:mt-0 relative px-3 sm:px-4 md:px-6 xl:px-0">
+          <div className="max-w-[1280px] mx-auto mt-[-260px] max-sm:mt-0 relative px-3 sm:px-4 md:px-6 xl:px-0">
             {/* PROFILE SECTION */}
-     <div className="grid grid-cols-1 xl:grid-cols-[804px_392px] gap-[31px] mt-6">
+            <div className="grid grid-cols-1 xl:grid-cols-[804px_392px] gap-[31px] mt-6">
               {/* DESKTOP PROFILE */}
-             <div className="hidden xl:block">
-               <div className="bg-white shadow-lg flex gap-6 w-full xl:w-[804px] rounded-[10px] p-6">
+              <div className="hidden xl:block">
+                <div className="bg-white shadow-lg flex gap-6 w-full xl:w-[804px] rounded-[10px] p-6">
                   <div className="flex flex-col items-start w-[218px] flex-shrink-0">
                     <img
-  src={getProfilePictureUrl()}
-  alt="profile"
-  className="w-[218px] h-[219px] rounded-[9px] object-cover"
-  onError={(e) => {
-    e.target.src = Rectangle;
-  }}
-/>
+                      src={getProfilePictureUrl()}
+                      alt="profile"
+                      className="w-[218px] h-[219px] rounded-[9px] object-cover"
+                      onError={(e) => {
+                        e.target.src = Rectangle;
+                      }}
+                    />
                     <div className="flex items-center gap-2 mt-3">
                       <span className="text-lg">{getCountryFlag(profileData?.location)}</span>
                       <span className="text-[14px] font-medium">{formatLocation(profileData?.location)}</span>
@@ -2618,7 +2671,7 @@ const getPortfolioImage = (item) => {
                 </div>
               </div>
               {/* MOBILE PROFILE */}
-             <div className="block xl:hidden bg-white rounded-[16px] shadow-lg p-4">
+              <div className="block xl:hidden bg-white rounded-[16px] shadow-lg p-4">
                 <div className="flex gap-3">
                   <div className="relative">
                     <img src={getProfilePictureUrl()} className="w-[82px] h-[132px] rounded-lg object-cover" alt="profile" />
@@ -2690,39 +2743,47 @@ const getPortfolioImage = (item) => {
                         </div>
 
                         <div className="space-y-3 xs:space-y-4">
-                          {/* Profile Picture */}
-                          {/* Edit Profile - Profile Picture section */}
-<div>
-  <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Profile Picture</label>
-  <div className="flex items-center gap-3 xs:gap-4">
-    <img src={getProfilePictureUrl()} className="w-14 h-14 xs:w-16 xs:h-16 sm:w-20 sm:h-20 rounded-full object-cover border-2 border-gray-300" alt="profile" />
-    <label 
-      className="cursor-pointer px-3 xs:px-4 sm:px-6 py-1.5 xs:py-2 sm:py-2.5 rounded-lg text-[10px] xs:text-xs sm:text-sm font-medium transition-all duration-200 hover:scale-105"
-      style={{
-        background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
-        color: 'white',
-        boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
-        border: 'none'
-      }}
-      onMouseEnter={(e) => {
-        e.target.style.transform = 'translateY(-1px)';
-        e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
-      }}
-      onMouseLeave={(e) => {
-        e.target.style.transform = 'translateY(0)';
-        e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
-      }}
-    >
-      Choose File
-      <input 
-        type="file" 
-        accept="image/*" 
-        onChange={handleProfilePictureChange} 
-        className="hidden" 
-      />
-    </label>
-  </div>
-</div>
+                          {/* Profile Picture - bigger size */}
+                          <div>
+                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Profile Picture</label>
+                            <div className="flex items-center gap-3 xs:gap-4 justify-center">
+                              <div className="relative group">
+                                <img
+                                  src={getProfilePictureUrl()}
+                                  className="w-20 h-20 xs:w-24 xs:h-24 sm:w-28 sm:h-28 rounded-full object-cover border-2 border-gray-300"
+                                  alt="profile"
+                                />
+                                {/* Pencil edit icon overlay - bigger icon */}
+                                <label
+                                  htmlFor="profile-pic-input"
+                                  className="absolute bottom-0 right-0 p-1.5 bg-[#51218F] rounded-full border-2 border-white cursor-pointer shadow-md hover:bg-[#6D28D9] transition-all duration-200 hover:scale-110"
+                                  style={{ transform: 'translate(10%, 10%)' }}
+                                >
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    className="w-5 h-5 xs:w-6 xs:h-6 text-white"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                  </svg>
+                                </label>
+                                <input
+                                  id="profile-pic-input"
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleProfilePictureChange}
+                                  className="hidden"
+                                />
+                              </div>
+                            </div>
+                          </div>
 
                           {/* Name with validation */}
                           <div>
@@ -2756,7 +2817,7 @@ const getPortfolioImage = (item) => {
 
                           {/* Phone Number with validation */}
                           <div>
-                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Phone Number</label>
+                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Phone Number <span className="text-red-500">*</span></label>
                             <div className="flex">
                               <div className="flex-shrink-0">
                                 <div className="flex items-center px-2 xs:px-3 sm:px-4 py-2 xs:py-3 border border-r-0 border-gray-300 rounded-l-lg bg-gray-50">
@@ -2769,7 +2830,7 @@ const getPortfolioImage = (item) => {
                                 onChange={(e) => {
                                   const numbersOnly = e.target.value.replace(/\D/g, "").slice(0, 10);
                                   setEditFormData({ ...editFormData, phone_number: numbersOnly });
-                                  setEditFormErrors({ ...editFormErrors, phone_number: validatePhoneNumber(numbersOnly) });
+                                  setEditFormErrors({ ...editFormErrors, phone_number: validatePhoneRequired(numbersOnly) });
                                 }}
                                 placeholder="12345 67890"
                                 maxLength={10}
@@ -2837,20 +2898,21 @@ const getPortfolioImage = (item) => {
                             )}
                           </div>
 
-                          {/* Skill Category with validation */}
+                          {/* Skill Category - allow numbers */}
                           <div>
                             <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Skill Category</label>
                             <input
                               type="text"
                               value={editFormData.skill_category}
                               onChange={(e) => {
-                                setEditFormData({ ...editFormData, skill_category: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, skill_category: validateAlphabetsOnly(e.target.value) });
+                                const value = e.target.value;
+                                setEditFormData({ ...editFormData, skill_category: value });
+                                setEditFormErrors({ ...editFormErrors, skill_category: validateSkillCategory(value) });
                               }}
                               maxLength={50}
                               style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
                               className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
-                              placeholder="e.g., Web Developer, Designer"
+                              placeholder="e.g., Web Developer / UI-Designer"
                             />
                             {editFormErrors.skill_category && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.skill_category}</p>}
                           </div>
@@ -2935,11 +2997,11 @@ const getPortfolioImage = (item) => {
                               value={editFormData.timing}
                               onChange={(e) => {
                                 setEditFormData({ ...editFormData, timing: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, timing: validateTiming(e.target.value) });
+                                setEditFormErrors({ ...editFormErrors, timing: validateTimingFlexible(e.target.value) });
                               }}
                               style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
                               className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
-                              placeholder="e.g., 9 AM - 5 PM EST"
+                              placeholder="e.g., Flexible, 9 AM - 5 PM"
                             />
                             {editFormErrors.timing && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.timing}</p>}
                           </div>
@@ -2962,24 +3024,6 @@ const getPortfolioImage = (item) => {
                             {editFormErrors.badges && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.badges}</p>}
                           </div>
 
-                          {/* Collaboration Type with validation */}
-                          <div>
-                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Collaboration Type</label>
-                            <input
-                              type="text"
-                              value={editFormData.collaboration_type}
-                              onChange={(e) => {
-                                setEditFormData({ ...editFormData, collaboration_type: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, collaboration_type: validateAlphabetsSpacesHyphen(e.target.value) });
-                              }}
-                              maxLength={50}
-                              style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
-                              className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
-                              placeholder="e.g., Remote, On-site"
-                            />
-                            {editFormErrors.collaboration_type && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.collaboration_type}</p>}
-                          </div>
-
                           {/* Projects Completed - Read Only */}
                           <div>
                             <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Projects Completed</label>
@@ -2990,23 +3034,6 @@ const getPortfolioImage = (item) => {
                               className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm border-2 border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-not-allowed outline-none"
                             />
                             <p className="text-[9px] xs:text-[10px] sm:text-xs text-gray-500 mt-1">Auto-calculated from completed contracts</p>
-                          </div>
-
-                          {/* Followers with validation */}
-                          <div>
-                            <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Followers/Audience</label>
-                            <input
-                              type="text"
-                              value={editFormData.followers}
-                              onChange={(e) => {
-                                setEditFormData({ ...editFormData, followers: e.target.value });
-                                setEditFormErrors({ ...editFormErrors, followers: e.target.value ? validateNumbersOnly(e.target.value) : "" });
-                              }}
-                              style={{ border: "2px solid #9ca3af", backgroundColor: "#ffffff" }}
-                              className="w-full px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm rounded-lg text-gray-900 outline-none"
-                              placeholder="e.g., 15000"
-                            />
-                            {editFormErrors.followers && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.followers}</p>}
                           </div>
 
                           {/* Skills Rating with validation */}
@@ -3026,7 +3053,7 @@ const getPortfolioImage = (item) => {
                             {editFormErrors.skills_rating && <p className="text-red-500 text-[9px] xs:text-[10px] sm:text-xs mt-1">{editFormErrors.skills_rating}</p>}
                           </div>
 
-                          {/* About with validation */}
+                          {/* About - allow numbers */}
                           <div>
                             <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">About</label>
                             <textarea
@@ -3036,7 +3063,7 @@ const getPortfolioImage = (item) => {
                                 const value = e.target.value;
                                 if (value.length <= 200) {
                                   setEditFormData({ ...editFormData, about: value });
-                                  setEditFormErrors({ ...editFormErrors, about: value.length > 200 ? "About should be less than 200 characters" : "" });
+                                  setEditFormErrors({ ...editFormErrors, about: validateAbout(value) });
                                 }
                               }}
                               maxLength={200}
@@ -3101,9 +3128,7 @@ const getPortfolioImage = (item) => {
               )}
 
               {/* RIGHT SIDEBAR */}
-          <div className="w-full xl:w-[392px] xl:max-w-[392px]
-    space-y-4 sm:space-y-6 px-3 sm:px-0
-    xl:ml-4 xl:relative">
+              <div className="w-full xl:w-[392px] xl:max-w-[392px] space-y-4 sm:space-y-6 px-3 sm:px-0 xl:ml-4 xl:relative">
                 {/* Verification Section */}
                 <div className="bg-white rounded-xl shadow p-4 sm:p-6">
                   <div className="flex items-center mb-4">
@@ -3258,32 +3283,32 @@ const getPortfolioImage = (item) => {
             </div>
 
             {/* PORTFOLIO SECTION */}
-          <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
+            <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base xs:text-lg sm:text-xl font-semibold">My Portfolio</h3>
                 <button
-  onClick={() => {
-    setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
-    setPortfolioValidationErrors({ title: "", file: "", media_link: "" });
-    setFileName("No file chosen");
-    setActiveModal("portfolio");
-  }}
-  className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
-  style={{ border: '1px solid #51218F' }}
-  disabled={isSavingPortfolio}
->
-  {isSavingPortfolio ? (
-    <>
-      <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-      Adding...
-    </>
-  ) : (
-    "Add Portfolio"
-  )}
-</button>
+                  onClick={() => {
+                    setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
+                    setPortfolioValidationErrors({ title: "", file: "", media_link: "", description: "" });
+                    setFileName("No file chosen");
+                    setActiveModal("portfolio");
+                  }}
+                  className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
+                  style={{ border: '1px solid #51218F' }}
+                  disabled={isSavingPortfolio}
+                >
+                  {isSavingPortfolio ? (
+                    <>
+                      <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Adding...
+                    </>
+                  ) : (
+                    "Add Portfolio"
+                  )}
+                </button>
               </div>
               <div className="h-px bg-gray-200 my-4" />
 
@@ -3297,15 +3322,14 @@ const getPortfolioImage = (item) => {
                   >
                     <div className="relative h-48 overflow-hidden">
                       <img
-  src={getPortfolioImage(item)}
-  alt={item.heading || "portfolio"}
-  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-  onError={(e) => {
-    // Try alternate images based on index
-    const index = portfolioItems.indexOf(item);
-    e.target.src = index === 0 ? Portfolio1 : index === 1 ? Portfolio2 : Portfolio3;
-  }}
-/>
+                        src={getPortfolioImage(item)}
+                        alt={item.heading || "portfolio"}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                        onError={(e) => {
+                          const index = portfolioItems.indexOf(item);
+                          e.target.src = index === 0 ? Portfolio1 : index === 1 ? Portfolio2 : Portfolio3;
+                        }}
+                      />
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
@@ -3433,7 +3457,7 @@ const getPortfolioImage = (item) => {
                     setActiveModal(null);
                     setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
                     setFileName("No file chosen");
-                    setPortfolioValidationErrors({ title: '', file: '', media_link: '' });
+                    setPortfolioValidationErrors({ title: '', file: '', media_link: '', description: '' });
                   }}
                 ></div>
 
@@ -3449,7 +3473,7 @@ const getPortfolioImage = (item) => {
                             setActiveModal(null);
                             setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
                             setFileName("No file chosen");
-                            setPortfolioValidationErrors({ title: '', file: '', media_link: '' });
+                            setPortfolioValidationErrors({ title: '', file: '', media_link: '', description: '' });
                           }}
                           className="text-gray-500 hover:text-black text-sm xs:text-lg sm:text-xl flex-shrink-0 leading-none"
                         >
@@ -3482,69 +3506,69 @@ const getPortfolioImage = (item) => {
                         </div>
 
                         {/* Portfolio Modal - Media File section */}
-<div className="mb-3">
-  <label className="block text-sm font-medium mb-2">
-    Media File {!portfolioForm.id && <span className="text-red-500">*</span>}
-  </label>
-  <div style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }} className="w-full flex items-center px-4 py-2 gap-4 rounded-lg">
-    <label 
-      className="px-5 py-2 rounded-full cursor-pointer text-sm font-medium transition-all duration-200 hover:scale-105"
-      style={{
-        background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
-        color: 'white',
-        boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
-        border: 'none'
-      }}
-      onMouseEnter={(e) => {
-        e.target.style.transform = 'translateY(-1px)';
-        e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
-      }}
-      onMouseLeave={(e) => {
-        e.target.style.transform = 'translateY(0)';
-        e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
-      }}
-    >
-      Choose File
-      <input
-        type="file"
-        accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/jpg,image/png,image/webp"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const fileExtension = file.name.split('.').pop().toLowerCase();
-            const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
-            const maxSize = 5 * 1024 * 1024;
-            
-            if (!allowedExtensions.includes(fileExtension)) {
-              toast.error("Only JPG, JPEG, PNG, and WEBP images are allowed");
-              e.target.value = "";
-              setFileName("No file chosen");
-              setPortfolioValidationErrors(prev => ({ ...prev, file: "Only JPG, JPEG, PNG, and WEBP images are allowed" }));
-              return;
-            }
-            
-            if (file.size > maxSize) {
-              toast.error("Image size must be less than 5 MB");
-              e.target.value = "";
-              setFileName("No file chosen");
-              setPortfolioValidationErrors(prev => ({ ...prev, file: "Image size must be less than 5 MB" }));
-              return;
-            }
-            
-            setPortfolioForm({ ...portfolioForm, file });
-            setFileName(file.name);
-            setPortfolioValidationErrors(prev => ({ ...prev, file: "" }));
-          }
-        }}
-      />
-    </label>
-    <span className="text-gray-500 text-sm truncate flex-1">
-      {portfolioForm.file?.name || (portfolioForm.id ? "Current file retained" : fileName)}
-    </span>
-  </div>
-  {portfolioValidationErrors.file && <p className="text-red-500 text-xs mt-1">{portfolioValidationErrors.file}</p>}
-</div>
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium mb-2">
+                            Media File {!portfolioForm.id && <span className="text-red-500">*</span>}
+                          </label>
+                          <div style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }} className="w-full flex items-center px-4 py-2 gap-4 rounded-lg">
+                            <label
+                              className="px-5 py-2 rounded-full cursor-pointer text-sm font-medium transition-all duration-200 hover:scale-105"
+                              style={{
+                                background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
+                                color: 'white',
+                                boxShadow: '0 2px 8px rgba(81, 33, 143, 0.3)',
+                                border: 'none'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.target.style.transform = 'translateY(-1px)';
+                                e.target.style.boxShadow = '0 4px 12px rgba(81, 33, 143, 0.4)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = '0 2px 8px rgba(81, 33, 143, 0.3)';
+                              }}
+                            >
+                              Choose File
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/jpg,image/png,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files[0];
+                                  if (file) {
+                                    const fileExtension = file.name.split('.').pop().toLowerCase();
+                                    const allowedExtensions = ["jpg", "jpeg", "png", "webp"];
+                                    const maxSize = 5 * 1024 * 1024;
+
+                                    if (!allowedExtensions.includes(fileExtension)) {
+                                      toast.error("Only JPG, JPEG, PNG, and WEBP images are allowed");
+                                      e.target.value = "";
+                                      setFileName("No file chosen");
+                                      setPortfolioValidationErrors(prev => ({ ...prev, file: "Only JPG, JPEG, PNG, and WEBP images are allowed" }));
+                                      return;
+                                    }
+
+                                    if (file.size > maxSize) {
+                                      toast.error("Image size must be less than 5 MB");
+                                      e.target.value = "";
+                                      setFileName("No file chosen");
+                                      setPortfolioValidationErrors(prev => ({ ...prev, file: "Image size must be less than 5 MB" }));
+                                      return;
+                                    }
+
+                                    setPortfolioForm({ ...portfolioForm, file });
+                                    setFileName(file.name);
+                                    setPortfolioValidationErrors(prev => ({ ...prev, file: "" }));
+                                  }
+                                }}
+                              />
+                            </label>
+                            <span className="text-gray-500 text-sm truncate flex-1">
+                              {portfolioForm.file?.name || (portfolioForm.id ? "Current file retained" : fileName)}
+                            </span>
+                          </div>
+                          {portfolioValidationErrors.file && <p className="text-red-500 text-xs mt-1">{portfolioValidationErrors.file}</p>}
+                        </div>
 
                         <div className="mb-3">
                           <label className="block text-sm font-medium mb-2">Work Link (optional)</label>
@@ -3572,6 +3596,8 @@ const getPortfolioImage = (item) => {
                               const value = e.target.value;
                               if (value.length <= 200) {
                                 setPortfolioForm({ ...portfolioForm, description: value });
+                                const descError = validatePortfolioDescription(value, 200);
+                                setPortfolioValidationErrors(prev => ({ ...prev, description: descError }));
                               }
                             }}
                             maxLength={200}
@@ -3579,15 +3605,23 @@ const getPortfolioImage = (item) => {
                             className="w-full px-4 py-3 text-sm rounded-lg outline-none"
                             placeholder="Describe your work..."
                           />
+                          {portfolioValidationErrors.description && (
+                            <p className="text-red-500 text-xs mt-1">{portfolioValidationErrors.description}</p>
+                          )}
                           <p className="text-[10px] text-gray-400 mt-1 text-right">{portfolioForm.description.length}/200 characters</p>
                         </div>
 
                         <div className="flex gap-4 justify-center mt-6">
                           <button
                             type="submit"
-                            disabled={!!portfolioValidationErrors.title || (portfolioForm.id ? false : !!portfolioValidationErrors.file) || isSavingPortfolio}
+                            disabled={
+                              !!portfolioValidationErrors.title ||
+                              (!portfolioForm.id && !!portfolioValidationErrors.file) ||
+                              !!portfolioValidationErrors.description ||
+                              isSavingPortfolio
+                            }
                             className={`w-[122px] h-[39px] rounded-[100px] font-montserrat font-bold text-[12px] leading-[100%] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 ${
-                              (portfolioValidationErrors.title || (!portfolioForm.id && portfolioValidationErrors.file) || isSavingPortfolio)
+                              (portfolioValidationErrors.title || (!portfolioForm.id && portfolioValidationErrors.file) || portfolioValidationErrors.description || isSavingPortfolio)
                                 ? "opacity-50 cursor-not-allowed bg-gray-400 text-white"
                                 : "bg-[#51218F] hover:bg-[#6D28D9] text-white"
                             }`}
@@ -3611,7 +3645,7 @@ const getPortfolioImage = (item) => {
                               setActiveModal(null);
                               setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
                               setFileName("No file chosen");
-                              setPortfolioValidationErrors({ title: '', file: '', media_link: '' });
+                              setPortfolioValidationErrors({ title: '', file: '', media_link: '', description: '' });
                             }}
                             className="w-[122px] h-[39px] rounded-[100px] font-montserrat font-bold text-[12px] leading-[100%] transition-all duration-200 cursor-pointer bg-[#5B2D8B] hover:bg-[#4A2575] border border-[#6A3EA1] text-white"
                           >
@@ -3734,108 +3768,111 @@ const getPortfolioImage = (item) => {
             )}
 
             {/* WORK EXPERIENCE SECTION */}
-           <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Work Experience</h3>
-                <div className="flex items-center gap-2">
-                  {workExperiences.length > initialItemsToShow && (
-                    <button onClick={() => setShowAllWork(!showAllWork)} className="text-[#6A3EA1] text-sm hover:underline">
-                      {showAllWork ? "Show Less" : "View All"}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setWorkForm({ company_name: "", role: "", description: "", location: "", start_year: "", end_year: "", is_current: false, id: null });
-                      setWorkFormErrors({ company_name: "", role: "", location: "", description: "", start_year: "", end_year: "", date_range: "" });
-                      setActiveModal("experience");
-                    }}
-                    className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
-                    style={{
-                      border: '1px solid #51218F'
-                    }}
-                    disabled={isSavingWork}
-                  >
-                    {isSavingWork ? (
-                      <>
-                        <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Adding...
-                      </>
-                    ) : (
-                      "Add Experience"
-                    )}
-                  </button>
-                </div>
+<div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Work Experience</h3>
+    <div className="flex items-center gap-2">
+      {workExperiences.length > initialItemsToShow && (
+        <button onClick={() => setShowAllWork(!showAllWork)} className="text-[#6A3EA1] text-sm hover:underline">
+          {showAllWork ? "Show Less" : "View All"}
+        </button>
+      )}
+      <button
+        onClick={() => {
+          setWorkForm({ company_name: "", role: "", description: "", location: "", start_year: "", end_year: "", is_current: false, id: null });
+          setWorkFormErrors({ company_name: "", role: "", location: "", description: "", start_year: "", end_year: "", date_range: "" });
+          setActiveModal("experience");
+        }}
+        className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
+        style={{
+          border: '1px solid #51218F'
+        }}
+        disabled={isSavingWork}
+      >
+        {isSavingWork ? (
+          <>
+            <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Adding...
+          </>
+        ) : (
+          "Add Experience"
+        )}
+      </button>
+    </div>
+  </div>
+  <div className="h-px bg-gray-200 my-4" />
+  <div className="space-y-6">
+    {displayedWork.map((exp, index) => (
+      <div key={exp.id || index} className="border-b border-gray-100 pb-4 last:border-0 group relative">
+        <div className="flex justify-between items-start">
+          <div className="flex-1 min-w-0"> {/* Add min-w-0 to allow flex child to shrink */}
+            <h4 className="font-semibold break-words">{exp.role} | {exp.company_name}</h4>
+            <p className="text-sm text-gray-500 mt-1">{exp.start_year} – {exp.end_year || "Present"}</p>
+            {/* Fix: Add proper word wrapping and overflow handling */}
+            <p className="text-sm text-gray-600 mt-2 break-words overflow-wrap-anywhere whitespace-pre-wrap">
+              {exp.description}
+            </p>
+          </div>
+          <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex-shrink-0 ml-4">
+            <button
+              onClick={() => handleEditWorkExperience(exp)}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <div className="bg-[#51218F] rounded-full w-6 h-6 lg:w-7 lg:h-7 flex items-center justify-center shadow-sm transition-transform hover:scale-110">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="lg:w-[16px] lg:h-[16px]"
+                >
+                  <path
+                    d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <polygon
+                    points="18 2 22 6 12 16 8 16 8 12 18 2"
+                    fill="white"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </div>
-              <div className="h-px bg-gray-200 my-4" />
-              <div className="space-y-6">
-                {displayedWork.map((exp, index) => (
-                  <div key={exp.id || index} className="border-b border-gray-100 pb-4 last:border-0 group relative">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h4 className="font-semibold">{exp.role} | {exp.company_name}</h4>
-                        <p className="text-sm text-gray-500 mt-1">{exp.start_year} – {exp.end_year || "Present"}</p>
-                        <p className="text-sm text-gray-600 mt-2">{exp.description}</p>
-                      </div>
-                      <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleEditWorkExperience(exp)}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <div className="bg-[#51218F] rounded-full w-6 h-6 lg:w-7 lg:h-7 flex items-center justify-center shadow-sm transition-transform hover:scale-110">
-                            <svg
-                              width="14"
-                              height="14"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="lg:w-[16px] lg:h-[16px]"
-                            >
-                              <path
-                                d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
-                                stroke="white"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <polygon
-                                points="18 2 22 6 12 16 8 16 8 12 18 2"
-                                fill="white"
-                                stroke="white"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                            </svg>
-                          </div>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteWorkExperience(exp.id)}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <svg
-                            className="w-5 h-5 lg:w-6 lg:h-6"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {workExperiences.length === 0 && <p className="text-center text-gray-500 py-4">No work experience added yet.</p>}
-            </div>
+            </button>
+            <button
+              onClick={() => handleDeleteWorkExperience(exp.id)}
+              className="p-1 hover:bg-gray-100 rounded"
+            >
+              <svg
+                className="w-5 h-5 lg:w-6 lg:h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+  {workExperiences.length === 0 && <p className="text-center text-gray-500 py-4">No work experience added yet.</p>}
+</div>
 
             {/* ADD/EDIT WORK EXPERIENCE MODAL */}
             {activeModal === "experience" && (
@@ -3985,9 +4022,9 @@ const getPortfolioImage = (item) => {
                             value={workForm.description}
                             onChange={(e) => {
                               const value = e.target.value;
-                              if (value.length <= 200) {
-                                setWorkForm({ ...workForm, description: value });
-                                setWorkFormErrors({ ...workFormErrors, description: validateDescription(value, 200) });
+    if (value.length <= 200) {
+      setWorkForm({ ...workForm, description: value });
+      setWorkFormErrors({ ...workFormErrors, description: validateTextDescription(value, 200) }); 
                               }
                             }}
                             maxLength={200}
@@ -4002,7 +4039,16 @@ const getPortfolioImage = (item) => {
                         <div className="flex gap-2 sm:gap-4 justify-center">
                           <button
                             type="submit"
-                            disabled={isSavingWork}
+                            disabled={
+                              isSavingWork ||
+                              !!workFormErrors.company_name ||
+                              !!workFormErrors.role ||
+                              !!workFormErrors.location ||
+                              !!workFormErrors.description ||
+                              !!workFormErrors.start_year ||
+                              !!workFormErrors.end_year ||
+                              !!workFormErrors.date_range
+                            }
                             className="px-4 sm:px-8 py-2 sm:py-3 rounded-full font-bold text-white transition-all duration-300 text-sm sm:text-base flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{
                               background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
@@ -4039,7 +4085,7 @@ const getPortfolioImage = (item) => {
                               setActiveModal(null);
                               setPortfolioForm({ heading: "", description: "", media_link: "", file: null, id: null });
                               setFileName("No file chosen");
-                              setPortfolioValidationErrors({ title: '', file: '', media_link: '' });
+                              setPortfolioValidationErrors({ title: '', file: '', media_link: '', description: '' });
                             }}
                             className="px-4 sm:px-8 py-2 sm:py-3 rounded-full font-bold transition-all duration-300 text-sm sm:text-base"
                             style={{
@@ -4067,7 +4113,7 @@ const getPortfolioImage = (item) => {
             )}
 
             {/* EDUCATION SECTION */}
-          <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
+            <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Education</h3>
                 <div className="flex items-center gap-2">
@@ -4336,29 +4382,47 @@ const getPortfolioImage = (item) => {
 
                         <div className="mb-4">
                           <label className="block text-[11px] xs:text-xs sm:text-sm font-medium mb-1.5 xs:mb-2">Description</label>
-                          <textarea
-                            rows={3}
-                            value={educationForm.description}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (value.length <= 200) {
-                                setEducationForm({ ...educationForm, description: value });
-                                setEducationFormErrors({ ...educationFormErrors, description: validateDescription(value, 200) });
-                              }
-                            }}
-                            maxLength={200}
-                            style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }}
-                            className="w-full rounded-lg px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm outline-none"
-                            placeholder="Describe your education..."
-                          />
-                          {educationFormErrors.description && <p className="text-red-500 text-[10px] xs:text-xs mt-1">{educationFormErrors.description}</p>}
-                          <p className="text-[10px] text-gray-400 mt-1 text-right">{educationForm.description.length}/200 characters</p>
+                          <div className="mb-4">
+                            <textarea
+                              rows={3}
+                              value={educationForm.description}
+                              onChange={(e) => {
+                                const value = e.target.value;
+    if (value.length <= 200) {
+      setEducationForm({ ...educationForm, description: value });
+      setEducationFormErrors({ ...educationFormErrors, description: validateTextDescription(value, 200) });
+                                }
+                              }}
+                              maxLength={200}
+                              style={{ border: '2px solid #9ca3af', backgroundColor: '#ffffff' }}
+                              className="w-full rounded-lg px-3 xs:px-4 py-2 xs:py-3 text-[11px] xs:text-xs sm:text-sm outline-none"
+                              placeholder="Describe your education..."
+                            />
+                            {educationFormErrors.description && (
+                              <p className="text-red-500 text-[10px] xs:text-xs mt-1">
+                                {educationFormErrors.description}
+                              </p>
+                            )}
+                            <p className="text-[10px] text-gray-400 mt-1 text-right">
+                              {educationForm.description.length}/200 characters
+                            </p>
+                          </div>
                         </div>
 
                         <div className="flex gap-2 sm:gap-4 justify-center">
                           <button
                             type="submit"
-                            disabled={isSavingEducation}
+                            disabled={
+                              isSavingEducation ||
+                              !!educationFormErrors.institution_name ||
+                              !!educationFormErrors.degree ||
+                              !!educationFormErrors.field_of_study ||
+                              !!educationFormErrors.location ||
+                              !!educationFormErrors.description ||
+                              !!educationFormErrors.start_year ||
+                              !!educationFormErrors.end_year ||
+                              !!educationFormErrors.date_range
+                            }
                             className="px-3 xs:px-4 sm:px-8 py-1.5 xs:py-2 sm:py-3 rounded-full font-bold text-white transition-all duration-300 text-[11px] xs:text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             style={{
                               background: 'linear-gradient(135deg, #51218F 0%, #6A3EA1 100%)',
@@ -4725,9 +4789,9 @@ const getPortfolioImage = (item) => {
                       Resend in <span className="font-bold text-red-500 font-mono">{String(Math.floor(resendTime / 60)).padStart(2, "0")}:{String(resendTime % 60).padStart(2, "0")}</span>
                     </p>
                   ) : (
-                    <button 
-                      onClick={handleResendOTP} 
-                      disabled={isVerifying || isResending} 
+                    <button
+                      onClick={handleResendOTP}
+                      disabled={isVerifying || isResending}
                       className="text-[#C22CA2] hover:text-[#3D1768] font-semibold text-xs sm:text-sm md:text-base poppins-font transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 mx-auto px-3 sm:px-4 py-1 sm:py-2 rounded-full group"
                     >
                       {isResending ? (

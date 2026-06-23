@@ -286,7 +286,7 @@ const TruncatedText = ({ text, className = "", style = {}, as: Tag = "span", isD
   );
 };
 
-// Revenue Chart Component - Fixed with proper scaling and top label matching
+// Revenue Chart Component – with pixel‑perfect Y‑axis alignment
 const RevenueChart = ({ data, labels, isDarkMode }) => {
   const chartContainerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 100 });
@@ -300,7 +300,6 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
         });
       }
     };
-    
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
@@ -314,99 +313,89 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
     );
   }
 
-  // Get max value from data
+  // Compute max value and round up
   const rawMax = Math.max(...data, 1);
-  
-  // FIXED: Round UP to nearest nice number for Y-axis
   let maxVal;
-  if (rawMax <= 100) {
-    maxVal = Math.ceil(rawMax / 10) * 10;
-  } else if (rawMax <= 500) {
-    maxVal = Math.ceil(rawMax / 50) * 50;
-  } else if (rawMax <= 1000) {
-    maxVal = Math.ceil(rawMax / 100) * 100;
-  } else if (rawMax <= 5000) {
-    maxVal = Math.ceil(rawMax / 500) * 500;
-  } else {
-    maxVal = Math.ceil(rawMax / 1000) * 1000;
-  }
-  
-  // Ensure maxVal is at least the raw max value (safety check)
-  if (maxVal < rawMax) {
-    maxVal = rawMax;
-  }
-  
-  // Ensure maxVal is at least 1
+  if (rawMax <= 100) maxVal = Math.ceil(rawMax / 10) * 10;
+  else if (rawMax <= 500) maxVal = Math.ceil(rawMax / 50) * 50;
+  else if (rawMax <= 1000) maxVal = Math.ceil(rawMax / 100) * 100;
+  else if (rawMax <= 5000) maxVal = Math.ceil(rawMax / 500) * 500;
+  else maxVal = Math.ceil(rawMax / 1000) * 1000;
+  if (maxVal < rawMax) maxVal = rawMax;
   maxVal = Math.max(maxVal, 1);
-  
+
   const chartHeight = 100;
   const chartWidth = dimensions.width || 400;
-  
-  // Calculate points for the line - FIXED: use chartHeight instead of 70
+
+  // Data points for the line
   const points = data.map((value, index) => {
     const x = (index / (data.length - 1)) * chartWidth;
-    // Use chartHeight directly for full height scaling
     const y = chartHeight - (value / maxVal) * chartHeight;
     return `${x},${y}`;
   }).join(' L ');
-  
   const linePath = `M ${points}`;
   const areaPath = `${linePath} L ${chartWidth},${chartHeight} L 0,${chartHeight} Z`;
 
-  // Helper function to format Y-axis labels
-  const formatYAxisLabel = (value) => {
-    if (value >= 1000) {
-      return `${(value / 1000).toFixed(1)}k`;
-    }
-    return Math.round(value);
-  };
-
-  // Generate evenly distributed Y-axis labels with nice numbers
+  // Generate Y‑axis labels (5 values)
   const getYAxisLabels = () => {
     const labels = [];
-    // Create 5 evenly spaced values from 0 to maxVal
     for (let i = 4; i >= 0; i--) {
       const value = (maxVal / 4) * i;
-      // Round to nice numbers for display
       let roundedValue;
-      if (maxVal <= 100) {
-        roundedValue = Math.round(value / 5) * 5;
-      } else if (maxVal <= 500) {
-        roundedValue = Math.round(value / 10) * 10;
-      } else if (maxVal <= 1000) {
-        roundedValue = Math.round(value / 25) * 25;
-      } else if (maxVal <= 5000) {
-        roundedValue = Math.round(value / 50) * 50;
-      } else {
-        roundedValue = Math.round(value / 100) * 100;
-      }
+      if (maxVal <= 100) roundedValue = Math.round(value / 5) * 5;
+      else if (maxVal <= 500) roundedValue = Math.round(value / 10) * 10;
+      else if (maxVal <= 1000) roundedValue = Math.round(value / 25) * 25;
+      else if (maxVal <= 5000) roundedValue = Math.round(value / 50) * 50;
+      else roundedValue = Math.round(value / 100) * 100;
       labels.push(roundedValue);
     }
     return labels;
   };
-
   const yAxisLabels = getYAxisLabels();
+
+  // Format label
+  const formatYAxisLabel = (value) => {
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+    return Math.round(value);
+  };
+
+  // Calculate the Y position (in %) for each label and grid line
+  const getYPosition = (value) => {
+    return (1 - value / maxVal) * 100;
+  };
 
   return (
     <div className="w-full mt-4" ref={chartContainerRef}>
-      {/* Y-axis labels */}
+      {/* Y‑axis labels – absolutely positioned for perfect alignment */}
       <div className="relative h-[100px] w-full">
-        <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between text-[9px] font-medium text-white/50 py-1">
-          {yAxisLabels.map((value, index) => (
-            <span key={index}>{formatYAxisLabel(value)}</span>
-          ))}
+        <div className="absolute left-0 top-0 bottom-0 w-8">
+          {yAxisLabels.map((value, index) => {
+            const yPercent = getYPosition(value);
+            return (
+              <span
+                key={index}
+                className="absolute text-[9px] font-medium text-white/50 w-full text-right pr-1"
+                style={{
+                  top: `${yPercent}%`,
+                  transform: 'translateY(-50%)',
+                }}
+              >
+                {formatYAxisLabel(value)}
+              </span>
+            );
+          })}
         </div>
-        
+
         {/* SVG Chart */}
         <div className="absolute left-8 right-0 top-0 bottom-0">
-          <svg 
-            width="100%" 
-            height="100%" 
+          <svg
+            width="100%"
+            height="100%"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             preserveAspectRatio="none"
             style={{ overflow: 'visible' }}
           >
-            {/* Grid lines - evenly distributed */}
+            {/* Grid lines */}
             {yAxisLabels.map((value, index) => {
               const yPosition = chartHeight - (value / maxVal) * chartHeight;
               return (
@@ -422,53 +411,30 @@ const RevenueChart = ({ data, labels, isDarkMode }) => {
                 />
               );
             })}
-            
+
             {/* Area fill */}
-            <path
-              d={areaPath}
-              fill={isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(101, 5, 228, 0.15)"}
-            />
-            
+            <path d={areaPath} fill={isDarkMode ? "rgba(255,255,255,0.08)" : "rgba(101,5,228,0.15)"} />
+
             {/* Line */}
-            <path
-              d={linePath}
-              fill="none"
-              stroke="white"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            
-            {/* Data points */}
+            <path d={linePath} fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+            {/* Data points (dots) */}
             {data.map((value, index) => {
               const x = (index / (data.length - 1)) * chartWidth;
-              // Use chartHeight directly for full height scaling
               const y = chartHeight - (value / maxVal) * chartHeight;
-              return (
-                <circle
-                  key={index}
-                  cx={x}
-                  cy={y}
-                  r="3"
-                  fill="white"
-                />
-              );
+              return <circle key={index} cx={x} cy={y} r="3" fill="white" />;
             })}
           </svg>
         </div>
       </div>
-      
-      {/* X-axis labels */}
+
+      {/* X‑axis labels – unchanged, already aligned */}
       <div className="flex justify-between w-full mt-2 pl-8">
         {labels.map((label, index) => (
-          <div 
-            key={index} 
+          <div
+            key={index}
             className="text-[9px] font-medium text-white/60 uppercase text-center"
-            style={{ 
-              flex: 1,
-              whiteSpace: 'nowrap',
-              overflow: 'visible'
-            }}
+            style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'visible' }}
           >
             {label}
           </div>

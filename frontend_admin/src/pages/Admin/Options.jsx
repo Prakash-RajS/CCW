@@ -292,8 +292,7 @@ export default function OptionsPage() {
   const currentItems = filtered.slice(startIndex, startIndex + itemsPerPage);
 
   // ── helpers ───────────────────────────────────────────────────────────────
-  const toValue = (str) => str.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-
+  const toValue = (str) => str.toLowerCase().trim(); 
   const handleLabelChange = (val) => {
     setForm(f => ({ ...f, label: val, value: toValue(val) }));
     if (formErrors.label) setFormErrors(e => ({ ...e, label: "" }));
@@ -303,7 +302,7 @@ export default function OptionsPage() {
     const errs = {};
     if (!form.label.trim()) errs.label = "Label is required";
     if (!form.value.trim()) errs.value = "Value is required";
-    if (!/^[a-z0-9_]+$/.test(form.value)) errs.value = "Only lowercase letters, numbers, underscores";
+    if (!/^[a-z0-9 _-]+$/.test(form.value)) errs.value = "Only lowercase letters, numbers, spaces, underscores, and hyphens";
     return errs;
   };
 
@@ -349,7 +348,7 @@ export default function OptionsPage() {
     if (!filled.length) { toast.error("Add at least one label"); return; }
     const errs = filled.map(r => {
       const e = {};
-      if (!r.value.trim() || !/^[a-z0-9_]+$/.test(r.value)) e.value = "Invalid";
+      if (!r.value.trim() || !/^[a-z0-9 _-]+$/.test(r.value)) e.value = "Invalid (only letters, numbers, spaces, _, -)";
       return e;
     });
     if (errs.some(e => Object.keys(e).length)) { setBatchErrors(errs); toast.error("Fix errors first"); return; }
