@@ -190,15 +190,13 @@ import axios from 'axios';
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const isDevelopment = import.meta.env.DEV;
 
-// ✅ FIX: Centralized public paths — no auth redirects on these routes
-// Must stay in sync with UserContext PUBLIC_ROUTES
+// ✅ FIX: Public paths — /role-section is NOT public
 const PUBLIC_PATHS = [
   '/',
   '/login',
   '/signup',
   '/signupac',
   '/signup-otp',
-  '/role-section',
   '/forgot-password',
   '/auth-callback',
   '/reset-password',
@@ -214,7 +212,6 @@ const PUBLIC_PATHS = [
 const isPublicPath = (path) =>
   PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'));
 
-// ✅ NEW: Track logout state for axios interceptor
 let isLoggingOut = false;
 export const setLoggingOut = (value) => { 
   isLoggingOut = value; 
@@ -225,13 +222,12 @@ export const setLoggingOut = (value) => {
 const api = axios.create({
   baseURL: API_BASE,
   timeout: 30000,
-  withCredentials: true,  // required for HttpOnly cookies
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Store current refresh promise to prevent multiple simultaneous refresh attempts
 let refreshPromise = null;
 
 // ---------------- Request Interceptor ----------------
@@ -241,7 +237,6 @@ api.interceptors.request.use(
       console.log(`🌐 ${config.method?.toUpperCase()} ${config.url}`);
     }
 
-    // Add cache-busting timestamp for GET requests (except auth endpoints)
     if (config.method === 'get' && !config.url.includes('/auth/')) {
       config.params = {
         ...config.params,
@@ -268,11 +263,10 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // ✅ FIX: Consolidated skip list — no retry/refresh for these endpoints
     const skipRetryUrls = [
       '/auth/login',
       '/auth/signup',
-      '/auth/logout',          // ✅ Added: Never retry logout
+      '/auth/logout',
       '/auth/refresh',
       '/auth/check-email',
       '/auth/check-phone',
@@ -292,10 +286,8 @@ api.interceptors.response.use(
       });
     }
 
-    // Handle 401 errors — attempt token refresh once
     if (error.response?.status === 401 && !originalRequest._retry) {
       
-      // ✅ NEW: Don't attempt refresh if logging out
       if (isLoggingOut) {
         console.log("⏭ Skipping refresh - logout in progress");
         return Promise.reject(error);
@@ -303,8 +295,6 @@ api.interceptors.response.use(
       
       originalRequest._retry = true;
 
-      // ✅ FIX: Don't attempt refresh if currently on a public page
-      // Prevents the 401 → refresh → 401 → /login redirect loop
       const currentPath = window.location.pathname;
       if (isPublicPath(currentPath)) {
         console.log(`🌐 On public path (${currentPath}) - not attempting refresh`);
@@ -338,7 +328,6 @@ api.interceptors.response.use(
 
         localStorage.removeItem('rememberedUsername');
 
-        // ✅ FIX: Only redirect to /login from protected pages
         const pathAfterFail = window.location.pathname;
         if (!isPublicPath(pathAfterFail)) {
           console.log('🔒 Redirecting to /login after failed refresh');
@@ -362,12 +351,10 @@ export const startSessionMonitor = () => {
   const monitorInterval = setInterval(async () => {
     const currentPath = window.location.pathname;
 
-    // ✅ FIX: Use isPublicPath for consistent check
     if (isPublicPath(currentPath) || currentPath === '/') {
       return;
     }
 
-    // ✅ NEW: Don't check session if logging out
     if (isLoggingOut) {
       return;
     }
@@ -383,7 +370,7 @@ export const startSessionMonitor = () => {
         }
       }
     }
-  }, 2 * 60 * 1000); // Check every 2 minutes
+  }, 2 * 60 * 1000);
 
   return monitorInterval;
 };

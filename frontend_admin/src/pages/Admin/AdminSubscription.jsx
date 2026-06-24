@@ -30,10 +30,15 @@ import api from "../../utils/axiosConfig";
 // Import the data update emitter from Dashboard
 import { dataUpdateEmitter } from './Dashboard';
 
+// In your component or API config file
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+
 // API Configuration
-const ADMIN_API_URL = "/admin";
-const PLANS_API_URL = "/plans";
-const PAYMENT_API_URL = "/payment";
+const PAYMENT_API_URL = `${API_BASE_URL}/payment`;
+const ADMIN_API_URL = `${API_BASE_URL}/admin`;
+const PLANS_API_URL = `${API_BASE_URL}/plans`;
+
 
 // Custom Dropdown Component
 const CustomDropdown = ({
@@ -543,35 +548,47 @@ const SubscriptionPage = () => {
     
     // Create dynamic plan cards from ALL plans (including those with 0)
     const cards = [];
+    const seenKeys = new Set(); // ✅ Track unique keys to prevent duplicates
+    
     if (response.data.plans && response.data.plans.length > 0) {
       response.data.plans.forEach(plan => {
+        // ✅ Ensure duration has a default value
+        const duration = plan.duration || plan.billing_cycle || 'monthly';
+        
         // Add Creator card ONLY if plan supports creator role
         if (plan.role === 'creator' || plan.role === 'both') {
-          cards.push({
-            id: `${plan.name}_${plan.duration}_creator`,
-            name: plan.name,
-            role: "creator",
-            users: plan.creator_count, 
-             duration: plan.duration,  // Will be 0 for plans with no subscribers
-            price_value: 0,
-            features: [],
-            is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
-          });
+          const key = `${plan.name}_${duration}_creator`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            cards.push({
+              id: key,
+              name: plan.name,
+              role: "creator",
+              users: plan.creator_count || 0,
+              duration: duration,
+              price_value: 0,
+              features: [],
+              is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
+            });
+          }
         }
         
         // Add Collaborator card ONLY if plan supports collaborator role
         if (plan.role === 'collaborator' || plan.role === 'both') {
-          cards.push({
-            id: `${plan.name}_${plan.duration}_collaborator`,
-            name: plan.name,
-            role: "collaborator",
-            users: plan.collaborator_count,  // Will be 0 for plans with no subscribers
-            price_value: 0,
-            duration: plan.duration, 
-
-            features: [],
-            is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
-          });
+          const key = `${plan.name}_${duration}_collaborator`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
+            cards.push({
+              id: key,
+              name: plan.name,
+              role: "collaborator",
+              users: plan.collaborator_count || 0,
+              price_value: 0,
+              duration: duration,
+              features: [],
+              is_basic_or_free: plan.name.toLowerCase() === "basic" || plan.name.toLowerCase() === "free"
+            });
+          }
         }
       });
     }
@@ -762,6 +779,7 @@ const downloadInvoice = async (row) => {
     const invoiceNumber = row.invoice_number || row.last_invoice_number;
     const subscriptionId = row.stripe_subscription_id || row.subscription_id;
 
+    // Check if it's a Basic/Free plan (no invoice)
     if (row.is_basic ||
       row.plan?.toLowerCase() === "basic" ||
       row.plan?.toLowerCase() === "free") {
@@ -780,41 +798,79 @@ const downloadInvoice = async (row) => {
       return;
     }
 
-    const url = `${PAYMENT_API_URL}/invoice/${encodeURIComponent(identifier)}`;
-    
-    // ✅ Use fetch to handle both S3 and local modes
+    const token = localStorage.getItem('access_token') || '';
+    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+    // ✅ Use force_download=true to get the file directly
+    const url = `${API_BASE_URL}/payment/invoice/${encodeURIComponent(identifier)}?force_download=true`;
+
+    console.log("📄 Downloading invoice from:", url);
+
     const response = await fetch(url, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/pdf',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || `HTTP ${response.status}`);
+      // Try to get error message from response
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.detail || errorMessage;
+      } catch (e) {
+        // If response is not JSON, try text
+        try {
+          errorMessage = await response.text();
+        } catch (e2) {
+          // Fallback to status text
+          errorMessage = response.statusText || errorMessage;
+        }
+      }
+      throw new Error(errorMessage);
     }
 
-    // Check if it's a redirect (S3 mode) or file (local mode)
-    if (response.redirected) {
-      // S3 mode - redirect to presigned URL
-      window.open(response.url, '_blank');
-      toast.success("Invoice download started!");
-    } else {
-      // Local mode - download the file
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      const date = new Date().toISOString().split("T")[0];
-      const userName = (row.full_name || "user").replace(/[^a-zA-Z0-9]/g, "_");
-      link.setAttribute("download", `invoice_${userName}_${date}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(downloadUrl);
-      toast.success("Invoice downloaded successfully!");
+    // ✅ Get the blob from response
+    const blob = await response.blob();
+
+    // Check if we got a valid PDF
+    if (blob.type !== 'application/pdf' && blob.type !== 'application/octet-stream') {
+      console.warn('Unexpected content type:', blob.type);
+      // Try to read as text to see if it's an error message
+      if (blob.type.includes('json')) {
+        const text = await blob.text();
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.error || errorData.detail || 'Failed to download invoice');
+        } catch (e) {
+          // If not JSON, just show the text
+          if (text) throw new Error(text);
+        }
+      }
     }
-    
+
+    // Check if blob is empty
+    if (blob.size === 0) {
+      throw new Error('Downloaded file is empty');
+    }
+
+    // Create download link
+    const link = document.createElement('a');
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
+    link.download = `Talenta_Invoice_${invoiceNumber || identifier}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Clean up the URL object after a short delay
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+
+    toast.success("Invoice downloaded successfully!");
+
   } catch (error) {
     console.error("Error downloading invoice:", error);
     toast.error(error.message || "Failed to download invoice");
@@ -823,7 +879,7 @@ const downloadInvoice = async (row) => {
     setSelectedRow(null);
   }
 };
-
+ 
   const openCreateModal = () => {
     setModalMode("create");
     setSelectedPlan(null);

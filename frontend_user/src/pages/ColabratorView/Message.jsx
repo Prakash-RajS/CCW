@@ -1,7 +1,13 @@
 // message.jsx - Complete Optimized Version
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import EmojiPicker from 'emoji-picker-react';
+import EmojiPicker from "emoji-picker-react";
 import api from "../../utils/axiosConfig";
 import { useUser } from "../../contexts/UserContext";
 import { useNotification } from "../../contexts/NotificationContext";
@@ -13,7 +19,11 @@ import User3 from "../../assets/myproject/user3.png";
 import User4 from "../../assets/myproject/user4.png";
 import User5 from "../../assets/myproject/user5.png";
 
-import { CallButton, CallWindow, IncomingCallNotification } from "./CallComponents";
+import {
+  CallButton,
+  CallWindow,
+  IncomingCallNotification,
+} from "./CallComponents";
 
 /* ----------------------------------
    TEMP UI AVATARS 
@@ -37,9 +47,16 @@ const MessageSkeleton = () => (
     <div className="flex-1 overflow-y-auto px-2 sm:px-3 md:px-5 py-3 md:py-5">
       <div className="space-y-4 max-w-full mx-auto px-2 sm:px-3 md:px-4">
         {[1, 2, 3, 4, 5].map((i) => (
-          <div key={i} className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] md:max-w-[70%] ${i % 2 === 0 ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}>
-              <div className={`px-3 py-2 rounded-2xl ${i % 2 === 0 ? "bg-purple-200" : "bg-gray-200"} animate-pulse`}>
+          <div
+            key={i}
+            className={`flex ${i % 2 === 0 ? "justify-end" : "justify-start"}`}
+          >
+            <div
+              className={`max-w-[85%] md:max-w-[70%] ${i % 2 === 0 ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}
+            >
+              <div
+                className={`px-3 py-2 rounded-2xl ${i % 2 === 0 ? "bg-purple-200" : "bg-gray-200"} animate-pulse`}
+              >
                 <div className="h-4 w-48 bg-gray-300 rounded" />
                 <div className="h-3 w-32 bg-gray-300 rounded mt-2" />
               </div>
@@ -75,7 +92,13 @@ const UserListSkeleton = () => (
 /* ----------------------------------
    QUICK REACTIONS BAR WITH CUSTOM EMOJIS
 ---------------------------------- */
-const QuickReactionsBar = ({ onReact, customReactions, onAddCustomEmoji, onRemoveCustomEmoji, onClose }) => {
+const QuickReactionsBar = ({
+  onReact,
+  customReactions,
+  onAddCustomEmoji,
+  onRemoveCustomEmoji,
+  onClose,
+}) => {
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef(null);
 
@@ -86,16 +109,19 @@ const QuickReactionsBar = ({ onReact, customReactions, onAddCustomEmoji, onRemov
       }
     };
     if (showPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('touchstart', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
     }
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
     };
   }, [showPicker]);
 
-  const allReactions = [...DEFAULT_QUICK_REACTIONS, ...customReactions].slice(0, 5);
+  const allReactions = [...DEFAULT_QUICK_REACTIONS, ...customReactions].slice(
+    0,
+    5,
+  );
 
   const handleReactAndClose = (emoji) => {
     onReact(emoji);
@@ -127,7 +153,7 @@ const QuickReactionsBar = ({ onReact, customReactions, onAddCustomEmoji, onRemov
           )}
         </button>
       ))}
-      
+
       {allReactions.length < 5 && (
         <div className="relative" ref={pickerRef}>
           <button
@@ -140,9 +166,9 @@ const QuickReactionsBar = ({ onReact, customReactions, onAddCustomEmoji, onRemov
           >
             ➕
           </button>
-          
+
           {showPicker && (
-            <div 
+            <div
               className="absolute bottom-full mb-2 left-0 z-50 animate-in fade-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -170,222 +196,253 @@ const QuickReactionsBar = ({ onReact, customReactions, onAddCustomEmoji, onRemov
 /* ----------------------------------
    CHAT HEADER ACTIONS COMPONENT
 ---------------------------------- */
-const ChatHeaderActions = React.memo(({ 
-  activeUser, 
-  currentUserId, 
-  currentUserName,
-  activeCall, 
-  handleCallInitiated,
-  showSearchInChat,
-  setShowSearchInChat,
-  setChatSearch,
-  showStarred,
-  setShowStarred,
-  setShowDeleteConversation
-}) => {
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const menuRef = useRef(null);
-  const buttonRef = useRef(null);
-  const timerRef = useRef(null);
+const ChatHeaderActions = React.memo(
+  ({
+    activeUser,
+    currentUserId,
+    currentUserName,
+    activeCall,
+    handleCallInitiated,
+    showSearchInChat,
+    setShowSearchInChat,
+    setChatSearch,
+    showStarred,
+    setShowStarred,
+    setShowDeleteConversation,
+  }) => {
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const menuRef = useRef(null);
+    const buttonRef = useRef(null);
+    const timerRef = useRef(null);
 
-  const clearTimer = () => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  };
-
-  const startAutoCloseTimer = () => {
-    clearTimer();
-    timerRef.current = setTimeout(() => {
-      setShowMoreMenu(false);
-    }, 60000);
-  };
-
-  const toggleMenu = (e) => {
-    e?.stopPropagation();
-    e?.preventDefault();
-    
-    if (!showMoreMenu) {
-      setShowMoreMenu(true);
-      startAutoCloseTimer();
-    } else {
-      clearTimer();
-      setShowMoreMenu(false);
-    }
-  };
-
-  const handleMenuAction = (action) => {
-    action();
-    clearTimer();
-    setShowMoreMenu(false);
-  };
-
-  const resetTimer = () => {
-    if (showMoreMenu) {
-      clearTimer();
-      startAutoCloseTimer();
-    }
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (buttonRef.current && buttonRef.current.contains(event.target)) {
-        return;
+    const clearTimer = () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
-      if (menuRef.current && menuRef.current.contains(event.target)) {
-        resetTimer();
-        return;
+    };
+
+    const startAutoCloseTimer = () => {
+      clearTimer();
+      timerRef.current = setTimeout(() => {
+        setShowMoreMenu(false);
+      }, 60000);
+    };
+
+    const toggleMenu = (e) => {
+      e?.stopPropagation();
+      e?.preventDefault();
+
+      if (!showMoreMenu) {
+        setShowMoreMenu(true);
+        startAutoCloseTimer();
+      } else {
+        clearTimer();
+        setShowMoreMenu(false);
       }
+    };
+
+    const handleMenuAction = (action) => {
+      action();
       clearTimer();
       setShowMoreMenu(false);
     };
 
-    if (showMoreMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('touchstart', handleClickOutside);
-      
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-        document.removeEventListener('touchstart', handleClickOutside);
+    const resetTimer = () => {
+      if (showMoreMenu) {
+        clearTimer();
+        startAutoCloseTimer();
+      }
+    };
+
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (buttonRef.current && buttonRef.current.contains(event.target)) {
+          return;
+        }
+        if (menuRef.current && menuRef.current.contains(event.target)) {
+          resetTimer();
+          return;
+        }
+        clearTimer();
+        setShowMoreMenu(false);
       };
-    }
-  }, [showMoreMenu]);
 
-  useEffect(() => {
-    return () => clearTimer();
-  }, []);
+      if (showMoreMenu) {
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
 
-  const menuContent = showMoreMenu && (
-    <div 
-      ref={menuRef}
-      className="absolute right-0 mt-2 w-48 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100/50 py-1.5 z-50"
-      onMouseEnter={resetTimer}
-      onMouseLeave={resetTimer}
-    >
-      <button
-        onClick={() => {
-          setShowSearchInChat((p) => !p);
-          setChatSearch("");
-          handleMenuAction(() => {});
-        }}
-        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
-          showSearchInChat 
-            ? "text-purple-600" 
-            : "text-gray-600 hover:bg-gray-50"
-        }`}
-        type="button"
+        return () => {
+          document.removeEventListener("mousedown", handleClickOutside);
+          document.removeEventListener("touchstart", handleClickOutside);
+        };
+      }
+    }, [showMoreMenu]);
+
+    useEffect(() => {
+      return () => clearTimer();
+    }, []);
+
+    const menuContent = showMoreMenu && (
+      <div
+        ref={menuRef}
+        className="absolute right-0 mt-2 w-48 bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-100/50 py-1.5 z-50"
+        onMouseEnter={resetTimer}
+        onMouseLeave={resetTimer}
       >
-        <span className="text-lg">🔍</span>
-        <span>Search</span>
-        {showSearchInChat && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-500" />
-        )}
-      </button>
-
-      <button
-        onClick={() => {
-          setShowStarred((p) => !p);
-          handleMenuAction(() => {});
-        }}
-        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
-          showStarred 
-            ? "text-amber-600" 
-            : "text-gray-600 hover:bg-gray-50"
-        }`}
-        type="button"
-      >
-        <span className="text-lg">⭐</span>
-        <span>Starred</span>
-        {showStarred && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />
-        )}
-      </button>
-
-      <div className="my-1 h-px bg-gray-100 mx-3" />
-
-      <button
-        onClick={() => {
-          setShowDeleteConversation(true);
-          handleMenuAction(() => {});
-        }}
-        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-b-2xl"
-        type="button"
-      >
-        <span className="text-lg">🗑️</span>
-        <span>Delete</span>
-      </button>
-    </div>
-  );
-  
-  return (
-    <div className="flex items-center gap-0.5 md:gap-2">
-      <div className="flex items-center gap-0.5 md:gap-1">
-        <CallButton 
-          otherUserId={activeUser?.id} 
-          callType="audio" 
-          onCallInitiated={handleCallInitiated} 
-          currentUserId={currentUserId} 
-          currentUserName={currentUserName}
-          disabled={!!activeCall} 
-        />
-        <CallButton 
-          otherUserId={activeUser?.id} 
-          callType="video" 
-          onCallInitiated={handleCallInitiated} 
-          currentUserId={currentUserId} 
-          currentUserName={currentUserName}
-          disabled={!!activeCall} 
-        />
-      </div>
-
-      <div className="hidden md:flex items-center gap-0.5 md:gap-2">
         <button
-          onClick={() => { setShowSearchInChat((p) => !p); setChatSearch(""); }}
-          className={`p-2 rounded-full transition-all duration-200 ${showSearchInChat ? "bg-purple-100 text-purple-600" : "text-gray-500 hover:bg-gray-100"}`}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-          </svg>
-        </button>
-        <button
-          onClick={() => setShowStarred((p) => !p)}
-          className={`p-2 rounded-full transition-all duration-200 ${showStarred ? "bg-amber-100 text-amber-500" : "text-gray-500 hover:bg-gray-100"}`}
-        >
-          <span className="text-lg">⭐</span>
-        </button>
-        <button
-          onClick={() => setShowDeleteConversation(true)}
-          className="p-2 rounded-full transition-all duration-200 text-red-400 hover:bg-red-50 hover:text-red-600"
-        >
-          <span className="text-lg">🗑️</span>
-        </button>
-      </div>
-
-      <div className="relative md:hidden">
-        <button
-          ref={buttonRef}
-          onClick={toggleMenu}
-          className={`p-2 rounded-full transition-all duration-200 ${showMoreMenu ? "bg-gray-100" : "text-gray-500 hover:bg-gray-100"}`}
+          onClick={() => {
+            setShowSearchInChat((p) => !p);
+            setChatSearch("");
+            handleMenuAction(() => {});
+          }}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
+            showSearchInChat
+              ? "text-purple-600"
+              : "text-gray-600 hover:bg-gray-50"
+          }`}
           type="button"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="1" />
-            <circle cx="12" cy="5" r="1" />
-            <circle cx="12" cy="19" r="1" />
-          </svg>
+          <span className="text-lg">🔍</span>
+          <span>Search</span>
+          {showSearchInChat && (
+            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-purple-500" />
+          )}
         </button>
-        {menuContent}
+
+        <button
+          onClick={() => {
+            setShowStarred((p) => !p);
+            handleMenuAction(() => {});
+          }}
+          className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm ${
+            showStarred ? "text-amber-600" : "text-gray-600 hover:bg-gray-50"
+          }`}
+          type="button"
+        >
+          <span className="text-lg">⭐</span>
+          <span>Starred</span>
+          {showStarred && (
+            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />
+          )}
+        </button>
+
+        <div className="my-1 h-px bg-gray-100 mx-3" />
+
+        <button
+          onClick={() => {
+            setShowDeleteConversation(true);
+            handleMenuAction(() => {});
+          }}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 rounded-b-2xl"
+          type="button"
+        >
+          <span className="text-lg">🗑️</span>
+          <span>Delete</span>
+        </button>
       </div>
-    </div>
-  );
-});
+    );
+
+    return (
+      <div className="flex items-center gap-0.5 md:gap-2">
+        <div className="flex items-center gap-0.5 md:gap-1">
+          <CallButton
+            otherUserId={activeUser?.id}
+            callType="audio"
+            onCallInitiated={handleCallInitiated}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            disabled={!!activeCall}
+          />
+          <CallButton
+            otherUserId={activeUser?.id}
+            callType="video"
+            onCallInitiated={handleCallInitiated}
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            disabled={!!activeCall}
+          />
+        </div>
+
+        <div className="hidden md:flex items-center gap-0.5 md:gap-2">
+          <button
+            onClick={() => {
+              setShowSearchInChat((p) => !p);
+              setChatSearch("");
+            }}
+            className={`p-2 rounded-full transition-all duration-200 ${showSearchInChat ? "bg-purple-100 text-purple-600" : "text-gray-500 hover:bg-gray-100"}`}
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.35-4.35" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setShowStarred((p) => !p)}
+            className={`p-2 rounded-full transition-all duration-200 ${showStarred ? "bg-amber-100 text-amber-500" : "text-gray-500 hover:bg-gray-100"}`}
+          >
+            <span className="text-lg">⭐</span>
+          </button>
+          <button
+            onClick={() => setShowDeleteConversation(true)}
+            className="p-2 rounded-full transition-all duration-200 text-red-400 hover:bg-red-50 hover:text-red-600"
+          >
+            <span className="text-lg">🗑️</span>
+          </button>
+        </div>
+
+        <div className="relative md:hidden">
+          <button
+            ref={buttonRef}
+            onClick={toggleMenu}
+            className={`p-2 rounded-full transition-all duration-200 ${showMoreMenu ? "bg-gray-100" : "text-gray-500 hover:bg-gray-100"}`}
+            type="button"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="12" cy="5" r="1" />
+              <circle cx="12" cy="19" r="1" />
+            </svg>
+          </button>
+          {menuContent}
+        </div>
+      </div>
+    );
+  },
+);
 
 /* ----------------------------------
    MOBILE MESSAGE ACTIONS MODAL
 ---------------------------------- */
-const MobileMessageActions = ({ message, messageElement, onClose, onReply, onStar, onContextMenu, isStarred, topBarHeight = 56 }) => {
-  const [position, setPosition] = useState({ top: 0, left: 0, placement: 'top' });
+const MobileMessageActions = ({
+  message,
+  messageElement,
+  onClose,
+  onReply,
+  onStar,
+  onContextMenu,
+  isStarred,
+  topBarHeight = 56,
+}) => {
+  const [position, setPosition] = useState({
+    top: 0,
+    left: 0,
+    placement: "top",
+  });
   const modalRef = useRef(null);
 
   useEffect(() => {
@@ -395,37 +452,38 @@ const MobileMessageActions = ({ message, messageElement, onClose, onReply, onSta
       const spaceAbove = rect.top - topBarHeight;
       const spaceBelow = window.innerHeight - rect.bottom;
       const modalWidth = modalRef.current.offsetWidth;
-      
+
       let top, placement;
-      
+
       if (spaceBelow >= modalHeight + 10) {
         top = rect.bottom + 8;
-        placement = 'bottom';
+        placement = "bottom";
       } else if (spaceAbove >= modalHeight + 10) {
         top = rect.top - modalHeight - 8;
-        placement = 'top';
+        placement = "top";
       } else {
         if (spaceBelow > spaceAbove) {
           top = rect.bottom + 8;
-          placement = 'bottom';
+          placement = "bottom";
         } else {
           top = Math.max(topBarHeight + 10, rect.top - modalHeight - 8);
-          placement = 'top';
+          placement = "top";
         }
       }
-      
-      let left = rect.left + (rect.width / 2) - (modalWidth / 2);
-      
+
+      let left = rect.left + rect.width / 2 - modalWidth / 2;
+
       if (left < 10) left = 10;
-      if (left + modalWidth > window.innerWidth - 10) left = window.innerWidth - modalWidth - 10;
-      
+      if (left + modalWidth > window.innerWidth - 10)
+        left = window.innerWidth - modalWidth - 10;
+
       setPosition({ top, left, placement });
     }
   }, [messageElement, topBarHeight]);
 
   return (
     <>
-      <div 
+      <div
         className="fixed inset-0 z-[150]"
         style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }}
         onClick={onClose}
@@ -436,38 +494,50 @@ const MobileMessageActions = ({ message, messageElement, onClose, onReply, onSta
         style={{
           top: position.top,
           left: position.left,
-          transformOrigin: position.placement === 'top' ? 'bottom center' : 'top center'
+          transformOrigin:
+            position.placement === "top" ? "bottom center" : "top center",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div 
-          className={`absolute w-3 h-3 bg-white rotate-45 ${position.placement === 'top' ? 'bottom-[-6px]' : 'top-[-6px]'}`}
+        <div
+          className={`absolute w-3 h-3 bg-white rotate-45 ${position.placement === "top" ? "bottom-[-6px]" : "top-[-6px]"}`}
           style={{
-            left: '50%',
-            marginLeft: '-6px'
+            left: "50%",
+            marginLeft: "-6px",
           }}
         />
-        
+
         <button
-          onClick={() => { onReply(message); onClose(); }}
+          onClick={() => {
+            onReply(message);
+            onClose();
+          }}
           className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200"
         >
           <span className="text-xl">↩️</span>
           <span className="text-[10px] font-medium text-gray-600">Reply</span>
         </button>
-        
+
         <button
-          onClick={() => { onStar(message); onClose(); }}
+          onClick={() => {
+            onStar(message);
+            onClose();
+          }}
           className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200 ${
             isStarred ? "text-amber-500" : "text-gray-600"
           }`}
         >
           <span className="text-xl">{isStarred ? "⭐" : "☆"}</span>
-          <span className="text-[10px] font-medium">{isStarred ? "Unstar" : "Star"}</span>
+          <span className="text-[10px] font-medium">
+            {isStarred ? "Unstar" : "Star"}
+          </span>
         </button>
-        
+
         <button
-          onClick={(e) => { onContextMenu(message, e); onClose(); }}
+          onClick={(e) => {
+            onContextMenu(message, e);
+            onClose();
+          }}
           className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors min-w-[60px] active:bg-gray-200"
         >
           <span className="text-xl">⋯</span>
@@ -498,10 +568,14 @@ function MessageContextMenu({
   topBarHeight = 56,
   customReactions = [],
   onAddCustomEmoji,
-  onRemoveCustomEmoji
+  onRemoveCustomEmoji,
 }) {
   const menuRef = useRef(null);
-  const [mobilePosition, setMobilePosition] = useState({ top: 0, left: 0, placement: 'top' });
+  const [mobilePosition, setMobilePosition] = useState({
+    top: 0,
+    left: 0,
+    placement: "top",
+  });
 
   useEffect(() => {
     if (window.innerWidth < 768 && messageElement && menuRef.current) {
@@ -510,30 +584,31 @@ function MessageContextMenu({
       const spaceAbove = rect.top - topBarHeight;
       const spaceBelow = window.innerHeight - rect.bottom;
       const menuWidth = menuRef.current.offsetWidth;
-      
+
       let top, placement;
-      
+
       if (spaceBelow >= menuHeight + 10) {
         top = rect.bottom + 8;
-        placement = 'bottom';
+        placement = "bottom";
       } else if (spaceAbove >= menuHeight + 10) {
         top = rect.top - menuHeight - 8;
-        placement = 'top';
+        placement = "top";
       } else {
         if (spaceBelow > spaceAbove) {
           top = rect.bottom + 8;
-          placement = 'bottom';
+          placement = "bottom";
         } else {
           top = Math.max(topBarHeight + 10, rect.top - menuHeight - 8);
-          placement = 'top';
+          placement = "top";
         }
       }
-      
-      let left = rect.left + (rect.width / 2) - (menuWidth / 2);
-      
+
+      let left = rect.left + rect.width / 2 - menuWidth / 2;
+
       if (left < 10) left = 10;
-      if (left + menuWidth > window.innerWidth - 10) left = window.innerWidth - menuWidth - 10;
-      
+      if (left + menuWidth > window.innerWidth - 10)
+        left = window.innerWidth - menuWidth - 10;
+
       setMobilePosition({ top, left, placement });
     }
   }, [messageElement, topBarHeight]);
@@ -559,12 +634,12 @@ function MessageContextMenu({
     const menuHeight = 420;
     let x = position.x;
     let y = position.y;
-    
+
     if (x + menuWidth > vw) x = vw - menuWidth - 8;
     if (y + menuHeight > vh) y = vh - menuHeight - 8;
     if (x < 8) x = 8;
     if (y < 8) y = 8;
-    
+
     return { top: y, left: x };
   }, [position]);
 
@@ -574,49 +649,107 @@ function MessageContextMenu({
         className="fixed inset-0 z-[100]"
         style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }}
         onClick={onClose}
-        onContextMenu={(e) => { e.preventDefault(); onClose(); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
       >
         <div className="absolute inset-0" onClick={onClose} />
-        
+
         <div
           ref={menuRef}
           className="fixed bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-200"
           style={{
             top: mobilePosition.top,
             left: mobilePosition.left,
-            width: 'min(240px, calc(100vw - 32px))',
-            maxWidth: 'calc(100vw - 48px)',
-            transformOrigin: mobilePosition.placement === 'top' ? 'bottom center' : 'top center'
+            width: "min(240px, calc(100vw - 32px))",
+            maxWidth: "calc(100vw - 48px)",
+            transformOrigin:
+              mobilePosition.placement === "top"
+                ? "bottom center"
+                : "top center",
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div 
-            className={`absolute w-3 h-3 bg-white rotate-45 ${mobilePosition.placement === 'top' ? 'bottom-[-6px]' : 'top-[-6px]'}`}
+          <div
+            className={`absolute w-3 h-3 bg-white rotate-45 ${mobilePosition.placement === "top" ? "bottom-[-6px]" : "top-[-6px]"}`}
             style={{
-              left: '50%',
-              marginLeft: '-6px'
+              left: "50%",
+              marginLeft: "-6px",
             }}
           />
-          
-          <QuickReactionsBar 
+
+          <QuickReactionsBar
             onReact={onReact}
             customReactions={customReactions}
             onAddCustomEmoji={onAddCustomEmoji}
             onRemoveCustomEmoji={onRemoveCustomEmoji}
             onClose={onClose}
           />
-          
+
           <div className="py-1">
-            <ContextMenuItem icon="↩️" label="Reply" onClick={() => { onReply(message); onClose(); }} />
-            {message.text && <ContextMenuItem icon="📋" label="Copy" onClick={() => { onCopy(message); onClose(); }} />}
-            <ContextMenuItem icon="📤" label="Forward" onClick={() => { onForward(message); onClose(); }} />
-            <ContextMenuItem icon="⭐" label="Star" onClick={() => { onStar(message); onClose(); }} />
-            <ContextMenuItem icon="📌" label="Pin" onClick={() => { onPin(message); onClose(); }} />
+            <ContextMenuItem
+              icon="↩️"
+              label="Reply"
+              onClick={() => {
+                onReply(message);
+                onClose();
+              }}
+            />
+            {message.text && (
+              <ContextMenuItem
+                icon="📋"
+                label="Copy"
+                onClick={() => {
+                  onCopy(message);
+                  onClose();
+                }}
+              />
+            )}
+            <ContextMenuItem
+              icon="📤"
+              label="Forward"
+              onClick={() => {
+                onForward(message);
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              icon="⭐"
+              label="Star"
+              onClick={() => {
+                onStar(message);
+                onClose();
+              }}
+            />
+            <ContextMenuItem
+              icon="📌"
+              label="Pin"
+              onClick={() => {
+                onPin(message);
+                onClose();
+              }}
+            />
             {isOwnMessage && message.message_type === "text" && (
-              <ContextMenuItem icon="✏️" label="Edit" onClick={() => { onEdit(message); onClose(); }} />
+              <ContextMenuItem
+                icon="✏️"
+                label="Edit"
+                onClick={() => {
+                  onEdit(message);
+                  onClose();
+                }}
+              />
             )}
             {isOwnMessage && (
-              <ContextMenuItem icon="🗑️" label="Delete" onClick={() => { onDelete(message); onClose(); }} danger />
+              <ContextMenuItem
+                icon="🗑️"
+                label="Delete"
+                onClick={() => {
+                  onDelete(message);
+                  onClose();
+                }}
+                danger
+              />
             )}
           </div>
         </div>
@@ -628,33 +761,88 @@ function MessageContextMenu({
     <div
       className="fixed inset-0 z-[100]"
       onClick={onClose}
-      onContextMenu={(e) => { e.preventDefault(); onClose(); }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
     >
       <div
         ref={menuRef}
         className="absolute bg-white rounded-xl md:rounded-2xl shadow-2xl border border-gray-100 overflow-hidden select-none animate-in fade-in zoom-in-95 duration-200"
-        style={{ ...menuStyle, width: 'min(240px, calc(100vw - 32px))' }}
+        style={{ ...menuStyle, width: "min(240px, calc(100vw - 32px))" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <QuickReactionsBar 
+        <QuickReactionsBar
           onReact={onReact}
           customReactions={customReactions}
           onAddCustomEmoji={onAddCustomEmoji}
           onRemoveCustomEmoji={onRemoveCustomEmoji}
           onClose={onClose}
         />
-        
+
         <div className="py-1 md:py-2">
-          <ContextMenuItem icon="↩️" label="Reply" onClick={() => { onReply(message); onClose(); }} />
-          {message.text && <ContextMenuItem icon="📋" label="Copy" onClick={() => { onCopy(message); onClose(); }} />}
-          <ContextMenuItem icon="📤" label="Forward" onClick={() => { onForward(message); onClose(); }} />
-          <ContextMenuItem icon="⭐" label="Star" onClick={() => { onStar(message); onClose(); }} />
-          <ContextMenuItem icon="📌" label="Pin" onClick={() => { onPin(message); onClose(); }} />
+          <ContextMenuItem
+            icon="↩️"
+            label="Reply"
+            onClick={() => {
+              onReply(message);
+              onClose();
+            }}
+          />
+          {message.text && (
+            <ContextMenuItem
+              icon="📋"
+              label="Copy"
+              onClick={() => {
+                onCopy(message);
+                onClose();
+              }}
+            />
+          )}
+          <ContextMenuItem
+            icon="📤"
+            label="Forward"
+            onClick={() => {
+              onForward(message);
+              onClose();
+            }}
+          />
+          <ContextMenuItem
+            icon="⭐"
+            label="Star"
+            onClick={() => {
+              onStar(message);
+              onClose();
+            }}
+          />
+          <ContextMenuItem
+            icon="📌"
+            label="Pin"
+            onClick={() => {
+              onPin(message);
+              onClose();
+            }}
+          />
           {isOwnMessage && message.message_type === "text" && (
-            <ContextMenuItem icon="✏️" label="Edit" onClick={() => { onEdit(message); onClose(); }} />
+            <ContextMenuItem
+              icon="✏️"
+              label="Edit"
+              onClick={() => {
+                onEdit(message);
+                onClose();
+              }}
+            />
           )}
           {isOwnMessage && (
-            <ContextMenuItem icon="🗑️" label="Delete" onClick={() => { onDelete(message); onClose(); }} danger />
+            <ContextMenuItem
+              icon="🗑️"
+              label="Delete"
+              onClick={() => {
+                onDelete(message);
+                onClose();
+              }}
+              danger
+            />
           )}
         </div>
       </div>
@@ -666,9 +854,9 @@ const ContextMenuItem = ({ icon, label, onClick, danger }) => (
   <button
     onClick={onClick}
     className={`w-full flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-2.5 transition-colors text-left ${
-      danger 
-        ? 'text-red-600 hover:bg-red-50' 
-        : 'text-gray-700 hover:bg-gray-100'
+      danger
+        ? "text-red-600 hover:bg-red-50"
+        : "text-gray-700 hover:bg-gray-100"
     }`}
   >
     <span className="text-sm md:text-lg flex-shrink-0">{icon}</span>
@@ -679,25 +867,48 @@ const ContextMenuItem = ({ icon, label, onClick, danger }) => (
 /* ----------------------------------
    FORWARD MODAL
 ---------------------------------- */
-function ForwardModal({ message, users, onForward, onClose, topBarHeight = 56 }) {
+function ForwardModal({
+  message,
+  users,
+  onForward,
+  onClose,
+  topBarHeight = 56,
+}) {
   const [selected, setSelected] = useState([]);
   const [search, setSearch] = useState("");
 
   const filtered = users.filter((u) => {
     const s = search.toLowerCase();
-    return (u.name || "").toLowerCase().includes(s) || (u.email || "").toLowerCase().includes(s);
+    return (
+      (u.name || "").toLowerCase().includes(s) ||
+      (u.email || "").toLowerCase().includes(s)
+    );
   });
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }} onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4"
+      style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }}
+      onClick={onClose}
+    >
       <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <h3 className="font-semibold text-gray-800">Forward to...</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -725,7 +936,11 @@ function ForwardModal({ message, users, onForward, onClose, topBarHeight = 56 })
                   else setSelected((p) => p.filter((id) => id !== u.id));
                 }}
               />
-              <img src={u.avatar} className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt={u.name} />
+              <img
+                src={u.avatar}
+                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                alt={u.name}
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{u.name}</p>
                 <p className="text-xs text-gray-400 truncate">{u.email}</p>
@@ -736,7 +951,10 @@ function ForwardModal({ message, users, onForward, onClose, topBarHeight = 56 })
         <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
           <button
             disabled={selected.length === 0}
-            onClick={() => { onForward(message, selected); onClose(); }}
+            onClick={() => {
+              onForward(message, selected);
+              onClose();
+            }}
             className="w-full h-12 md:h-10 rounded-full bg-purple-600 text-white text-sm font-medium disabled:opacity-40 hover:bg-purple-700 transition-all transform active:scale-95"
           >
             Forward {selected.length > 0 ? `(${selected.length})` : ""}
@@ -750,20 +968,42 @@ function ForwardModal({ message, users, onForward, onClose, topBarHeight = 56 })
 /* ----------------------------------
    STARRED MESSAGES SIDEBAR
 ---------------------------------- */
-function StarredMessagesSidebar({ messages, starredIds, onClose, onJumpTo, topBarHeight = 56 }) {
+function StarredMessagesSidebar({
+  messages,
+  starredIds,
+  onClose,
+  onJumpTo,
+  topBarHeight = 56,
+}) {
   const starredMessages = messages.filter((m) => starredIds.has(m.id));
 
   return (
-    <div className="fixed inset-0 z-[90] flex justify-end" style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }}>
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-[90] flex justify-end"
+      style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }}
+    >
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+        onClick={onClose}
+      />
       <div className="relative w-full max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-purple-50 to-white flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-2xl">⭐</span>
             <h3 className="font-semibold text-gray-800">Starred Messages</h3>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
@@ -773,13 +1013,18 @@ function StarredMessagesSidebar({ messages, starredIds, onClose, onJumpTo, topBa
             <div className="text-center py-12 px-4">
               <span className="text-5xl mb-3 block">⭐</span>
               <p className="text-gray-400 text-sm">No starred messages yet</p>
-              <p className="text-xs text-gray-300 mt-1">Star important messages to find them easily</p>
+              <p className="text-xs text-gray-300 mt-1">
+                Star important messages to find them easily
+              </p>
             </div>
           ) : (
             starredMessages.map((msg) => (
               <button
                 key={msg.id}
-                onClick={() => { onJumpTo(msg.id); onClose(); }}
+                onClick={() => {
+                  onJumpTo(msg.id);
+                  onClose();
+                }}
                 className="w-full text-left px-4 py-4 md:py-3 hover:bg-gray-50 border-b border-gray-50 transition-all hover:pl-5"
               >
                 <p className="text-xs text-purple-600 font-medium mb-1">
@@ -788,10 +1033,23 @@ function StarredMessagesSidebar({ messages, starredIds, onClose, onJumpTo, topBa
                 <p className="text-sm text-gray-700 line-clamp-2 flex items-center gap-1">
                   {msg.file_url ? (
                     <>
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      <svg
+                        className="w-4 h-4 flex-shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                        />
                       </svg>
-                      <span className="truncate">{msg.file_url.split('/').pop() || "Attachment"}</span>
+                      <span className="truncate">
+                        {msg.file_url.split("/").pop() || "Attachment"}
+                      </span>
                     </>
                   ) : (
                     msg.text
@@ -813,8 +1071,8 @@ function StarredMessagesSidebar({ messages, starredIds, onClose, onJumpTo, topBa
 function PinnedMessageBanner({ message, onDismiss, onJump }) {
   if (!message) return null;
   return (
-    <div 
-      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100 flex-shrink-0 cursor-pointer hover:bg-purple-100 transition-colors group" 
+    <div
+      className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-purple-100 flex-shrink-0 cursor-pointer hover:bg-purple-100 transition-colors group"
       onClick={() => onJump(message.id)}
     >
       <div className="w-1 h-8 bg-gradient-to-b from-purple-500 to-indigo-500 rounded-full flex-shrink-0" />
@@ -825,21 +1083,44 @@ function PinnedMessageBanner({ message, onDismiss, onJump }) {
         <p className="text-sm text-gray-700 truncate flex items-center gap-1">
           {message.file_url ? (
             <>
-              <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              <svg
+                className="w-4 h-4 text-purple-500 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                />
               </svg>
-              <span className="truncate">{message.file_url.split('/').pop() || "Attachment"}</span>
+              <span className="truncate">
+                {message.file_url.split("/").pop() || "Attachment"}
+              </span>
             </>
           ) : (
             message.text
           )}
         </p>
       </div>
-      <button 
-        onClick={(e) => { e.stopPropagation(); onDismiss(); }} 
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss();
+        }}
         className="text-gray-400 hover:text-gray-600 p-2 md:p-1.5 rounded-full hover:bg-white/50 transition-colors flex-shrink-0"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M18 6L6 18M6 6l12 12" />
         </svg>
       </button>
@@ -853,11 +1134,24 @@ function PinnedMessageBanner({ message, onDismiss, onJump }) {
 function TypingIndicator({ user }) {
   return (
     <div className="flex items-center gap-2 px-2 py-2">
-      <img src={user?.avatar} className="w-7 h-7 rounded-full object-cover" alt="" />
+      <img
+        src={user?.avatar}
+        className="w-7 h-7 rounded-full object-cover"
+        alt=""
+      />
       <div className="bg-gray-100 rounded-2xl px-4 py-2.5 flex items-center gap-1">
-        <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0s" }} />
-        <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.15s" }} />
-        <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: "0.3s" }} />
+        <span
+          className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"
+          style={{ animationDelay: "0s" }}
+        />
+        <span
+          className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"
+          style={{ animationDelay: "0.15s" }}
+        />
+        <span
+          className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"
+          style={{ animationDelay: "0.3s" }}
+        />
       </div>
     </div>
   );
@@ -890,17 +1184,27 @@ function EditMessageInput({ message, onSave, onCancel }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) { 
-            e.preventDefault(); 
-            onSave(value); 
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            onSave(value);
           }
           if (e.key === "Escape") onCancel();
         }}
         onBlur={handleBlur}
         className="flex-1 bg-white/20 text-inherit rounded-lg px-3 py-1.5 text-sm outline-none border border-white/30 focus:border-white/60"
       />
-      <button onClick={() => onSave(value)} className="text-green-300 hover:text-green-100 text-xs font-medium px-2 py-1 rounded-lg hover:bg-white/10 transition">Save</button>
-      <button onClick={onCancel} className="text-gray-300 hover:text-gray-100 text-sm px-1 py-1 rounded-lg hover:bg-white/10 transition">✕</button>
+      <button
+        onClick={() => onSave(value)}
+        className="text-green-300 hover:text-green-100 text-xs font-medium px-2 py-1 rounded-lg hover:bg-white/10 transition"
+      >
+        Save
+      </button>
+      <button
+        onClick={onCancel}
+        className="text-gray-300 hover:text-gray-100 text-sm px-1 py-1 rounded-lg hover:bg-white/10 transition"
+      >
+        ✕
+      </button>
     </div>
   );
 }
@@ -910,26 +1214,30 @@ function EditMessageInput({ message, onSave, onCancel }) {
 ---------------------------------- */
 function ReactionsDisplay({ reactions, onReact, currentUserId }) {
   if (!reactions || Object.keys(reactions).length === 0) return null;
-  
+
   return (
     <div className="flex flex-wrap gap-1 mt-1.5">
       {Object.entries(reactions).map(([emoji, users]) => {
         const userList = Array.isArray(users) ? users : [];
         const hasReacted = userList.includes(currentUserId);
-        
+
         return (
           <button
             key={emoji}
             onClick={() => onReact(emoji)}
             className={`flex items-center gap-0.5 text-xs rounded-full px-2 py-1 md:px-1.5 md:py-0.5 transition-all shadow-sm hover:scale-105 ${
-              hasReacted 
-                ? 'bg-purple-100 border-purple-300 text-purple-700' 
-                : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+              hasReacted
+                ? "bg-purple-100 border-purple-300 text-purple-700"
+                : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
             }`}
-            title={userList.map(id => id === currentUserId ? 'You' : `User ${id}`).join(', ')}
+            title={userList
+              .map((id) => (id === currentUserId ? "You" : `User ${id}`))
+              .join(", ")}
           >
             <span className="text-sm">{emoji}</span>
-            <span className="font-medium text-xs ml-0.5">{userList.length}</span>
+            <span className="font-medium text-xs ml-0.5">
+              {userList.length}
+            </span>
           </button>
         );
       })}
@@ -971,16 +1279,23 @@ export default function Message() {
   const jobId = jobIdFromUrl ?? location.state?.jobId ?? null;
   const receiverId = targetUserIdFromUrl ?? location.state?.receiverId ?? null;
   const currentUserId = userData?.id ?? null;
-  
+
   let currentUserName = userData?.name;
-  if (!currentUserName || currentUserName === '' || currentUserName === 'null' || currentUserName === 'undefined') {
+  if (
+    !currentUserName ||
+    currentUserName === "" ||
+    currentUserName === "null" ||
+    currentUserName === "undefined"
+  ) {
     currentUserName = userData?.full_name || userData?.display_name;
   }
-  if (!currentUserName || currentUserName === '') {
-    currentUserName = userData?.email?.split('@')[0] || `User ${currentUserId}`;
+  if (!currentUserName || currentUserName === "") {
+    currentUserName = userData?.email?.split("@")[0] || `User ${currentUserId}`;
   }
-  currentUserName = currentUserName.replace(/[0-9]+$/, '');
-  currentUserName = currentUserName.charAt(0).toUpperCase() + currentUserName.slice(1).toLowerCase();
+  currentUserName = currentUserName.replace(/[0-9]+$/, "");
+  currentUserName =
+    currentUserName.charAt(0).toUpperCase() +
+    currentUserName.slice(1).toLowerCase();
 
   const [allUsers, setAllUsers] = useState([]);
   const [conversationUsers, setConversationUsers] = useState([]);
@@ -1025,15 +1340,15 @@ export default function Message() {
   const [callerProfileImage, setCallerProfileImage] = useState(null);
   const [calleeProfileImage, setCalleeProfileImage] = useState(null);
   const [topBarHeight, setTopBarHeight] = useState(56);
-  
+
   const [customReactions, setCustomReactions] = useState(() => {
-    const saved = localStorage.getItem('custom_quick_reactions');
+    const saved = localStorage.getItem("custom_quick_reactions");
     return saved ? JSON.parse(saved) : [];
   });
 
-  const activeUser = useMemo(() => 
-    displayedUsers.find((u) => u.id === activeUserId) || null,
-    [displayedUsers, activeUserId]
+  const activeUser = useMemo(
+    () => displayedUsers.find((u) => u.id === activeUserId) || null,
+    [displayedUsers, activeUserId],
   );
 
   // SCROLL TO BOTTOM HELPER
@@ -1042,22 +1357,26 @@ export default function Message() {
       if (smooth) {
         messagesContainerRef.current.scrollTo({
           top: messagesContainerRef.current.scrollHeight,
-          behavior: 'smooth'
+          behavior: "smooth",
         });
       } else {
-        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+        messagesContainerRef.current.scrollTop =
+          messagesContainerRef.current.scrollHeight;
       }
     }
   }, []);
 
   // Save custom reactions to localStorage
   useEffect(() => {
-    localStorage.setItem('custom_quick_reactions', JSON.stringify(customReactions));
+    localStorage.setItem(
+      "custom_quick_reactions",
+      JSON.stringify(customReactions),
+    );
   }, [customReactions]);
 
   // Handle adding custom emoji
   const handleAddCustomEmoji = useCallback((emoji) => {
-    setCustomReactions(prev => {
+    setCustomReactions((prev) => {
       const currentTotal = DEFAULT_QUICK_REACTIONS.length + prev.length;
       if (prev.includes(emoji)) {
         toast.error("Emoji already exists");
@@ -1074,8 +1393,8 @@ export default function Message() {
 
   // Handle removing custom emoji
   const handleRemoveCustomEmoji = useCallback((emoji) => {
-    setCustomReactions(prev => {
-      const newReactions = prev.filter(e => e !== emoji);
+    setCustomReactions((prev) => {
+      const newReactions = prev.filter((e) => e !== emoji);
       toast.success(`Removed ${emoji} from quick reactions`);
       return newReactions;
     });
@@ -1083,7 +1402,7 @@ export default function Message() {
 
   useEffect(() => {
     const updateTopBarHeight = () => {
-      const topBar = document.querySelector('.top-bar');
+      const topBar = document.querySelector(".top-bar");
       if (topBar) {
         setTopBarHeight(topBar.offsetHeight);
       } else {
@@ -1092,15 +1411,17 @@ export default function Message() {
         else setTopBarHeight(72);
       }
     };
-    
+
     updateTopBarHeight();
-    window.addEventListener('resize', updateTopBarHeight);
-    return () => window.removeEventListener('resize', updateTopBarHeight);
+    window.addEventListener("resize", updateTopBarHeight);
+    return () => window.removeEventListener("resize", updateTopBarHeight);
   }, []);
 
   useEffect(() => {
     isMounted.current = true;
-    return () => { isMounted.current = false; };
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -1116,33 +1437,40 @@ export default function Message() {
     const handleIncomingCall = (e) => {
       const callData = e.detail;
       let callerName = callData.caller_name;
-      
-      if (!callerName || callerName === 'User' || callerName.includes('@')) {
-        const caller = allUsers.find(u => Number(u.id) === Number(callData.caller_id));
+
+      if (!callerName || callerName === "User" || callerName.includes("@")) {
+        const caller = allUsers.find(
+          (u) => Number(u.id) === Number(callData.caller_id),
+        );
         if (caller) {
-          callerName = caller.name || caller.email?.split('@')[0] || `User ${callData.caller_id}`;
+          callerName =
+            caller.name ||
+            caller.email?.split("@")[0] ||
+            `User ${callData.caller_id}`;
         }
       }
-      
-      if (callerName && callerName !== 'User') {
-        callerName = callerName.replace(/[0-9]+$/, '');
-        callerName = callerName.charAt(0).toUpperCase() + callerName.slice(1).toLowerCase();
+
+      if (callerName && callerName !== "User") {
+        callerName = callerName.replace(/[0-9]+$/, "");
+        callerName =
+          callerName.charAt(0).toUpperCase() +
+          callerName.slice(1).toLowerCase();
       }
-      
-      if (!callerName || callerName === 'User') {
+
+      if (!callerName || callerName === "User") {
         callerName = `User ${callData.caller_id}`;
       }
-      
+
       const enrichedCallData = {
         ...callData,
-        caller_name: callerName
+        caller_name: callerName,
       };
-      
+
       setIncomingCall(enrichedCallData);
     };
-    
+
     window.addEventListener("incoming-call", handleIncomingCall);
-    
+
     return () => {
       window.removeEventListener("incoming-call", handleIncomingCall);
     };
@@ -1151,10 +1479,10 @@ export default function Message() {
   useEffect(() => {
     const handleAcceptCall = async (e) => {
       const callData = e.detail;
-      
+
       const callerId = callData.caller_id;
-      const caller = allUsers.find(u => Number(u.id) === Number(callerId));
-      
+      const caller = allUsers.find((u) => Number(u.id) === Number(callerId));
+
       if (caller && caller.avatar) {
         setCallerProfileImage(caller.avatar);
         setCalleeProfileImage(caller.avatar);
@@ -1162,11 +1490,11 @@ export default function Message() {
         setCallerProfileImage(window.incomingCallProfileImage);
         setCalleeProfileImage(window.incomingCallProfileImage);
       }
-      
+
       setActiveCall(callData);
       setIncomingCall(null);
     };
-    
+
     const handleCallEnded = () => {
       setActiveCall(null);
       setIncomingCall(null);
@@ -1174,10 +1502,10 @@ export default function Message() {
       setCalleeProfileImage(null);
       delete window.incomingCallProfileImage;
     };
-    
+
     window.addEventListener("accept-call", handleAcceptCall);
     window.addEventListener("call-ended", handleCallEnded);
-    
+
     return () => {
       window.removeEventListener("accept-call", handleAcceptCall);
       window.removeEventListener("call-ended", handleCallEnded);
@@ -1190,12 +1518,13 @@ export default function Message() {
       if (sender_id === activeUserId) fetchMessages(activeUserId);
     };
     window.addEventListener("new-message-received", handleNewMessage);
-    return () => window.removeEventListener("new-message-received", handleNewMessage);
+    return () =>
+      window.removeEventListener("new-message-received", handleNewMessage);
   }, [activeUserId]);
 
   useEffect(() => {
     const handleEsc = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (contextMenu) {
           setContextMenu(null);
           setContextMenuElement(null);
@@ -1211,18 +1540,40 @@ export default function Message() {
         }
       }
     };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [contextMenu, forwardMessage, showStarred, imageViewer.open, showDeleteConversation, showEmojiPicker, mobileActionMessage]);
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [
+    contextMenu,
+    forwardMessage,
+    showStarred,
+    imageViewer.open,
+    showDeleteConversation,
+    showEmojiPicker,
+    mobileActionMessage,
+  ]);
 
   useEffect(() => {
-    if (imageViewer.open || showStarred || contextMenu || mobileActionMessage || incomingCall) {
-      document.body.style.overflow = 'hidden';
+    if (
+      imageViewer.open ||
+      showStarred ||
+      contextMenu ||
+      mobileActionMessage ||
+      incomingCall
+    ) {
+      document.body.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = '';
+      document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ''; };
-  }, [imageViewer.open, showStarred, contextMenu, mobileActionMessage, incomingCall]);
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [
+    imageViewer.open,
+    showStarred,
+    contextMenu,
+    mobileActionMessage,
+    incomingCall,
+  ]);
 
   const formatLastSeen = useCallback((timestamp) => {
     if (!timestamp) return "";
@@ -1238,7 +1589,10 @@ export default function Message() {
   }, []);
 
   const formatMessageTime = useCallback((timestamp) => {
-    return new Date(timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }, []);
 
   const formatMessageDate = useCallback((timestamp) => {
@@ -1251,35 +1605,56 @@ export default function Message() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }, []);
 
-  const markMessagesAsSeen = useCallback(async (conversationId) => {
-    if (!currentUserId || !conversationId) return;
-    try {
-      await api.post(`/message/seen/${conversationId}/${currentUserId}`);
-      setMessages((prev) => prev.map((msg) => (msg.from === "other" ? { ...msg, is_seen: true } : msg)));
-      setConversationUsers((prev) => prev.map((u) => (u.id === activeUserId ? { ...u, unread_count: 0 } : u)));
-      setDisplayedUsers((prev) => prev.map((u) => (u.id === activeUserId ? { ...u, unread_count: 0 } : u)));
-      clearUnreadMessages(activeUserId);
-    } catch (error) {
-      console.error("Failed to mark messages as seen", error);
-    }
-  }, [currentUserId, activeUserId, clearUnreadMessages]);
+  const markMessagesAsSeen = useCallback(
+    async (conversationId) => {
+      if (!currentUserId || !conversationId) return;
+      try {
+        await api.post(`/message/seen/${conversationId}/${currentUserId}`);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.from === "other" ? { ...msg, is_seen: true } : msg,
+          ),
+        );
+        setConversationUsers((prev) =>
+          prev.map((u) =>
+            u.id === activeUserId ? { ...u, unread_count: 0 } : u,
+          ),
+        );
+        setDisplayedUsers((prev) =>
+          prev.map((u) =>
+            u.id === activeUserId ? { ...u, unread_count: 0 } : u,
+          ),
+        );
+        clearUnreadMessages(activeUserId);
+      } catch (error) {
+        console.error("Failed to mark messages as seen", error);
+      }
+    },
+    [currentUserId, activeUserId, clearUnreadMessages],
+  );
 
-  const formatMessages = useCallback((messagesData) => {
-    return messagesData.map((msg) => ({
-      id: msg.id,
-      text: msg.content,
-      from: msg.sender === currentUserId ? "me" : "other",
-      time: new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      timestamp: msg.created_at,
-      file_url: msg.file_url,
-      message_type: msg.message_type,
-      reply_to: msg.reply_to,
-      is_seen: msg.is_seen,
-      call_data: msg.call_data,
-      edited: msg.edited || false,
-      is_starred: msg.is_starred || false,
-    }));
-  }, [currentUserId]);
+  const formatMessages = useCallback(
+    (messagesData) => {
+      return messagesData.map((msg) => ({
+        id: msg.id,
+        text: msg.content,
+        from: msg.sender === currentUserId ? "me" : "other",
+        time: new Date(msg.created_at).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        timestamp: msg.created_at,
+        file_url: msg.file_url,
+        message_type: msg.message_type,
+        reply_to: msg.reply_to,
+        is_seen: msg.is_seen,
+        call_data: msg.call_data,
+        edited: msg.edited || false,
+        is_starred: msg.is_starred || false,
+      }));
+    },
+    [currentUserId],
+  );
 
   const loadAllReactions = useCallback(async (messagesList) => {
     if (!messagesList || messagesList.length === 0) {
@@ -1288,111 +1663,129 @@ export default function Message() {
     }
 
     try {
-      const messageIds = messagesList.map(msg => msg.id);
+      const messageIds = messagesList.map((msg) => msg.id);
       const cachedReactions = {};
       const uncachedIds = [];
-      
-      messageIds.forEach(id => {
+
+      messageIds.forEach((id) => {
         if (reactionsCache.current[id]) {
           cachedReactions[id] = reactionsCache.current[id];
         } else {
           uncachedIds.push(id);
         }
       });
-      
+
       if (uncachedIds.length > 0) {
-        const response = await api.post('/message/messages/reactions/batch', uncachedIds, {
-          headers: { 'Content-Type': 'application/json' }
-        });
-        
+        const response = await api.post(
+          "/message/messages/reactions/batch",
+          uncachedIds,
+          {
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+
         if (response.data && response.data.reactions) {
-          Object.keys(response.data.reactions).forEach(id => {
+          Object.keys(response.data.reactions).forEach((id) => {
             reactionsCache.current[id] = response.data.reactions[id];
           });
-          
-          setReactions(prev => ({
+
+          setReactions((prev) => ({
             ...prev,
             ...cachedReactions,
-            ...response.data.reactions
+            ...response.data.reactions,
           }));
           return;
         }
       }
-      
+
       if (Object.keys(cachedReactions).length > 0) {
-        setReactions(prev => ({ ...prev, ...cachedReactions }));
+        setReactions((prev) => ({ ...prev, ...cachedReactions }));
       } else {
         setReactions({});
       }
     } catch (error) {
-      console.error('Failed to load reactions in batch:', error);
+      console.error("Failed to load reactions in batch:", error);
       setReactions({});
     }
   }, []);
 
-  const fetchMessages = useCallback(async (otherUserId) => {
-    if (!currentUserId || !otherUserId || !isMounted.current) return;
-    
-    switchingChatRef.current = true;
-    setMessages([]);
-    setLoading(true);
-    
-    try {
-      const response = await api.get(`/message/conversation/${currentUserId}/${otherUserId}`);
-      if (!isMounted.current) return;
+  const fetchMessages = useCallback(
+    async (otherUserId) => {
+      if (!currentUserId || !otherUserId || !isMounted.current) return;
 
-      const updateStatus = (users) =>
-        users.map((u) =>
-          u.id === otherUserId
-            ? { ...u, online: response.data.other_user_online || false, last_active: response.data.other_user_last_active }
-            : u
+      switchingChatRef.current = true;
+      setMessages([]);
+      setLoading(true);
+
+      try {
+        const response = await api.get(
+          `/message/conversation/${currentUserId}/${otherUserId}`,
         );
+        if (!isMounted.current) return;
 
-      setAllUsers((prev) => updateStatus(prev));
-      setConversationUsers((prev) => updateStatus(prev));
-      setDisplayedUsers((prev) => updateStatus(prev));
+        const updateStatus = (users) =>
+          users.map((u) =>
+            u.id === otherUserId
+              ? {
+                  ...u,
+                  online: response.data.other_user_online || false,
+                  last_active: response.data.other_user_last_active,
+                }
+              : u,
+          );
 
-      if (response.data.other_user_typing !== undefined) {
-        setIsTyping(response.data.other_user_typing);
-      }
+        setAllUsers((prev) => updateStatus(prev));
+        setConversationUsers((prev) => updateStatus(prev));
+        setDisplayedUsers((prev) => updateStatus(prev));
 
-      if (response.data.messages) {
-        const formatted = formatMessages(response.data.messages);
-        setMessages(formatted);
+        if (response.data.other_user_typing !== undefined) {
+          setIsTyping(response.data.other_user_typing);
+        }
 
-        const initialStarredIds = new Set();
-        formatted.forEach(msg => {
-          if (msg.is_starred) {
-            initialStarredIds.add(msg.id);
+        if (response.data.messages) {
+          const formatted = formatMessages(response.data.messages);
+          setMessages(formatted);
+
+          const initialStarredIds = new Set();
+          formatted.forEach((msg) => {
+            if (msg.is_starred) {
+              initialStarredIds.add(msg.id);
+            }
+          });
+          setStarredIds(initialStarredIds);
+
+          if (formatted.length > 0) {
+            setTimeout(() => loadAllReactions(formatted), 100);
           }
-        });
-        setStarredIds(initialStarredIds);
 
-        if (formatted.length > 0) {
-          setTimeout(() => loadAllReactions(formatted), 100);
+          if (response.data.conversation_id) {
+            const hasUnseen = formatted.some(
+              (m) => m.from === "other" && !m.is_seen,
+            );
+            if (hasUnseen)
+              await markMessagesAsSeen(response.data.conversation_id);
+          }
+        } else {
+          setMessages([]);
         }
-
-        if (response.data.conversation_id) {
-          const hasUnseen = formatted.some((m) => m.from === "other" && !m.is_seen);
-          if (hasUnseen) await markMessagesAsSeen(response.data.conversation_id);
-        }
-      } else {
-        setMessages([]);
+      } catch (error) {
+        console.error("Failed to fetch messages", error);
+      } finally {
+        setLoading(false);
+        setTimeout(() => {
+          switchingChatRef.current = false;
+        }, 100);
       }
-    } catch (error) {
-      console.error("Failed to fetch messages", error);
-    } finally {
-      setLoading(false);
-      setTimeout(() => {
-        switchingChatRef.current = false;
-      }, 100);
-    }
-  }, [currentUserId, formatMessages, markMessagesAsSeen, loadAllReactions]);
+    },
+    [currentUserId, formatMessages, markMessagesAsSeen, loadAllReactions],
+  );
 
   const sendHeartbeat = useCallback(async () => {
     if (!currentUserId) return;
     try {
-      await api.post("/message/user/heartbeat", null, { params: { user_id: currentUserId } });
+      await api.post("/message/user/heartbeat", null, {
+        params: { user_id: currentUserId },
+      });
     } catch (e) {}
   }, [currentUserId]);
 
@@ -1410,17 +1803,47 @@ export default function Message() {
       navigate("/login", { replace: true });
     }
   }, [currentUserId, navigate]);
-
- const handleFileDownload = async (fileUrl, fileName) => {
+const handleFileDownload = async (fileUrl, storedFileName, originalFileName) => {
   try {
-    let actualFileName = fileName || fileUrl.split("/").pop();
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    
-    // ✅ Determine file type from URL
+    // ✅ Determine the file type from URL
     let fileType = fileUrl.includes("chat_files") ? "chat_files" : "message_files";
-    const downloadUrl = `${baseUrl}/message/download/${fileType}/${actualFileName}`;
     
-    // ✅ Fetch the download URL (for S3 mode) or file (for local mode)
+    // ✅ Extract stored filename (without query params)
+    const storedName = storedFileName || fileUrl.split("/").pop().split('?')[0];
+    
+    // ✅ Get clean filename (without timestamp)
+    const getCleanName = (name) => {
+      if (!name) return "file";
+      
+      // Remove timestamp prefix (YYYYMMDD_HHMMSS_)
+      let cleanName = name;
+      // Pattern: 8 digits + underscore + 6 digits + underscore
+      const pattern = /^\d{8}_\d{6}_/;
+      cleanName = cleanName.replace(pattern, '');
+      
+      // If no extension, try to preserve it
+      if (!cleanName.includes('.') && name.includes('.')) {
+        const ext = name.split('.').pop();
+        cleanName = `${cleanName}.${ext}`;
+      }
+      
+      return cleanName;
+    };
+    
+    const cleanName = getCleanName(originalFileName || storedName);
+    
+    console.log("📥 Download file:", {
+      storedName,
+      cleanName,
+      fileType,
+      originalFileName
+    });
+    
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    const downloadUrl = `${baseUrl}/message/download/${fileType}/${encodeURIComponent(storedName)}?original_filename=${encodeURIComponent(cleanName)}`;
+    
+    console.log("📥 Download URL:", downloadUrl);
+    
     const response = await fetch(downloadUrl, {
       method: 'GET',
       headers: {
@@ -1428,15 +1851,20 @@ export default function Message() {
       },
     });
     
-    // ✅ Check if response is JSON (S3 mode with download_url)
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Download failed: ${response.status} - ${errorText}`);
+    }
+    
     const contentType = response.headers.get('content-type');
+    
     if (contentType && contentType.includes('application/json')) {
       const data = await response.json();
       if (data.success && data.download_url) {
         // ✅ S3 mode - download using the presigned URL
         const link = document.createElement('a');
         link.href = data.download_url;
-        link.download = actualFileName;
+        link.download = data.filename || cleanName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1450,7 +1878,7 @@ export default function Message() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = actualFileName;
+    link.download = cleanName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1459,10 +1887,9 @@ export default function Message() {
     
   } catch (error) {
     console.error('Download failed:', error);
-    toast.error('Failed to download file');
+    toast.error(error.message || 'Failed to download file');
   }
 };
-
   useEffect(() => {
     if (!chatSearch.trim()) {
       setChatSearchResults([]);
@@ -1471,21 +1898,27 @@ export default function Message() {
     }
     const results = messages
       .map((m, i) => ({ ...m, _idx: i }))
-      .filter((m) => m.text && m.text.toLowerCase().includes(chatSearch.toLowerCase()));
+      .filter(
+        (m) =>
+          m.text && m.text.toLowerCase().includes(chatSearch.toLowerCase()),
+      );
     setChatSearchResults(results);
     setChatSearchIndex(0);
   }, [chatSearch, messages]);
 
-  const jumpToSearchResult = useCallback((idx) => {
-    const result = chatSearchResults[idx];
-    if (!result) return;
-    setHighlightedMsgId(result.id);
-    const el = messageRefs.current[result.id];
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    setTimeout(() => setHighlightedMsgId(null), 2000);
-  }, [chatSearchResults]);
+  const jumpToSearchResult = useCallback(
+    (idx) => {
+      const result = chatSearchResults[idx];
+      if (!result) return;
+      setHighlightedMsgId(result.id);
+      const el = messageRefs.current[result.id];
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      setTimeout(() => setHighlightedMsgId(null), 2000);
+    },
+    [chatSearchResults],
+  );
 
   useEffect(() => {
     if (chatSearchResults.length > 0) jumpToSearchResult(chatSearchIndex);
@@ -1511,107 +1944,114 @@ export default function Message() {
   const handleDoubleTap = useCallback((msg, e, element) => {
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTapRef.current;
-    
+
     if (tapLength < 300 && tapLength > 0) {
       e.preventDefault();
       e.stopPropagation();
       const rect = element.getBoundingClientRect();
       const syntheticEvent = {
-        clientX: rect.left + (rect.width / 2),
-        clientY: rect.top + (rect.height / 2),
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
         preventDefault: () => {},
-        stopPropagation: () => {}
+        stopPropagation: () => {},
       };
-      setContextMenu({ message: msg, position: { x: syntheticEvent.clientX, y: syntheticEvent.clientY } });
+      setContextMenu({
+        message: msg,
+        position: { x: syntheticEvent.clientX, y: syntheticEvent.clientY },
+      });
       setContextMenuElement(element);
     }
     lastTapRef.current = currentTime;
   }, []);
 
-  const handleReact = useCallback(async (emoji, msgId) => {
-    if (!currentUserId) return;
-    
-    const currentMessageReactions = reactions[msgId] || {};
-    const currentUsers = currentMessageReactions[emoji] || [];
-    const hasReacted = currentUsers.includes(currentUserId);
-    
-    setReactions(prev => {
-      const newMessageReactions = { ...(prev[msgId] || {}) };
-      
-      if (hasReacted) {
-        const updatedUsers = currentUsers.filter(id => id !== currentUserId);
-        if (updatedUsers.length === 0) {
-          delete newMessageReactions[emoji];
+  const handleReact = useCallback(
+    async (emoji, msgId) => {
+      if (!currentUserId) return;
+
+      const currentMessageReactions = reactions[msgId] || {};
+      const currentUsers = currentMessageReactions[emoji] || [];
+      const hasReacted = currentUsers.includes(currentUserId);
+
+      setReactions((prev) => {
+        const newMessageReactions = { ...(prev[msgId] || {}) };
+
+        if (hasReacted) {
+          const updatedUsers = currentUsers.filter(
+            (id) => id !== currentUserId,
+          );
+          if (updatedUsers.length === 0) {
+            delete newMessageReactions[emoji];
+          } else {
+            newMessageReactions[emoji] = updatedUsers;
+          }
         } else {
-          newMessageReactions[emoji] = updatedUsers;
+          newMessageReactions[emoji] = [...currentUsers, currentUserId];
         }
-      } else {
-        newMessageReactions[emoji] = [...currentUsers, currentUserId];
-      }
-      
-      const newReactions = { ...prev, [msgId]: newMessageReactions };
-      if (Object.keys(newMessageReactions).length === 0) {
-        delete newReactions[msgId];
-      }
-      
-      return newReactions;
-    });
-    
-    try {
-      const response = await api.post(`/message/message/${msgId}/react`, {
-        user_id: currentUserId,
-        emoji: emoji
+
+        const newReactions = { ...prev, [msgId]: newMessageReactions };
+        if (Object.keys(newMessageReactions).length === 0) {
+          delete newReactions[msgId];
+        }
+
+        return newReactions;
       });
-      
-      if (response.data && response.data.reactions) {
-        setReactions(prev => ({
-          ...prev,
-          [msgId]: response.data.reactions
-        }));
+
+      try {
+        const response = await api.post(`/message/message/${msgId}/react`, {
+          user_id: currentUserId,
+          emoji: emoji,
+        });
+
+        if (response.data && response.data.reactions) {
+          setReactions((prev) => ({
+            ...prev,
+            [msgId]: response.data.reactions,
+          }));
+        }
+
+        if (!hasReacted) {
+          toast.success(`Reacted with ${emoji}`);
+        }
+      } catch (error) {
+        console.error("Failed to send reaction:", error);
+        toast.error("Failed to add reaction");
+        await fetchMessages(activeUserId);
       }
-      
-      if (!hasReacted) {
-        toast.success(`Reacted with ${emoji}`);
-      }
-      
-    } catch (error) {
-      console.error("Failed to send reaction:", error);
-      toast.error("Failed to add reaction");
-      await fetchMessages(activeUserId);
-    }
-  }, [currentUserId, activeUserId, reactions, fetchMessages]);
+    },
+    [currentUserId, activeUserId, reactions, fetchMessages],
+  );
 
   const handleCopyText = useCallback((message) => {
     if (!message.text) return;
-    
+
     const copyText = () => {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         return navigator.clipboard.writeText(message.text);
       }
-      
+
       return new Promise((resolve, reject) => {
-        const textarea = document.createElement('textarea');
+        const textarea = document.createElement("textarea");
         textarea.value = message.text;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        textarea.style.top = '-9999px';
-        textarea.style.width = '1px';
-        textarea.style.height = '1px';
-        
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        textarea.style.top = "-9999px";
+        textarea.style.width = "1px";
+        textarea.style.height = "1px";
+
         document.body.appendChild(textarea);
         textarea.select();
-        
+
         try {
-          const success = document.execCommand('copy');
+          const success = document.execCommand("copy");
           document.body.removeChild(textarea);
-          success ? resolve() : reject(new Error('Copy failed'));
+          success ? resolve() : reject(new Error("Copy failed"));
         } catch (err) {
           document.body.removeChild(textarea);
           reject(err);
         }
       });
     };
-    
+
     copyText()
       .then(() => toast.success("Copied to clipboard"))
       .catch(() => toast.error("Failed to copy text"));
@@ -1623,126 +2063,157 @@ export default function Message() {
     setContextMenuElement(null);
   }, []);
 
-  const handleSaveEdit = useCallback(async (msgId, newText) => {
-    if (!newText.trim()) return;
-    
-    const originalMessage = messages.find(m => m.id === msgId);
-    const originalText = originalMessage?.text || "";
-    
-    try {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === msgId ? { ...m, text: newText.trim(), edited: true } : m))
-      );
-      setEditingMessageId(null);
-      
-      await api.put(`/message/${msgId}`, {
-        content: newText.trim(),
-        user_id: currentUserId
-      });
-      
-      toast.success("Message updated");
-      await fetchMessages(activeUserId);
-      
-    } catch (err) {
-      console.error("Edit error:", err);
-      
-      setMessages((prev) =>
-        prev.map((m) => 
-          (m.id === msgId ? { ...m, text: originalText, edited: false } : m)
-        )
-      );
-      
-      toast.error(err.response?.data?.detail || "Failed to edit message");
-    }
-  }, [currentUserId, activeUserId, messages, fetchMessages]);
+  const handleSaveEdit = useCallback(
+    async (msgId, newText) => {
+      if (!newText.trim()) return;
 
-  const handleForwardMessage = useCallback(async (message, userIds) => {
-    if (!userIds.length) return;
-    let successCount = 0;
-    for (const uid of userIds) {
+      const originalMessage = messages.find((m) => m.id === msgId);
+      const originalText = originalMessage?.text || "";
+
       try {
-        const formData = new FormData();
-        formData.append("sender_id", String(currentUserId));
-        formData.append("receiver_id", String(uid));
-        if (message.text) formData.append("content", message.text);
-        await api.post("/message/send", formData, { headers: { "Content-Type": "multipart/form-data" } });
-        successCount++;
-      } catch {}
-    }
-    toast.success(`Forwarded to ${successCount} user${successCount !== 1 ? "s" : ""}`);
-  }, [currentUserId]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId ? { ...m, text: newText.trim(), edited: true } : m,
+          ),
+        );
+        setEditingMessageId(null);
 
-  const handlePinMessage = useCallback((message) => {
-    setPinnedMessage((prev) => (prev?.id === message.id ? null : message));
-    toast.success(pinnedMessage?.id === message.id ? "Message unpinned" : "Message pinned");
-  }, [pinnedMessage]);
+        await api.put(`/message/${msgId}`, {
+          content: newText.trim(),
+          user_id: currentUserId,
+        });
 
-  const handleStarMessage = useCallback(async (message) => {
-    if (!currentUserId || !message) return;
-    
-    const currentStarred = starredIds.has(message.id);
-    
-    try {
-      setStarredIds(prev => {
-        const newSet = new Set(prev);
-        if (currentStarred) {
-          newSet.delete(message.id);
-        } else {
-          newSet.add(message.id);
-        }
-        return newSet;
-      });
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === message.id 
-          ? { ...msg, is_starred: !currentStarred }
-          : msg
-      ));
-      
-      const response = await api.post(`/message/message/${message.id}/star`, {
-        user_id: currentUserId,
-        is_starred: !currentStarred
-      });
-      
-      if (response.data.status === 'success') {
-        toast.success(!currentStarred ? "Message starred ⭐" : "Message unstarred");
-        
-        setMessages(prev => prev.map(msg => 
-          msg.id === message.id 
-            ? { ...msg, is_starred: response.data.is_starred }
-            : msg
-        ));
+        toast.success("Message updated");
+        await fetchMessages(activeUserId);
+      } catch (err) {
+        console.error("Edit error:", err);
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === msgId ? { ...m, text: originalText, edited: false } : m,
+          ),
+        );
+
+        toast.error(err.response?.data?.detail || "Failed to edit message");
       }
-    } catch (error) {
-      console.error("Failed to star message:", error);
-      toast.error("Failed to update star");
-      
-      setStarredIds(prev => {
-        const newSet = new Set(prev);
-        if (currentStarred) {
-          newSet.add(message.id);
-        } else {
-          newSet.delete(message.id);
+    },
+    [currentUserId, activeUserId, messages, fetchMessages],
+  );
+
+  const handleForwardMessage = useCallback(
+    async (message, userIds) => {
+      if (!userIds.length) return;
+      let successCount = 0;
+      for (const uid of userIds) {
+        try {
+          const formData = new FormData();
+          formData.append("sender_id", String(currentUserId));
+          formData.append("receiver_id", String(uid));
+          if (message.text) formData.append("content", message.text);
+          await api.post("/message/send", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          successCount++;
+        } catch {}
+      }
+      toast.success(
+        `Forwarded to ${successCount} user${successCount !== 1 ? "s" : ""}`,
+      );
+    },
+    [currentUserId],
+  );
+
+  const handlePinMessage = useCallback(
+    (message) => {
+      setPinnedMessage((prev) => (prev?.id === message.id ? null : message));
+      toast.success(
+        pinnedMessage?.id === message.id
+          ? "Message unpinned"
+          : "Message pinned",
+      );
+    },
+    [pinnedMessage],
+  );
+
+  const handleStarMessage = useCallback(
+    async (message) => {
+      if (!currentUserId || !message) return;
+
+      const currentStarred = starredIds.has(message.id);
+
+      try {
+        setStarredIds((prev) => {
+          const newSet = new Set(prev);
+          if (currentStarred) {
+            newSet.delete(message.id);
+          } else {
+            newSet.add(message.id);
+          }
+          return newSet;
+        });
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === message.id
+              ? { ...msg, is_starred: !currentStarred }
+              : msg,
+          ),
+        );
+
+        const response = await api.post(`/message/message/${message.id}/star`, {
+          user_id: currentUserId,
+          is_starred: !currentStarred,
+        });
+
+        if (response.data.status === "success") {
+          toast.success(
+            !currentStarred ? "Message starred ⭐" : "Message unstarred",
+          );
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === message.id
+                ? { ...msg, is_starred: response.data.is_starred }
+                : msg,
+            ),
+          );
         }
-        return newSet;
-      });
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === message.id 
-          ? { ...msg, is_starred: currentStarred }
-          : msg
-      ));
-    }
-  }, [currentUserId, starredIds]);
+      } catch (error) {
+        console.error("Failed to star message:", error);
+        toast.error("Failed to update star");
+
+        setStarredIds((prev) => {
+          const newSet = new Set(prev);
+          if (currentStarred) {
+            newSet.add(message.id);
+          } else {
+            newSet.delete(message.id);
+          }
+          return newSet;
+        });
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === message.id
+              ? { ...msg, is_starred: currentStarred }
+              : msg,
+          ),
+        );
+      }
+    },
+    [currentUserId, starredIds],
+  );
 
   useEffect(() => {
     if (editingMessageId) {
       const handleClickOutsideEdit = (e) => {
-        const editInput = document.querySelector('.edit-message-input');
+        const editInput = document.querySelector(".edit-message-input");
         if (editInput && !editInput.contains(e.target)) {
-          const currentMsg = messages.find(m => m.id === editingMessageId);
+          const currentMsg = messages.find((m) => m.id === editingMessageId);
           if (currentMsg) {
-            const editValue = document.querySelector('.edit-message-input input')?.value;
+            const editValue = document.querySelector(
+              ".edit-message-input input",
+            )?.value;
             if (editValue && editValue !== (currentMsg.text || "")) {
               handleSaveEdit(editingMessageId, editValue);
             } else {
@@ -1751,9 +2222,10 @@ export default function Message() {
           }
         }
       };
-      
-      document.addEventListener('mousedown', handleClickOutsideEdit);
-      return () => document.removeEventListener('mousedown', handleClickOutsideEdit);
+
+      document.addEventListener("mousedown", handleClickOutsideEdit);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutsideEdit);
     }
   }, [editingMessageId, messages, handleSaveEdit]);
 
@@ -1774,13 +2246,18 @@ export default function Message() {
       searchTimeout.current = setTimeout(() => {
         const filtered = allUsers.filter((u) => {
           const s = term.toLowerCase();
-          return (u.email || "").toLowerCase().includes(s) || (u.name || "").toLowerCase().includes(s);
+          return (
+            (u.email || "").toLowerCase().includes(s) ||
+            (u.name || "").toLowerCase().includes(s)
+          );
         });
         setDisplayedUsers(filtered);
       }, 300);
     } else {
       if (targetUserIdFromUrl) {
-        const t = allUsers.find((u) => Number(u.id) === Number(targetUserIdFromUrl));
+        const t = allUsers.find(
+          (u) => Number(u.id) === Number(targetUserIdFromUrl),
+        );
         setDisplayedUsers(t ? [t] : []);
       } else {
         setDisplayedUsers(conversationUsers);
@@ -1788,16 +2265,36 @@ export default function Message() {
     }
   };
 
-  const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current++; setIsDragOver(true); };
-  const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); dragCounterRef.current--; if (dragCounterRef.current === 0) setIsDragOver(false); };
-  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    setIsDragOver(true);
+  };
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) setIsDragOver(false);
+  };
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
   const handleDrop = (e) => {
-    e.preventDefault(); e.stopPropagation(); dragCounterRef.current = 0; setIsDragOver(false);
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
     const files = e.dataTransfer.files;
     if (files?.length > 0) {
       const file = files[0];
-      if (file.size > 25 * 1024 * 1024) { toast.error("File size should be less than 25MB"); return; }
-      setSelectedFile(file); setSelectedFileName(file.name);
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error("File size should be less than 25MB");
+        return;
+      }
+      setSelectedFile(file);
+      setSelectedFileName(file.name);
       toast.success(`${file.name} selected`);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -1807,12 +2304,17 @@ export default function Message() {
     if (searchTerm.length >= 2) {
       const filtered = allUsers.filter((u) => {
         const s = searchTerm.toLowerCase();
-        return (u.email || "").toLowerCase().includes(s) || (u.name || "").toLowerCase().includes(s);
+        return (
+          (u.email || "").toLowerCase().includes(s) ||
+          (u.name || "").toLowerCase().includes(s)
+        );
       });
       setDisplayedUsers(filtered);
     } else {
       if (targetUserIdFromUrl) {
-        const t = allUsers.find((u) => Number(u.id) === Number(targetUserIdFromUrl));
+        const t = allUsers.find(
+          (u) => Number(u.id) === Number(targetUserIdFromUrl),
+        );
         setDisplayedUsers(t ? [t] : []);
       } else {
         setDisplayedUsers(conversationUsers);
@@ -1824,49 +2326,54 @@ export default function Message() {
     if (!currentUserId) return;
     setIsLoadingUsers(true);
     try {
-      const res = await api.get("/message/users", { params: { current_user_id: currentUserId } });
+      const res = await api.get("/message/users", {
+        params: { current_user_id: currentUserId },
+      });
       if (!isMounted.current) return;
-      
+
       const processed = res.data.map((u, i) => ({
-        id: u.id, 
-        name: u.name || u.email?.split("@")[0] || `User ${u.id}`, 
+        id: u.id,
+        name: u.name || u.email?.split("@")[0] || `User ${u.id}`,
         email: u.email,
         avatar: u.profile_picture || avatarPool[i % avatarPool.length],
-        lastMessage: u.last_message || "", 
+        lastMessage: u.last_message || "",
         online: u.online || false,
-        last_message_time: u.last_message_time, 
+        last_message_time: u.last_message_time,
         last_active: u.last_active,
-        unread_count: u.unread_count || 0, 
+        unread_count: u.unread_count || 0,
         hasConversation: !!u.last_message,
       }));
-      
+
       const allProcessed = processed;
       let convoUsers = processed.filter((u) => u.hasConversation);
-      
+
       convoUsers = convoUsers.sort((a, b) => {
         if (!a.last_message_time) return 1;
         if (!b.last_message_time) return -1;
         return new Date(b.last_message_time) - new Date(a.last_message_time);
       });
-      
+
       setAllUsers(allProcessed);
       setConversationUsers(convoUsers);
 
       let targetUserId = null;
-      
+
       if (targetUserIdFromUrl) {
         targetUserId = Number(targetUserIdFromUrl);
       }
-      
+
       if (!targetUserId && conversationIdFromUrl) {
         try {
-          const convRes = await api.get(`/message/conversation/by-id/${conversationIdFromUrl}`, {
-            params: { current_user_id: currentUserId }
-          });
+          const convRes = await api.get(
+            `/message/conversation/by-id/${conversationIdFromUrl}`,
+            {
+              params: { current_user_id: currentUserId },
+            },
+          );
           if (convRes.data && convRes.data.other_user_id) {
             targetUserId = convRes.data.other_user_id;
-            
-            if (!allProcessed.some(u => u.id === targetUserId)) {
+
+            if (!allProcessed.some((u) => u.id === targetUserId)) {
               const otherUser = convRes.data.other_user;
               const newUser = {
                 id: otherUser.id,
@@ -1876,15 +2383,18 @@ export default function Message() {
                 lastMessage: "",
                 online: false,
                 hasConversation: true,
-                unread_count: 0
+                unread_count: 0,
               };
-              setAllUsers(prev => [...prev, newUser]);
-              setConversationUsers(prev => {
+              setAllUsers((prev) => [...prev, newUser]);
+              setConversationUsers((prev) => {
                 const updated = [...prev, newUser];
                 return updated.sort((a, b) => {
                   if (!a.last_message_time) return 1;
                   if (!b.last_message_time) return -1;
-                  return new Date(b.last_message_time) - new Date(a.last_message_time);
+                  return (
+                    new Date(b.last_message_time) -
+                    new Date(a.last_message_time)
+                  );
                 });
               });
             }
@@ -1893,11 +2403,11 @@ export default function Message() {
           console.warn("Could not fetch conversation details:", e);
         }
       }
-      
+
       if (!targetUserId && receiverId) {
         targetUserId = Number(receiverId);
       }
-      
+
       if (targetUserId) {
         const t = allProcessed.find((u) => u.id === targetUserId);
         if (t) {
@@ -1909,16 +2419,16 @@ export default function Message() {
           try {
             const ur = await api.get(`/user/${targetUserId}`);
             if (ur.data && isMounted.current) {
-              const nu = { 
-                id: ur.data.id, 
-                name: ur.data.name || ur.data.email?.split("@")[0], 
-                email: ur.data.email, 
-                avatar: ur.data.profile_picture || avatarPool[0], 
-                lastMessage: "", 
-                online: ur.data.online || false, 
-                last_active: ur.data.last_active, 
-                unread_count: 0, 
-                hasConversation: true 
+              const nu = {
+                id: ur.data.id,
+                name: ur.data.name || ur.data.email?.split("@")[0],
+                email: ur.data.email,
+                avatar: ur.data.profile_picture || avatarPool[0],
+                lastMessage: "",
+                online: ur.data.online || false,
+                last_active: ur.data.last_active,
+                unread_count: 0,
+                hasConversation: true,
               };
               setDisplayedUsers([nu]);
               setActiveUserId(nu.id);
@@ -1926,7 +2436,7 @@ export default function Message() {
               setAllUsers((p) => [...p, nu]);
               clearUnreadMessages(nu.id);
             }
-          } catch { 
+          } catch {
             setDisplayedUsers([]);
             setActiveUserId(null);
           }
@@ -1935,21 +2445,22 @@ export default function Message() {
         setDisplayedUsers(convoUsers);
         let uid = null;
         if (receiverId) {
-          if (convoUsers.some((u) => Number(u.id) === Number(receiverId))) uid = Number(receiverId);
+          if (convoUsers.some((u) => Number(u.id) === Number(receiverId)))
+            uid = Number(receiverId);
           else {
             try {
               const ur = await api.get(`/user/${receiverId}`);
               if (ur.data && isMounted.current) {
-                const nu = { 
-                  id: ur.data.id, 
-                  name: ur.data.name || ur.data.email?.split("@")[0], 
-                  email: ur.data.email, 
-                  avatar: ur.data.profile_picture || avatarPool[0], 
-                  lastMessage: "", 
-                  online: ur.data.online || false, 
-                  last_active: ur.data.last_active, 
-                  unread_count: 0, 
-                  hasConversation: false 
+                const nu = {
+                  id: ur.data.id,
+                  name: ur.data.name || ur.data.email?.split("@")[0],
+                  email: ur.data.email,
+                  avatar: ur.data.profile_picture || avatarPool[0],
+                  lastMessage: "",
+                  online: ur.data.online || false,
+                  last_active: ur.data.last_active,
+                  unread_count: 0,
+                  hasConversation: false,
                 };
                 setAllUsers((p) => [...p, nu]);
                 setDisplayedUsers((p) => [...p, nu]);
@@ -1966,7 +2477,7 @@ export default function Message() {
           clearUnreadMessages(uid);
         }
       }
-      
+
       setInitialLoadDone(true);
     } catch (err) {
       console.error("Failed to load users", err);
@@ -1974,7 +2485,13 @@ export default function Message() {
     } finally {
       setIsLoadingUsers(false);
     }
-  }, [currentUserId, targetUserIdFromUrl, receiverId, conversationIdFromUrl, clearUnreadMessages]);
+  }, [
+    currentUserId,
+    targetUserIdFromUrl,
+    receiverId,
+    conversationIdFromUrl,
+    clearUnreadMessages,
+  ]);
 
   useEffect(() => {
     loadUsers();
@@ -1990,30 +2507,36 @@ export default function Message() {
   useEffect(() => {
     const handleReactionUpdate = (event) => {
       const data = event.detail;
-      if (data.type === 'reaction_updated') {
-        setReactions(prev => ({
+      if (data.type === "reaction_updated") {
+        setReactions((prev) => ({
           ...prev,
-          [data.message_id]: data.reactions
+          [data.message_id]: data.reactions,
         }));
-        
-        if (data.action === 'added' && data.user_id !== currentUserId) {
-          const reactedUser = allUsers.find(u => u.id === data.user_id);
+
+        if (data.action === "added" && data.user_id !== currentUserId) {
+          const reactedUser = allUsers.find((u) => u.id === data.user_id);
           if (reactedUser) {
             toast(`${reactedUser.name} reacted ${data.emoji}`, {
               icon: data.emoji,
-              duration: 2000
+              duration: 2000,
             });
           }
         }
       }
     };
-    
-    window.addEventListener('reaction-updated', handleReactionUpdate);
-    return () => window.removeEventListener('reaction-updated', handleReactionUpdate);
+
+    window.addEventListener("reaction-updated", handleReactionUpdate);
+    return () =>
+      window.removeEventListener("reaction-updated", handleReactionUpdate);
   }, [currentUserId, allUsers]);
 
   useEffect(() => {
-    if (!loading && messages.length > 0 && messagesContainerRef.current && !initialScrollDone.current) {
+    if (
+      !loading &&
+      messages.length > 0 &&
+      messagesContainerRef.current &&
+      !initialScrollDone.current
+    ) {
       setTimeout(() => {
         if (!switchingChatRef.current) {
           scrollToBottom(false);
@@ -2026,9 +2549,9 @@ export default function Message() {
   }, [loading, messages.length, scrollToBottom]);
 
   useEffect(() => {
-    if (activeUserId) { 
-      initialScrollDone.current = false; 
-      shouldAutoScroll.current = true; 
+    if (activeUserId) {
+      initialScrollDone.current = false;
+      shouldAutoScroll.current = true;
       setUserScrolled(false);
       scrollAfterSend.current = false;
       switchingChatRef.current = true;
@@ -2045,19 +2568,19 @@ export default function Message() {
   useEffect(() => {
     if (activeUserId && currentUserId) {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-      
+
       pollIntervalRef.current = setInterval(() => {
         if (switchingChatRef.current) return;
-        
+
         const container = messagesContainerRef.current;
         if (!container) return;
-        
+
         const scrollTop = container.scrollTop;
         const scrollHeight = container.scrollHeight;
         const clientHeight = container.clientHeight;
         const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
         const isNearBottom = distanceFromBottom < 100;
-        
+
         if (isNearBottom || scrollAfterSend.current) {
           fetchMessages(activeUserId).then(() => {
             if (scrollAfterSend.current) {
@@ -2071,8 +2594,8 @@ export default function Message() {
           });
         }
       }, 30000);
-      
-      return () => { 
+
+      return () => {
         if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       };
     }
@@ -2080,19 +2603,20 @@ export default function Message() {
 
   const handleScroll = useCallback(() => {
     if (!messagesContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    
+    const { scrollTop, scrollHeight, clientHeight } =
+      messagesContainerRef.current;
+
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const isScrolledUpMoreThan50px = distanceFromBottom > 50;
-    
+
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
     }
-    
+
     if (isScrolledUpMoreThan50px) {
       setUserScrolled(true);
       shouldAutoScroll.current = false;
-      
+
       scrollTimeoutRef.current = setTimeout(() => {
         setUserScrolled(false);
         scrollTimeoutRef.current = null;
@@ -2109,9 +2633,9 @@ export default function Message() {
 
   useEffect(() => {
     const c = messagesContainerRef.current;
-    if (c) { 
-      c.addEventListener("scroll", handleScroll); 
-      return () => c.removeEventListener("scroll", handleScroll); 
+    if (c) {
+      c.addEventListener("scroll", handleScroll);
+      return () => c.removeEventListener("scroll", handleScroll);
     }
   }, [handleScroll]);
 
@@ -2121,7 +2645,7 @@ export default function Message() {
         clearTimeout(scrollTimeoutRef.current);
         scrollTimeoutRef.current = null;
       }
-      
+
       setTimeout(() => {
         scrollToBottom(true);
         scrollAfterSend.current = false;
@@ -2141,12 +2665,19 @@ export default function Message() {
     scrollToBottom(true);
   }, [scrollToBottom]);
 
-  const sendTypingStatus = useCallback(async (isTyping) => {
-    if (!currentUserId || !activeUserId) return;
-    try {
-      await api.post("/message/typing", { user_id: currentUserId, chat_with: activeUserId, is_typing: isTyping });
-    } catch {}
-  }, [currentUserId, activeUserId]);
+  const sendTypingStatus = useCallback(
+    async (isTyping) => {
+      if (!currentUserId || !activeUserId) return;
+      try {
+        await api.post("/message/typing", {
+          user_id: currentUserId,
+          chat_with: activeUserId,
+          is_typing: isTyping,
+        });
+      } catch {}
+    },
+    [currentUserId, activeUserId],
+  );
 
   const handleInputChange = (e) => {
     setInput(e.target.value);
@@ -2154,9 +2685,11 @@ export default function Message() {
   };
 
   const handleEmojiClick = (emojiObject) => {
-    setInput(prev => prev + emojiObject.emoji);
+    setInput((prev) => prev + emojiObject.emoji);
     setShowEmojiPicker(false);
-    const textarea = document.querySelector('textarea[placeholder="Type a message..."]');
+    const textarea = document.querySelector(
+      'textarea[placeholder="Type a message..."]',
+    );
     if (textarea) {
       textarea.focus();
     }
@@ -2166,38 +2699,50 @@ export default function Message() {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target)
+      ) {
         setShowEmojiPicker(false);
       }
     };
 
     if (showEmojiPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-      document.addEventListener('touchstart', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
     };
   }, [showEmojiPicker]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) { toast.error("File too large (max 25MB)"); return; }
-    setSelectedFile(file); setSelectedFileName(file.name);
+    if (file.size > 25 * 1024 * 1024) {
+      toast.error("File too large (max 25MB)");
+      return;
+    }
+    setSelectedFile(file);
+    setSelectedFileName(file.name);
     toast.success(`${file.name} ready to send`);
     e.target.value = "";
   };
 
-  const clearSelectedFile = () => { setSelectedFile(null); setSelectedFileName(""); };
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setSelectedFileName("");
+  };
   const clearReply = () => setReplyingTo(null);
 
   const handleDeleteMessage = async (message) => {
     if (!message || !currentUserId) return;
     try {
-      await api.delete(`/message/${message.id}`, { params: { user_id: currentUserId } });
+      await api.delete(`/message/${message.id}`, {
+        params: { user_id: currentUserId },
+      });
       setMessages((prev) => prev.filter((m) => m.id !== message.id));
       toast.success("Message deleted");
     } catch {
@@ -2208,47 +2753,71 @@ export default function Message() {
   const handleDeleteConversation = async () => {
     if (!activeUserId || !currentUserId) return;
     try {
-      await api.delete(`/message/conversation/${currentUserId}/${activeUserId}`, { params: { user_id: currentUserId } });
-      setMessages([]); 
+      await api.delete(
+        `/message/conversation/${currentUserId}/${activeUserId}`,
+        { params: { user_id: currentUserId } },
+      );
+      setMessages([]);
       setConversationUsers((p) => p.filter((u) => u.id !== activeUserId));
-      setAllUsers((p) => p.map((u) => (u.id === activeUserId ? { ...u, hasConversation: false, lastMessage: "" } : u)));
+      setAllUsers((p) =>
+        p.map((u) =>
+          u.id === activeUserId
+            ? { ...u, hasConversation: false, lastMessage: "" }
+            : u,
+        ),
+      );
       setDisplayedUsers((p) => p.filter((u) => u.id !== activeUserId));
       const next = conversationUsers.find((u) => u.id !== activeUserId);
       if (next) setActiveUserId(next.id);
-      else { setActiveUserId(null); setShowChatMobile(false); }
+      else {
+        setActiveUserId(null);
+        setShowChatMobile(false);
+      }
       setShowDeleteConversation(false);
       toast.success("Conversation deleted");
-    } catch { toast.error("Failed to delete conversation"); }
+    } catch {
+      toast.error("Failed to delete conversation");
+    }
   };
 
   const sendMessage = async () => {
     if ((!input.trim() && !selectedFile) || sending || !activeUserId) return;
-    if (!currentUserId) { toast.error("Missing required data."); return; }
+    if (!currentUserId) {
+      toast.error("Missing required data.");
+      return;
+    }
     const messageText = input.trim();
     setSending(true);
-    
+
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = null;
     }
     scrollAfterSend.current = true;
-    
+
     const tempId = Date.now();
-    const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const time = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
     const tempMessage = {
-      id: tempId, 
-      text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""), 
-      from: "me", 
-      time, 
+      id: tempId,
+      text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""),
+      from: "me",
+      time,
       timestamp: new Date().toISOString(),
       file_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
-      message_type: selectedFile ? (selectedFile.type.startsWith("image/") ? "image" : "file") : "text",
-      is_seen: false, 
+      message_type: selectedFile
+        ? selectedFile.type.startsWith("image/")
+          ? "image"
+          : "file"
+        : "text",
+      is_seen: false,
       isTemp: true,
     };
-    
+
     setMessages((p) => [...p, tempMessage]);
-    
+
     try {
       const formData = new FormData();
       formData.append("sender_id", String(currentUserId));
@@ -2256,39 +2825,54 @@ export default function Message() {
       if (messageText) formData.append("content", messageText);
       if (selectedFile) formData.append("file", selectedFile);
       if (replyingTo) formData.append("reply_to", String(replyingTo.id));
-      
-      const response = await api.post("/message/send", formData, { 
-        headers: { "Content-Type": "multipart/form-data" } 
+
+      const response = await api.post("/message/send", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-      
+
       setMessages((p) =>
         p.map((m) =>
           m.id === tempId
-            ? { 
-                id: response.data.message_id, 
-                text: messageText || (selectedFile ? `📎 ${selectedFile.name}` : ""), 
-                from: "me", 
-                time, 
-                timestamp: new Date().toISOString(), 
-                file_url: response.data.file_url || tempMessage.file_url, 
-                message_type: response.data.message_type || tempMessage.message_type, 
+            ? {
+                id: response.data.message_id,
+                text:
+                  messageText ||
+                  (selectedFile ? `📎 ${selectedFile.name}` : ""),
+                from: "me",
+                time,
+                timestamp: new Date().toISOString(),
+                file_url: response.data.file_url || tempMessage.file_url,
+                message_type:
+                  response.data.message_type || tempMessage.message_type,
                 is_seen: false,
                 isTemp: false,
               }
-            : m
-        )
+            : m,
+        ),
       );
-      
-      const newLast = messageText || (selectedFile ? `📎 ${selectedFile.name}` : "");
+
+      const newLast =
+        messageText || (selectedFile ? `📎 ${selectedFile.name}` : "");
       const now = new Date().toISOString();
-      
-      setAllUsers((p) => 
-        p.map((u) => u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: now, hasConversation: true } : u)
+
+      setAllUsers((p) =>
+        p.map((u) =>
+          u.id === activeUserId
+            ? {
+                ...u,
+                lastMessage: newLast,
+                last_message_time: now,
+                hasConversation: true,
+              }
+            : u,
+        ),
       );
-      
+
       setConversationUsers((p) => {
-        const updated = p.map((u) => 
-          u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: now } : u
+        const updated = p.map((u) =>
+          u.id === activeUserId
+            ? { ...u, lastMessage: newLast, last_message_time: now }
+            : u,
         );
         return updated.sort((a, b) => {
           if (!a.last_message_time) return 1;
@@ -2296,38 +2880,59 @@ export default function Message() {
           return new Date(b.last_message_time) - new Date(a.last_message_time);
         });
       });
-      
+
       setDisplayedUsers((p) => {
         if (p.some((u) => u.id === activeUserId)) {
-          const updated = p.map((u) => 
-            u.id === activeUserId ? { ...u, lastMessage: newLast, last_message_time: now, hasConversation: true } : u
+          const updated = p.map((u) =>
+            u.id === activeUserId
+              ? {
+                  ...u,
+                  lastMessage: newLast,
+                  last_message_time: now,
+                  hasConversation: true,
+                }
+              : u,
           );
           return updated.sort((a, b) => {
             if (!a.last_message_time) return 1;
             if (!b.last_message_time) return -1;
-            return new Date(b.last_message_time) - new Date(a.last_message_time);
+            return (
+              new Date(b.last_message_time) - new Date(a.last_message_time)
+            );
           });
         }
         const nu = allUsers.find((u) => u.id === activeUserId);
-        return nu ? [...p, { ...nu, lastMessage: newLast, last_message_time: now, hasConversation: true }] : p;
+        return nu
+          ? [
+              ...p,
+              {
+                ...nu,
+                lastMessage: newLast,
+                last_message_time: now,
+                hasConversation: true,
+              },
+            ]
+          : p;
       });
-      
-      setInput(""); 
-      clearSelectedFile(); 
-      clearReply(); 
+
+      setInput("");
+      clearSelectedFile();
+      clearReply();
       sendTypingStatus(false);
-      
     } catch (error) {
       setMessages((p) => p.filter((m) => m.id !== tempId));
       toast.error("Failed to send message");
       scrollAfterSend.current = false;
-    } finally { 
-      setSending(false); 
+    } finally {
+      setSending(false);
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
   const handleCallInitiated = (callData) => {
@@ -2335,22 +2940,27 @@ export default function Message() {
       setCallerProfileImage(activeUser.avatar);
       setCalleeProfileImage(activeUser.avatar);
     }
-    
+
     let cleanCallerName = currentUserName;
-    if (cleanCallerName && cleanCallerName.includes('@')) {
-      cleanCallerName = cleanCallerName.split('@')[0];
+    if (cleanCallerName && cleanCallerName.includes("@")) {
+      cleanCallerName = cleanCallerName.split("@")[0];
     }
-    cleanCallerName = cleanCallerName.replace(/[0-9]+$/, '');
-    cleanCallerName = cleanCallerName.charAt(0).toUpperCase() + cleanCallerName.slice(1).toLowerCase();
-    
+    cleanCallerName = cleanCallerName.replace(/[0-9]+$/, "");
+    cleanCallerName =
+      cleanCallerName.charAt(0).toUpperCase() +
+      cleanCallerName.slice(1).toLowerCase();
+
     const enrichedCallData = {
       ...callData,
       caller_id: currentUserId,
       caller_name: cleanCallerName,
       receiver_id: activeUser?.id,
-      receiver_name: activeUser?.name || activeUser?.email?.split('@')[0] || `User ${activeUser?.id}`,
+      receiver_name:
+        activeUser?.name ||
+        activeUser?.email?.split("@")[0] ||
+        `User ${activeUser?.id}`,
     };
-    
+
     setActiveCall(enrichedCallData);
   };
 
@@ -2364,48 +2974,72 @@ export default function Message() {
 
   const handleAcceptIncomingCall = () => {
     if (incomingCall) {
-      window.dispatchEvent(new CustomEvent("accept-call", { detail: incomingCall }));
+      window.dispatchEvent(
+        new CustomEvent("accept-call", { detail: incomingCall }),
+      );
     }
   };
 
   const handleDeclineIncomingCall = async () => {
     if (incomingCall) {
       try {
-        await api.post(`/message/call/${incomingCall.call_id}/end?user_id=${currentUserId}`);
+        await api.post(
+          `/message/call/${incomingCall.call_id}/end?user_id=${currentUserId}`,
+        );
       } catch (e) {
-        console.warn('Decline call API:', e);
+        console.warn("Decline call API:", e);
       }
       setIncomingCall(null);
     }
   };
 
-  const renderMessage = useCallback((msg, index) => {
-    const showDate = index === 0 || new Date(msg.timestamp).toDateString() !== new Date(messages[index - 1]?.timestamp).toDateString();
-    const isOwn = msg.from === "me";
-    const isEditing = editingMessageId === msg.id;
-    const isHighlighted = highlightedMsgId === msg.id;
-    const msgReactions = reactions[msg.id] || {};
-    const isStarred = msg.is_starred || starredIds.has(msg.id);
+const renderMessage = useCallback((msg, index) => {
+  const showDate = index === 0 || new Date(msg.timestamp).toDateString() !== new Date(messages[index - 1]?.timestamp).toDateString();
+  const isOwn = msg.from === "me";
+  const isEditing = editingMessageId === msg.id;
+  const isHighlighted = highlightedMsgId === msg.id;
+  const msgReactions = reactions[msg.id] || {};
+  const isStarred = msg.is_starred || starredIds.has(msg.id);
 
-    if (msg.message_type === "call") {
-      return (
-        <React.Fragment key={msg.id}>
-          {showDate && (
-            <div className="flex justify-center my-3 md:my-4">
-              <span className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-500">{formatMessageDate(msg.timestamp)}</span>
-            </div>
-          )}
-          <div className="flex justify-center my-2">
-            <div className="bg-gray-100 rounded-full px-4 py-2 text-sm text-gray-600 flex items-center gap-2">
-              <span className="text-lg">{msg.text?.toLowerCase().includes("video") ? "📹" : "📞"}</span>
-              <span>{msg.text || "Call"}</span>
-              <span className="text-xs text-gray-400">{isOwn ? " (You called)" : " (Incoming call)"}</span>
-            </div>
-          </div>
-        </React.Fragment>
-      );
+  // ✅ Helper function to get clean filename
+  // Helper function to get clean filename
+const getCleanFilename = (fileUrl, originalFilename) => {
+  if (originalFilename) {
+    // Remove timestamp prefix from original filename
+    let cleanName = originalFilename;
+    const pattern = /^\d{8}_\d{6}_/;
+    cleanName = cleanName.replace(pattern, '');
+    
+    // If no extension, try to preserve it
+    if (!cleanName.includes('.') && fileUrl) {
+      const storedName = fileUrl.split("/").pop().split('?')[0];
+      if (storedName.includes('.')) {
+        const ext = storedName.split('.').pop();
+        cleanName = `${cleanName}.${ext}`;
+      }
     }
+    return cleanName;
+  }
+  
+  if (!fileUrl) return "Attachment";
+  
+  // Extract filename from URL
+  let filename = fileUrl.split("/").pop().split('?')[0];
+  
+  // Remove timestamp prefix
+  const pattern = /^\d{8}_\d{6}_/;
+  filename = filename.replace(pattern, '');
+  
+  return filename || "Attachment";
+};
 
+  // ✅ Helper function to get stored filename (for download)
+  const getStoredFilename = (fileUrl) => {
+    if (!fileUrl) return "";
+    return fileUrl.split("/").pop().split('?')[0];
+  };
+
+  if (msg.message_type === "call") {
     return (
       <React.Fragment key={msg.id}>
         {showDate && (
@@ -2413,247 +3047,285 @@ export default function Message() {
             <span className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-500">{formatMessageDate(msg.timestamp)}</span>
           </div>
         )}
-        <div
-          ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
-          className={`flex ${isOwn ? "justify-end" : "justify-start"} transition-all duration-300 ${isHighlighted ? "scale-[1.02]" : ""}`}
-        >
-          <div className={`relative group max-w-[85%] md:max-w-[70%] xl:max-w-[60%] 4k:max-w-[50%] ${isOwn ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}>
-            {isStarred && (
-              <div className={`absolute -top-2 ${isOwn ? "right-2" : "left-2"} z-10`}>
-                <span className="text-sm text-amber-400">⭐</span>
-              </div>
-            )}
-            {msg.reply_to && (
-              <div
-                className={`mb-1.5 text-xs bg-black/5 p-2 rounded-xl cursor-pointer hover:bg-black/10 transition-colors ${isOwn ? "ml-2" : "mr-2"}`}
-                onClick={() => msg.reply_to?.id && jumpToMessage(msg.reply_to.id)}
-              >
-                <div className="flex items-start gap-1.5">
-                  <span className="font-semibold opacity-70 flex-shrink-0">↩ Replying to:</span>
-                  <div className="flex-1 min-w-0">
-                    {msg.reply_to.file_url ? (
-                      <div className="flex items-center gap-1">
-                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                        </svg>
-                        <span className="opacity-60 truncate">
-                          {msg.reply_to.file_url.split('/').pop() || "Attachment"}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="opacity-60">
-                        {msg.reply_to.content?.substring(0, 50)}
-                        {msg.reply_to.content?.length > 50 && "..."}
-                      </span>
-                    )}
-                    {msg.reply_to.edited && (
-                      <span className="ml-1 text-[10px] opacity-40 italic">(edited)</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+        <div className="flex justify-center my-2">
+          <div className="bg-gray-100 rounded-full px-4 py-2 text-sm text-gray-600 flex items-center gap-2">
+            <span className="text-lg">{msg.text?.toLowerCase().includes("video") ? "📹" : "📞"}</span>
+            <span>{msg.text || "Call"}</span>
+            <span className="text-xs text-gray-400">{isOwn ? " (You called)" : " (Incoming call)"}</span>
+          </div>
+        </div>
+      </React.Fragment>
+    );
+  }
 
+  return (
+    <React.Fragment key={msg.id}>
+      {showDate && (
+        <div className="flex justify-center my-3 md:my-4">
+          <span className="px-3 py-1 bg-gray-100 rounded-full text-xs text-gray-500">{formatMessageDate(msg.timestamp)}</span>
+        </div>
+      )}
+      <div
+        ref={(el) => { if (el) messageRefs.current[msg.id] = el; }}
+        className={`flex ${isOwn ? "justify-end" : "justify-start"} transition-all duration-300 ${isHighlighted ? "scale-[1.02]" : ""}`}
+      >
+        <div className={`relative group max-w-[85%] md:max-w-[70%] xl:max-w-[60%] 4k:max-w-[50%] ${isOwn ? "ml-8 md:ml-12" : "mr-8 md:mr-12"}`}>
+          {isStarred && (
+            <div className={`absolute -top-2 ${isOwn ? "right-2" : "left-2"} z-10`}>
+              <span className="text-sm text-amber-400">⭐</span>
+            </div>
+          )}
+          {msg.reply_to && (
             <div
-              ref={(el) => {
-                if (el) {
-                  messageRefs.current[msg.id] = el;
-                }
-              }}
-              className={`relative px-3 py-2 rounded-2xl transition-all duration-200 ${
-                isOwn 
-                  ? "bg-purple-600 text-white rounded-br-sm" 
-                  : "bg-white text-gray-900 rounded-bl-sm shadow-sm border border-gray-100"
-              } ${msg.isTemp ? "opacity-70" : ""} ${isHighlighted ? "ring-2 ring-amber-400 ring-offset-2" : ""}`}
-              onContextMenu={(e) => openContextMenu(msg, e, e.currentTarget)}
-              onTouchStart={(e) => {
-                const targetElement = e.currentTarget;
-                longPressTimer.current = setTimeout(() => handleMobileLongPress(msg, e, targetElement), 500);
-              }}
-              onTouchEnd={() => { 
-                if (longPressTimer.current) clearTimeout(longPressTimer.current); 
-              }}
-              onTouchCancel={() => { 
-                if (longPressTimer.current) clearTimeout(longPressTimer.current); 
-              }}
-              onClick={(e) => {
-                handleDoubleTap(msg, e, e.currentTarget);
-              }}
+              className={`mb-1.5 text-xs bg-black/5 p-2 rounded-xl cursor-pointer hover:bg-black/10 transition-colors ${isOwn ? "ml-2" : "mr-2"}`}
+              onClick={() => msg.reply_to?.id && jumpToMessage(msg.reply_to.id)}
             >
-              {msg.file_url && (
-                <div className="mb-2">
-                  {msg.message_type === "image" ? (
-                    <div className="relative">
-                      <img
-                        src={msg.file_url}
-                        alt="attachment"
-                        className="max-w-full max-h-48 md:max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => setImageViewer({ open: true, url: msg.file_url })}
-                      />
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleFileDownload(msg.file_url, msg.file_url.split("/").pop()); }}
-                        className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-2 md:p-1.5 rounded-full md:opacity-0 md:group-hover:opacity-100 transition-all"
-                        title="Download"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                      </button>
+              <div className="flex items-start gap-1.5">
+                <span className="font-semibold opacity-70 flex-shrink-0">↩ Replying to:</span>
+                <div className="flex-1 min-w-0">
+                  {msg.reply_to.file_url ? (
+                    <div className="flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                      </svg>
+                      <span className="opacity-60 truncate">
+                        {getCleanFilename(msg.reply_to.file_url, msg.reply_to.original_filename)}
+                      </span>
                     </div>
                   ) : (
-                    <div className={`flex items-center justify-between gap-2 p-2 rounded-lg ${isOwn ? "bg-purple-700" : "bg-gray-100"}`}>
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-lg">📄</span>
-                        <span className="text-sm truncate max-w-[120px] md:max-w-[150px]">{msg.file_url.split("/").pop()}</span>
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleFileDownload(msg.file_url, msg.file_url.split("/").pop()); }}
-                        className="p-2 md:p-1.5 rounded-lg hover:bg-black/10 transition-colors flex-shrink-0"
-                        title="Download"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                      </button>
-                    </div>
+                    <span className="opacity-60">
+                      {msg.reply_to.content?.substring(0, 50)}
+                      {msg.reply_to.content?.length > 50 && "..."}
+                    </span>
+                  )}
+                  {msg.reply_to.edited && (
+                    <span className="ml-1 text-[10px] opacity-40 italic">(edited)</span>
                   )}
                 </div>
-              )}
+              </div>
+            </div>
+          )}
 
-              {isEditing ? (
-                <EditMessageInput
-                  message={msg}
-                  onSave={(val) => handleSaveEdit(msg.id, val)}
-                  onCancel={() => setEditingMessageId(null)}
-                />
-              ) : (
-                msg.text && (
-                  <div>
-                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                      {msg.text}
-                    </p>
-                    {msg.edited && (
-                      <span 
-                        className="inline-block text-[10px] opacity-60 mt-1 italic"
-                        title={`Edited at ${new Date(msg.timestamp).toLocaleString()}`}
-                      >
-                        edited
-                      </span>
-                    )}
+          <div
+            ref={(el) => {
+              if (el) {
+                messageRefs.current[msg.id] = el;
+              }
+            }}
+            className={`relative px-3 py-2 rounded-2xl transition-all duration-200 ${
+              isOwn 
+                ? "bg-purple-600 text-white rounded-br-sm" 
+                : "bg-white text-gray-900 rounded-bl-sm shadow-sm border border-gray-100"
+            } ${msg.isTemp ? "opacity-70" : ""} ${isHighlighted ? "ring-2 ring-amber-400 ring-offset-2" : ""}`}
+            onContextMenu={(e) => openContextMenu(msg, e, e.currentTarget)}
+            onTouchStart={(e) => {
+              const targetElement = e.currentTarget;
+              longPressTimer.current = setTimeout(() => handleMobileLongPress(msg, e, targetElement), 500);
+            }}
+            onTouchEnd={() => { 
+              if (longPressTimer.current) clearTimeout(longPressTimer.current); 
+            }}
+            onTouchCancel={() => { 
+              if (longPressTimer.current) clearTimeout(longPressTimer.current); 
+            }}
+            onClick={(e) => {
+              handleDoubleTap(msg, e, e.currentTarget);
+            }}
+          >
+            {msg.file_url && (
+              <div className="mb-2">
+                {msg.message_type === "image" ? (
+                  <div className="relative">
+                    <img
+                      src={msg.file_url}
+                      alt="attachment"
+                      className="max-w-full max-h-48 md:max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() => setImageViewer({ open: true, url: msg.file_url })}
+                    />
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        const storedName = getStoredFilename(msg.file_url);
+                        const cleanName = getCleanFilename(msg.file_url, msg.original_filename);
+                        handleFileDownload(msg.file_url, storedName, cleanName);
+                      }}
+                      className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white p-2 md:p-1.5 rounded-full md:opacity-0 md:group-hover:opacity-100 transition-all"
+                      title="Download"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    </button>
                   </div>
-                )
-              )}
-
-              <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isOwn ? "text-purple-200" : "text-gray-400"}`}>
-                <span>{msg.time}</span>
-                {isOwn && (
-                  <div
-                    className="flex items-center"
-                    title={msg.is_seen ? "Seen" : "Sent"}
-                  >
-                    {msg.is_seen ? (
-                      <span
-                        style={{
-                          position: "relative",
-                          display: "inline-block",
-                          width: "16px",
-                          height: "12px",
-                        }}
-                      >
-                        <svg
-                          width="11"
-                          height="11"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#1d9bf0"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{
-                            position: "absolute",
-                            left: "0px",
-                            top: "0px",
-                          }}
-                        >
-                          <path d="M20 6L9 17L4 12" />
-                        </svg>
-                        <svg
-                          width="11"
-                          height="11"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#1d9bf0"
-                          strokeWidth="3.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          style={{
-                            position: "absolute",
-                            left: "4px",
-                            bottom: "0px",
-                          }}
-                        >
-                          <path d="M20 6L9 17L4 12" />
-                        </svg>
+                ) : (
+                  <div className={`flex items-center justify-between gap-2 p-2 rounded-lg ${isOwn ? "bg-purple-700" : "bg-gray-100"}`}>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-lg">📄</span>
+                      <span className="text-sm truncate max-w-[120px] md:max-w-[150px]">
+                        {getCleanFilename(msg.file_url, msg.original_filename)}
                       </span>
-                    ) : (
+                    </div>
+                    <button
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        const storedName = getStoredFilename(msg.file_url);
+                        const cleanName = getCleanFilename(msg.file_url, msg.original_filename);
+                        handleFileDownload(msg.file_url, storedName, cleanName);
+                      }}
+                      className="p-2 md:p-1.5 rounded-lg hover:bg-black/10 transition-colors flex-shrink-0"
+                      title="Download"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isEditing ? (
+              <EditMessageInput
+                message={msg}
+                onSave={(val) => handleSaveEdit(msg.id, val)}
+                onCancel={() => setEditingMessageId(null)}
+              />
+            ) : (
+              msg.text && (
+                <div>
+                  <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                    {msg.text}
+                  </p>
+                  {msg.edited && (
+                    <span 
+                      className="inline-block text-[10px] opacity-60 mt-1 italic"
+                      title={`Edited at ${new Date(msg.timestamp).toLocaleString()}`}
+                    >
+                      edited
+                    </span>
+                  )}
+                </div>
+              )
+            )}
+
+            <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${isOwn ? "text-purple-200" : "text-gray-400"}`}>
+              <span>{msg.time}</span>
+              {isOwn && (
+                <div
+                  className="flex items-center"
+                  title={msg.is_seen ? "Seen" : "Sent"}
+                >
+                  {msg.is_seen ? (
+                    <span
+                      style={{
+                        position: "relative",
+                        display: "inline-block",
+                        width: "16px",
+                        height: "12px",
+                      }}
+                    >
                       <svg
                         width="11"
                         height="11"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="currentColor"
+                        stroke="#1d9bf0"
                         strokeWidth="3.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
+                        style={{
+                          position: "absolute",
+                          left: "0px",
+                          top: "0px",
+                        }}
                       >
                         <path d="M20 6L9 17L4 12" />
                       </svg>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <ReactionsDisplay
-              reactions={msgReactions}
-              onReact={(emoji) => handleReact(emoji, msg.id)}
-              currentUserId={currentUserId}
-            />
-
-            <div className={`absolute top-1/2 -translate-y-1/2 ${isOwn ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"} hidden md:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200`}>
-              <button
-                onClick={() => setReplyingTo(msg)}
-                className="p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                title="Reply"
-              >
-                <span className="text-sm">↩️</span>
-              </button>
-              <button
-                onClick={() => handleStarMessage(msg)}
-                className={`p-1.5 bg-white rounded-full shadow-md transition-colors ${isStarred ? "text-amber-400" : "text-gray-400 hover:text-amber-400"}`}
-                title={isStarred ? "Unstar" : "Star"}
-              >
-                <span className="text-sm">{isStarred ? "⭐" : "☆"}</span>
-              </button>
-              <button
-                onClick={(e) => openContextMenu(msg, e, e.currentTarget)}
-                className="p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                title="More"
-              >
-                <span className="text-sm">⋯</span>
-              </button>
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#1d9bf0"
+                        strokeWidth="3.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{
+                          position: "absolute",
+                          left: "4px",
+                          bottom: "0px",
+                        }}
+                      >
+                        <path d="M20 6L9 17L4 12" />
+                      </svg>
+                    </span>
+                  ) : (
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17L4 12" />
+                    </svg>
+                  )}
+                </div>
+              )}
             </div>
           </div>
-          {isOwn && (
-            <div className="w-7 md:w-8 flex-shrink-0" />
-          )}
+
+          <ReactionsDisplay
+            reactions={msgReactions}
+            onReact={(emoji) => handleReact(emoji, msg.id)}
+            currentUserId={currentUserId}
+          />
+
+          <div className={`absolute top-1/2 -translate-y-1/2 ${isOwn ? "left-0 -translate-x-full pr-2" : "right-0 translate-x-full pl-2"} hidden md:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200`}>
+            <button
+              onClick={() => setReplyingTo(msg)}
+              className="p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+              title="Reply"
+            >
+              <span className="text-sm">↩️</span>
+            </button>
+            <button
+              onClick={() => handleStarMessage(msg)}
+              className={`p-1.5 bg-white rounded-full shadow-md transition-colors ${isStarred ? "text-amber-400" : "text-gray-400 hover:text-amber-400"}`}
+              title={isStarred ? "Unstar" : "Star"}
+            >
+              <span className="text-sm">{isStarred ? "⭐" : "☆"}</span>
+            </button>
+            <button
+              onClick={(e) => openContextMenu(msg, e, e.currentTarget)}
+              className="p-1.5 bg-white rounded-full shadow-md text-gray-500 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+              title="More"
+            >
+              <span className="text-sm">⋯</span>
+            </button>
+          </div>
         </div>
-      </React.Fragment>
-    );
-  }, [messages, formatMessageDate, editingMessageId, highlightedMsgId, reactions, starredIds, openContextMenu, handleReact, handleStarMessage, handleSaveEdit, jumpToMessage, handleFileDownload, handleMobileLongPress, handleDoubleTap, currentUserId]);
+        {isOwn && (
+          <div className="w-7 md:w-8 flex-shrink-0" />
+        )}
+      </div>
+    </React.Fragment>
+  );
+}, [messages, formatMessageDate, editingMessageId, highlightedMsgId, reactions, starredIds, openContextMenu, handleReact, handleStarMessage, handleSaveEdit, jumpToMessage, handleFileDownload, handleMobileLongPress, handleDoubleTap, currentUserId]);
 
   const UserListItem = ({ user }) => (
     <div
-      onClick={() => { 
-        setActiveUserId(user.id); 
-        setShowChatMobile(true); 
-        setMobileMenuOpen(false); 
+      onClick={() => {
+        setActiveUserId(user.id);
+        setShowChatMobile(true);
+        setMobileMenuOpen(false);
         clearUnreadMessages(user.id);
         switchingChatRef.current = true;
         setTimeout(() => {
@@ -2661,29 +3333,41 @@ export default function Message() {
         }, 500);
       }}
       className={`flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer relative transition-all duration-200 ${
-        activeUserId === user.id 
-          ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md" 
+        activeUserId === user.id
+          ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-md"
           : "hover:bg-gray-50"
       }`}
     >
       <div className="relative flex-shrink-0">
-        <img src={user.avatar} className="w-10 h-10 md:w-11 md:h-11 rounded-full object-cover" alt={user.name} />
+        <img
+          src={user.avatar}
+          className="w-10 h-10 md:w-11 md:h-11 rounded-full object-cover"
+          alt={user.name}
+        />
         {user.online && (
           <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full animate-pulse" />
         )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold truncate">{user.name || user.email?.split("@")[0]}</p>
+          <p className="text-sm font-semibold truncate">
+            {user.name || user.email?.split("@")[0]}
+          </p>
           {user.last_message_time && (
-            <p className="text-[10px] opacity-70 flex-shrink-0">{formatMessageTime(user.last_message_time)}</p>
+            <p className="text-[10px] opacity-70 flex-shrink-0">
+              {formatMessageTime(user.last_message_time)}
+            </p>
           )}
         </div>
-        <p className="text-xs truncate opacity-70">{user.lastMessage || "No messages yet"}</p>
+        <p className="text-xs truncate opacity-70">
+          {user.lastMessage || "No messages yet"}
+        </p>
         {user.online ? (
           <p className="text-[10px] text-green-500 mt-0.5">● Online</p>
         ) : user.last_active ? (
-          <p className="text-[10px] opacity-50 mt-0.5">{formatLastSeen(user.last_active)}</p>
+          <p className="text-[10px] opacity-50 mt-0.5">
+            {formatLastSeen(user.last_active)}
+          </p>
         ) : null}
       </div>
       {user.unread_count > 0 && activeUserId !== user.id && (
@@ -2748,7 +3432,12 @@ export default function Message() {
       <div className="h-14 sm:h-16 md:h-[72px] px-3 sm:px-4 md:px-6 flex items-center justify-between flex-shrink-0 bg-white shadow-sm z-10 top-bar">
         <h1
           className="text-xl sm:text-2xl md:text-3xl font-bold truncate"
-          style={{ fontFamily: "Trochut, cursive", background: "linear-gradient(135deg,#51218F 0%,#7c3aed 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}
+          style={{
+            fontFamily: "Trochut, cursive",
+            background: "linear-gradient(135deg,#51218F 0%,#7c3aed 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
         >
           Talenta
         </h1>
@@ -2760,15 +3449,21 @@ export default function Message() {
         </button>
       </div>
 
-      <div className="flex flex-1 overflow-hidden bg-white sm:rounded-t-2xl md:m-4 md:rounded-2xl chat-main-wrapper"
+      <div
+        className="flex flex-1 overflow-hidden bg-white sm:rounded-t-2xl md:m-4 md:rounded-2xl chat-main-wrapper"
         style={{
-          boxShadow: '0 0 30px rgba(81, 33, 143, 0.5), 0 25px 50px -12px rgba(81, 33, 143, 0.6), 0 0 0 1px rgba(124, 58, 237, 0.3)'
+          boxShadow:
+            "0 0 30px rgba(81, 33, 143, 0.5), 0 25px 50px -12px rgba(81, 33, 143, 0.6), 0 0 0 1px rgba(124, 58, 237, 0.3)",
         }}
       >
-        <div className={`${showChatMobile ? "hidden md:flex" : "flex"} w-full md:w-[320px] lg:w-[360px] flex-col border-r border-gray-200 bg-white flex-shrink-0 chat-list-container`}>
+        <div
+          className={`${showChatMobile ? "hidden md:flex" : "flex"} w-full md:w-[320px] lg:w-[360px] flex-col border-r border-gray-200 bg-white flex-shrink-0 chat-list-container`}
+        >
           <div className="p-3 sm:p-4 pb-2">
             <div className="relative">
-              <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-base sm:text-lg">🔍</span>
+              <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-base sm:text-lg">
+                🔍
+              </span>
               <input
                 placeholder="Search users..."
                 value={searchTerm}
@@ -2785,9 +3480,13 @@ export default function Message() {
               <div className="text-center py-12 px-4">
                 <span className="text-4xl sm:text-5xl mb-3 block">💬</span>
                 <p className="text-gray-400 text-sm">
-                  {searchTerm.length >= 2 ? "No users match your search" : "No conversations yet"}
+                  {searchTerm.length >= 2
+                    ? "No users match your search"
+                    : "No conversations yet"}
                 </p>
-                <p className="text-xs text-gray-300 mt-1">Start a chat by searching for users</p>
+                <p className="text-xs text-gray-300 mt-1">
+                  Start a chat by searching for users
+                </p>
               </div>
             ) : (
               <div className="space-y-1">
@@ -2800,20 +3499,35 @@ export default function Message() {
         </div>
 
         {activeUser ? (
-          <div className={`flex-1 flex flex-col h-full ${showChatMobile ? "flex" : "hidden md:flex"} bg-gray-50 min-w-0 chat-area-container`}>
+          <div
+            className={`flex-1 flex flex-col h-full ${showChatMobile ? "flex" : "hidden md:flex"} bg-gray-50 min-w-0 chat-area-container`}
+          >
             <div className="h-14 sm:h-16 md:h-[72px] px-2 sm:px-3 md:px-5 flex items-center gap-2 sm:gap-3 border-b border-gray-200 bg-white flex-shrink-0">
-              <button 
-                onClick={() => setShowChatMobile(false)} 
+              <button
+                onClick={() => setShowChatMobile(false)}
                 className="md:hidden p-2 -ml-1 text-purple-600 hover:bg-purple-50 rounded-full transition-colors flex-shrink-0"
                 aria-label="Back to users"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
                   <path d="M19 12H5M12 19l-7-7 7-7" />
                 </svg>
               </button>
               <div className="relative flex-shrink-0">
-                <img src={activeUser.avatar} className="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-full object-cover" alt={activeUser.name} />
-                {activeUser.online && <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full animate-pulse" />}
+                <img
+                  src={activeUser.avatar}
+                  className="w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 rounded-full object-cover"
+                  alt={activeUser.name}
+                />
+                {activeUser.online && (
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full animate-pulse" />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[11px] sm:text-sm md:text-base truncate chat-header-name">
@@ -2823,12 +3537,16 @@ export default function Message() {
                   {activeUser.email}
                 </p>
                 {activeUser.online ? (
-                  <p className="text-[9px] sm:text-xs text-green-600 chat-header-status">Online</p>
+                  <p className="text-[9px] sm:text-xs text-green-600 chat-header-status">
+                    Online
+                  </p>
                 ) : activeUser.last_active ? (
-                  <p className="text-[9px] sm:text-xs text-gray-400 chat-header-status">Last seen {formatLastSeen(activeUser.last_active)}</p>
+                  <p className="text-[9px] sm:text-xs text-gray-400 chat-header-status">
+                    Last seen {formatLastSeen(activeUser.last_active)}
+                  </p>
                 ) : null}
               </div>
-              <ChatHeaderActions 
+              <ChatHeaderActions
                 activeUser={activeUser}
                 currentUserId={currentUserId}
                 currentUserName={currentUserName}
@@ -2855,17 +3573,41 @@ export default function Message() {
                 />
                 {chatSearchResults.length > 0 && (
                   <div className="flex items-center gap-1 text-xs text-gray-500">
-                    <span>{chatSearchIndex + 1}/{chatSearchResults.length}</span>
-                    <button onClick={() => setChatSearchIndex((p) => (p > 0 ? p - 1 : chatSearchResults.length - 1))} className="p-1.5 hover:text-purple-600 rounded-full hover:bg-gray-100">
+                    <span>
+                      {chatSearchIndex + 1}/{chatSearchResults.length}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setChatSearchIndex((p) =>
+                          p > 0 ? p - 1 : chatSearchResults.length - 1,
+                        )
+                      }
+                      className="p-1.5 hover:text-purple-600 rounded-full hover:bg-gray-100"
+                    >
                       <span>↑</span>
                     </button>
-                    <button onClick={() => setChatSearchIndex((p) => (p < chatSearchResults.length - 1 ? p + 1 : 0))} className="p-1.5 hover:text-purple-600 rounded-full hover:bg-gray-100">
+                    <button
+                      onClick={() =>
+                        setChatSearchIndex((p) =>
+                          p < chatSearchResults.length - 1 ? p + 1 : 0,
+                        )
+                      }
+                      className="p-1.5 hover:text-purple-600 rounded-full hover:bg-gray-100"
+                    >
                       <span>↓</span>
                     </button>
                   </div>
                 )}
-                {chatSearch && chatSearchResults.length === 0 && <span className="text-xs text-gray-400">No results</span>}
-                <button onClick={() => { setShowSearchInChat(false); setChatSearch(""); }} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100">
+                {chatSearch && chatSearchResults.length === 0 && (
+                  <span className="text-xs text-gray-400">No results</span>
+                )}
+                <button
+                  onClick={() => {
+                    setShowSearchInChat(false);
+                    setChatSearch("");
+                  }}
+                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100"
+                >
                   <span>✕</span>
                 </button>
               </div>
@@ -2894,7 +3636,9 @@ export default function Message() {
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-purple-100 flex items-center justify-center">
                       <span className="text-2xl sm:text-3xl">💬</span>
                     </div>
-                    <p className="text-gray-400 text-sm text-center">No messages yet. Say hello! 👋</p>
+                    <p className="text-gray-400 text-sm text-center">
+                      No messages yet. Say hello! 👋
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -2908,10 +3652,20 @@ export default function Message() {
                 <button
                   onClick={handleJumpToBottom}
                   className="fixed bottom-20 sm:bottom-24 right-3 sm:right-4 md:bottom-28 md:right-9 text-white rounded-full p-2.5 shadow-lg transition-all transform hover:scale-105 z-10 active:scale-95"
-                  style={{ background: "linear-gradient(135deg, #51218F 0%, #7c3aed 100%)" }}
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #51218F 0%, #7c3aed 100%)",
+                  }}
                   aria-label="Jump to bottom"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
                     <path d="M12 5v14M19 12l-7 7-7-7" />
                   </svg>
                 </button>
@@ -2919,13 +3673,23 @@ export default function Message() {
             </div>
 
             {isDragOver && (
-              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] pointer-events-none p-4" style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }}>
+              <div
+                className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] pointer-events-none p-4"
+                style={{
+                  top: topBarHeight,
+                  height: `calc(100% - ${topBarHeight}px)`,
+                }}
+              >
                 <div className="bg-white rounded-2xl p-6 sm:p-8 text-center shadow-2xl animate-in max-w-xs w-full">
                   <div className="w-16 h-16 sm:w-20 sm:h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-3xl sm:text-4xl">📎</span>
                   </div>
-                  <p className="text-lg sm:text-xl font-semibold text-purple-600 mb-2">Drop to Send</p>
-                  <p className="text-sm text-gray-500">Images, documents, up to 25MB</p>
+                  <p className="text-lg sm:text-xl font-semibold text-purple-600 mb-2">
+                    Drop to Send
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Images, documents, up to 25MB
+                  </p>
                 </div>
               </div>
             )}
@@ -2934,12 +3698,24 @@ export default function Message() {
               <div className="px-3 sm:px-4 py-2.5 bg-purple-50 border-t border-purple-100 flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <div className="w-1 h-8 bg-purple-400 rounded-full flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-purple-600 font-semibold">↩ Replying to</p>
+                  <p className="text-xs text-purple-600 font-semibold">
+                    ↩ Replying to
+                  </p>
                   <p className="text-sm text-gray-700 truncate flex items-center gap-1.5">
                     {replyingTo.file_url ? (
                       <>
-                        <svg className="w-4 h-4 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        <svg
+                          className="w-4 h-4 text-purple-500 flex-shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                          />
                         </svg>
                         <span className="truncate">Attachment</span>
                       </>
@@ -2948,7 +3724,10 @@ export default function Message() {
                     )}
                   </p>
                 </div>
-                <button onClick={clearReply} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-white/50 flex-shrink-0">
+                <button
+                  onClick={clearReply}
+                  className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-white/50 flex-shrink-0"
+                >
                   <span>✕</span>
                 </button>
               </div>
@@ -2956,16 +3735,39 @@ export default function Message() {
 
             {selectedFileName && (
               <div className="px-3 sm:px-4 py-2.5 bg-gray-100 border-t border-gray-200 flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                <svg
+                  className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                  />
                 </svg>
-                <span className="text-sm text-gray-700 truncate flex-1">{selectedFileName}</span>
-                <button 
-                  onClick={clearSelectedFile} 
+                <span className="text-sm text-gray-700 truncate flex-1">
+                  {selectedFileName}
+                </span>
+                <button
+                  onClick={clearSelectedFile}
                   className="text-gray-500 hover:text-gray-700 p-1.5 rounded-full hover:bg-white/50 flex-shrink-0 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -2980,8 +3782,19 @@ export default function Message() {
                     className="p-1.5 sm:p-2 text-purple-600 hover:bg-purple-100 rounded-full transition-colors disabled:opacity-40"
                     title="Attach file"
                   >
-                    <svg className="w-5 h-5 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    <svg
+                      className="w-5 h-5 sm:w-5 sm:h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                      />
                     </svg>
                   </button>
                   <div className="relative" ref={emojiPickerRef}>
@@ -3018,8 +3831,8 @@ export default function Message() {
                             width={280}
                             height={350}
                             style={{
-                              maxWidth: 'calc(100vw - 32px)',
-                              maxHeight: '60vh'
+                              maxWidth: "calc(100vw - 32px)",
+                              maxHeight: "60vh",
                             }}
                           />
                         </div>
@@ -3040,8 +3853,8 @@ export default function Message() {
                   onClick={sendMessage}
                   disabled={(!input.trim() && !selectedFile) || sending}
                   className={`flex-shrink-0 w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all ${
-                    (!input.trim() && !selectedFile) || sending 
-                      ? "bg-gray-300 text-gray-400 cursor-not-allowed" 
+                    (!input.trim() && !selectedFile) || sending
+                      ? "bg-gray-300 text-gray-400 cursor-not-allowed"
                       : "bg-purple-600 text-white hover:bg-purple-700 shadow-md active:scale-95"
                   }`}
                   aria-label="Send message"
@@ -3049,7 +3862,14 @@ export default function Message() {
                   {sending ? (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
                       <path d="M22 2L11 13" />
                       <path d="M22 2L15 22 11 13 2 9 22 2Z" />
                     </svg>
@@ -3063,12 +3883,20 @@ export default function Message() {
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-purple-100 flex items-center justify-center">
               <span className="text-3xl sm:text-4xl">💬</span>
             </div>
-            <p className="text-gray-400 text-sm text-center">Select a conversation to start messaging</p>
+            <p className="text-gray-400 text-sm text-center">
+              Select a conversation to start messaging
+            </p>
           </div>
         )}
       </div>
 
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,.pdf,.doc,.docx,.txt,.zip,.xls,.xlsx,.csv" />
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        className="hidden"
+        accept="image/*,.pdf,.doc,.docx,.txt,.zip,.xls,.xlsx,.csv"
+      />
 
       {contextMenu && (
         <MessageContextMenu
@@ -3083,7 +3911,11 @@ export default function Message() {
           onReply={(msg) => setReplyingTo(msg)}
           onCopy={handleCopyText}
           onEdit={handleEditMessage}
-          onForward={(msg) => { setForwardMessage(msg); setContextMenu(null); setContextMenuElement(null); }}
+          onForward={(msg) => {
+            setForwardMessage(msg);
+            setContextMenu(null);
+            setContextMenuElement(null);
+          }}
           onPin={handlePinMessage}
           onStar={handleStarMessage}
           onReact={(emoji) => handleReact(emoji, contextMenu.message.id)}
@@ -3116,34 +3948,55 @@ export default function Message() {
       )}
 
       {incomingCall && (
-        <IncomingCallNotification 
-          callData={incomingCall} 
+        <IncomingCallNotification
+          callData={incomingCall}
           onAccept={handleAcceptIncomingCall}
           onDecline={handleDeclineIncomingCall}
         />
       )}
 
       {activeCall && (
-        <CallWindow 
-          callData={activeCall} 
-          onClose={handleEndCall} 
+        <CallWindow
+          callData={activeCall}
+          onClose={handleEndCall}
           currentUserId={currentUserId}
         />
       )}
 
       {showDeleteConversation && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }} onClick={() => setShowDeleteConversation(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-6 max-w-sm w-full animate-in mx-4" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          style={{
+            top: topBarHeight,
+            height: `calc(100% - ${topBarHeight}px)`,
+          }}
+          onClick={() => setShowDeleteConversation(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-5 sm:p-6 max-w-sm w-full animate-in mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="w-12 h-12 sm:w-14 sm:h-14 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl sm:text-3xl">🗑️</span>
             </div>
-            <h3 className="text-lg font-semibold text-center mb-2">Delete Conversation?</h3>
-            <p className="text-gray-500 text-sm text-center mb-6">This action cannot be undone. All messages will be permanently deleted.</p>
+            <h3 className="text-lg font-semibold text-center mb-2">
+              Delete Conversation?
+            </h3>
+            <p className="text-gray-500 text-sm text-center mb-6">
+              This action cannot be undone. All messages will be permanently
+              deleted.
+            </p>
             <div className="flex gap-3">
-              <button onClick={() => setShowDeleteConversation(false)} className="flex-1 h-11 sm:h-10 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors">
+              <button
+                onClick={() => setShowDeleteConversation(false)}
+                className="flex-1 h-11 sm:h-10 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+              >
                 Cancel
               </button>
-              <button onClick={handleDeleteConversation} className="flex-1 h-11 sm:h-10 rounded-full bg-red-500 text-white hover:bg-red-600 text-sm font-medium transition-all transform active:scale-95">
+              <button
+                onClick={handleDeleteConversation}
+                className="flex-1 h-11 sm:h-10 rounded-full bg-red-500 text-white hover:bg-red-600 text-sm font-medium transition-all transform active:scale-95"
+              >
                 Delete
               </button>
             </div>
@@ -3152,29 +4005,51 @@ export default function Message() {
       )}
 
       {imageViewer.open && (
-        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4" style={{ top: topBarHeight, height: `calc(100% - ${topBarHeight}px)` }} onClick={() => setImageViewer({ open: false, url: null })}>
-          <button 
-            onClick={() => setImageViewer({ open: false, url: null })} 
+        <div
+          className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4"
+          style={{
+            top: topBarHeight,
+            height: `calc(100% - ${topBarHeight}px)`,
+          }}
+          onClick={() => setImageViewer({ open: false, url: null })}
+        >
+          <button
+            onClick={() => setImageViewer({ open: false, url: null })}
             className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-3 sm:p-2 transition-colors z-10"
             aria-label="Close image viewer"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
               <path d="M18 6L6 18M6 6l12 12" />
             </svg>
           </button>
-          <img 
-            src={imageViewer.url} 
-            alt="Full size" 
-            className="max-w-full max-h-[85vh] object-contain rounded-lg" 
-            onClick={(e) => e.stopPropagation()} 
+          <img
+            src={imageViewer.url}
+            alt="Full size"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
           />
           <button
-            onClick={(e) => { e.stopPropagation(); handleFileDownload(imageViewer.url, imageViewer.url.split("/").pop()); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleFileDownload(
+                imageViewer.url,
+                imageViewer.url.split("/").pop(),
+              );
+            }}
             className="absolute bottom-6 right-6 bg-white/10 hover:bg-white/20 text-white rounded-full px-4 py-2.5 sm:py-2 text-sm flex items-center gap-2 transition-colors"
           >
             <span>📥</span> <span className="hidden sm:inline">Download</span>
           </button>
-          <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/40 text-xs hidden sm:block">Tap anywhere to close</p>
+          <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/40 text-xs hidden sm:block">
+            Tap anywhere to close
+          </p>
         </div>
       )}
 
@@ -3201,7 +4076,7 @@ export default function Message() {
               clientX: window.innerWidth / 2,
               clientY: window.innerHeight / 2,
               preventDefault: () => {},
-              stopPropagation: () => {}
+              stopPropagation: () => {},
             };
             openContextMenu(msg, syntheticEvent, mobileActionElement);
             setMobileActionMessage(null);

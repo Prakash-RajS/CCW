@@ -558,7 +558,7 @@ const downloadMilestoneWork = async (contract, milestoneIndex) => {
                 : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
             }`}
           >
-            {tab.name} ({statusCounts[tab.key] || 0})
+            {tab.name} ({tab.key === 'in_review' ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) : statusCounts[tab.key] || 0})
             {isActive && (
               <span className="absolute bottom-0 left-1 right-1 lg:left-2 lg:right-2 h-[2px] md:h-[3px] bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA] rounded-full" />
             )}
@@ -581,7 +581,7 @@ const downloadMilestoneWork = async (contract, milestoneIndex) => {
                 : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
             }`}
           >
-            {tab.name} ({statusCounts[tab.key] || 0})
+            {tab.name} ({tab.key === 'in_review' ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) : statusCounts[tab.key] || 0})
             {isActive && (
               <span className="absolute bottom-0 left-1 right-1 lg:left-2 lg:right-2 h-[2px] md:h-[3px] bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA] rounded-full" />
             )}
@@ -632,12 +632,12 @@ const downloadMilestoneWork = async (contract, milestoneIndex) => {
                 {formatJobTitle(contract.job_title)}
               </h3>
               <p className="text-gray-600 text-[11px] md:text-[14px] mb-2 md:mb-3">
-                {contract.job_budget_type === "hourly"
-                  ? "Hourly"
-                  : "Fixed"}{" "}
-                · {getExpertiseLevel(contract)} · {getBudgetDisplay(contract)} ·{" "}
-                {formatPostedTime(contract.job_created_at)}
-              </p>
+  {contract.job_budget_type === "hourly"
+    ? "Hourly"
+    : "Fixed"}{" "}
+  · {getExpertiseLevel(contract)} · ₹{contract.budget} ·{" "}
+  {formatPostedTime(contract.job_created_at)}
+</p>
               <p className="text-xs md:text-[15px] text-gray-700 leading-[20px] md:leading-[26px] mb-3 md:mb-4 line-clamp-2 md:line-clamp-none">
                 {formatJobDescription(
                   contract.job_description || contract.description,

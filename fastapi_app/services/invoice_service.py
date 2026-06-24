@@ -15,7 +15,7 @@ from typing import Optional
 import django
 from django.conf import settings
 from django.core.mail import EmailMessage
-import pytz  # Add this import
+import pytz
 
 from weasyprint import HTML
 
@@ -31,13 +31,8 @@ TEMPLATE_PATH = (
     / "invoice_template.html"
 )
 
-# Resolves to  fastapi_app/media/invoices/
-# Matches Django's MEDIA_ROOT = BASE_DIR / "fastapi_app" / "media"
-# __file__ is  fastapi_app/services/invoice_service.py
-# .parent       → fastapi_app/services/
-# .parent.parent → fastapi_app/
 INVOICE_SAVE_DIR = (
-    Path(__file__).resolve().parent.parent  # fastapi_app/
+    Path(__file__).resolve().parent.parent
     / "media"
     / "invoices"
 )
@@ -48,23 +43,24 @@ def _ensure_invoice_dir() -> Path:
     return INVOICE_SAVE_DIR
 
 
+from fastapi_app.routes.storage import (
+    USE_S3,
+    save_bytes_content_sync,
+    invoice_path,
+)
+
+
 # =========================================================
 # TIMEZONE HELPER
 # =========================================================
 
 def get_user_timezone(user) -> dt_timezone:
-    """
-    Get timezone from user's location.
-    Returns India timezone as default if location not found.
-    """
-    # Default to India timezone (IST)
+    """Get timezone from user's location. Returns India timezone as default."""
     default_tz = pytz.timezone('Asia/Kolkata')
     
     try:
-        # Try to get location from user
         location = getattr(user, 'location', '') or ''
         
-        # Map common locations to timezones
         location_tz_map = {
             'india': 'Asia/Kolkata',
             'mumbai': 'Asia/Kolkata',
@@ -83,13 +79,11 @@ def get_user_timezone(user) -> dt_timezone:
             'singapore': 'Asia/Singapore',
         }
         
-        # Check if location matches any known timezone
         location_lower = location.lower()
         for key, tz_name in location_tz_map.items():
             if key in location_lower:
                 return pytz.timezone(tz_name)
         
-        # Try to get from city or state if available
         city = getattr(user, 'city', '') or ''
         state = getattr(user, 'state', '') or ''
         
@@ -100,7 +94,6 @@ def get_user_timezone(user) -> dt_timezone:
             if key in city_lower or key in state_lower:
                 return pytz.timezone(tz_name)
         
-        # Return default if no match found
         return default_tz
         
     except Exception as exc:
@@ -109,9 +102,7 @@ def get_user_timezone(user) -> dt_timezone:
 
 
 def get_localized_now(user) -> datetime:
-    """
-    Get current datetime in user's local timezone.
-    """
+    """Get current datetime in user's local timezone."""
     user_tz = get_user_timezone(user)
     return datetime.now(user_tz)
 
@@ -131,13 +122,10 @@ def build_invoice_context(
     invoice_date: Optional[datetime] = None,
 ) -> dict:
 
-    # Use provided invoice_date or get localized current datetime
     if invoice_date:
-        # If invoice_date is naive (no timezone), assume it's UTC and convert
         if invoice_date.tzinfo is None:
             invoice_date = pytz.UTC.localize(invoice_date)
     else:
-        # Get current datetime in user's local timezone
         invoice_date = get_localized_now(user)
 
     is_annual = any(
@@ -145,7 +133,6 @@ def build_invoice_context(
         for x in ["year", "annual", "annually"]
     )
 
-    # Calculate period end in the same timezone
     period_end = invoice_date + timedelta(
         days=365 if is_annual else 30
     )
@@ -161,10 +148,6 @@ def build_invoice_context(
         if discount_pct else 0
     )
 
-    # =====================================================
-    # USER LOCATION
-    # =====================================================
-
     location_parts = [
         getattr(user, "location", "") or "",
         getattr(user, "city", "") or "",
@@ -178,11 +161,9 @@ def build_invoice_context(
     if not clean_location:
         clean_location = "Tamil Nadu, India"
 
-    # Format date with timezone info
     date_format = "%B %d, %Y at %I:%M %p"
     formatted_date = invoice_date.strftime(date_format)
     
-    # Add timezone abbreviation if available
     if hasattr(invoice_date, 'tzinfo') and invoice_date.tzinfo:
         try:
             tz_abbr = invoice_date.strftime('%Z')
@@ -192,103 +173,32 @@ def build_invoice_context(
             pass
 
     return {
-
-        # =================================================
-        # CLIENT
-        # =================================================
-
-        "client_name":
-            user.full_name or user.email,
-
-        "client_email":
-            user.email,
-
-        "client_phone":
-            getattr(user, "phone_number", "") or "",
-
-        "client_address":
-            getattr(user, "address", "") or "",
-
-        "client_location":
-            clean_location,
-
-        # =================================================
-        # COMPANY
-        # =================================================
-
-        "company_name":
-            "Talenta",
-
-        "company_email":
-            "support@talenta.com",
-
-        "company_website":
-            "www.talenta.com",
-
-        "company_phone":
-            "+91 98765 43210",
-
-        "company_address":
-            "Hosur, Tamil Nadu, India",
-
-        "gst_number":
-            "GSTIN 33AAAAA0000A1Z5",
-
-        # =================================================
-        # INVOICE
-        # =================================================
-
-        "invoice_number":
-            invoice_number or order_id,
-
-        "invoice_date": formatted_date,  # Now includes local time with timezone
-
-        "order_id":
-            order_id,
-
-        # =================================================
-        # PLAN
-        # =================================================
-
-        "plan_name":
-            plan.name,
-
-        "duration":
-            duration_display,
-
-        "period_start":
-            invoice_date.strftime("%B %d, %Y"),
-
-        "period_end":
-            period_end.strftime("%B %d, %Y"),
-
-        # =================================================
-        # AMOUNTS
-        # =================================================
-
-        "original_price":
-            f"{original_price:.2f}",
-
-        "subtotal":
-            f"{original_price:.2f}",
-
-        "discount_pct":
-            discount_pct,
-
-        "discount_amount":
-            f"{discount_amount:.2f}",
-
-        "net_payable":
-            f"{amount_paid:.2f}",
-
-        "amount_paid":
-            f"{amount_paid:.2f}",
-
-        "total_amount":
-            f"{original_price:.2f}",
-
-        "tax_amount":
-            "0.00",
+        "client_name": user.full_name or user.email,
+        "client_email": user.email,
+        "client_phone": getattr(user, "phone_number", "") or "",
+        "client_address": getattr(user, "address", "") or "",
+        "client_location": clean_location,
+        "company_name": "Talenta",
+        "company_email": "support@talenta.com",
+        "company_website": "www.talenta.com",
+        "company_phone": "+91 98765 43210",
+        "company_address": "Hosur, Tamil Nadu, India",
+        "gst_number": "GSTIN 33AAAAA0000A1Z5",
+        "invoice_number": invoice_number or order_id,
+        "invoice_date": formatted_date,
+        "order_id": order_id,
+        "plan_name": plan.name,
+        "duration": duration_display,
+        "period_start": invoice_date.strftime("%B %d, %Y"),
+        "period_end": period_end.strftime("%B %d, %Y"),
+        "original_price": f"{original_price:.2f}",
+        "subtotal": f"{original_price:.2f}",
+        "discount_pct": discount_pct,
+        "discount_amount": f"{discount_amount:.2f}",
+        "net_payable": f"{amount_paid:.2f}",
+        "amount_paid": f"{amount_paid:.2f}",
+        "total_amount": f"{original_price:.2f}",
+        "tax_amount": "0.00",
     }
 
 
@@ -303,9 +213,9 @@ def _render_template(template_path: Path, context: dict) -> str:
         html = f.read()
 
     def replace_if(match):
-        key     = match.group(1).strip()
+        key = match.group(1).strip()
         content = match.group(2)
-        value   = context.get(key)
+        value = context.get(key)
         if value and str(value) not in ("", "0", "0.00", "False", "None"):
             return content
         return ""
@@ -339,82 +249,96 @@ def generate_invoice_pdf(context: dict) -> bytes:
 
 
 # =========================================================
-# SAVE PDF TO DISK
+# SAVE PDF TO DISK (UPDATED)
 # =========================================================
 
-def save_invoice_pdf(pdf_bytes: bytes, invoice_number: str) -> Path:
+def save_invoice_pdf(pdf_bytes: bytes, invoice_number: str):
     """
-    Writes the PDF to  media/invoices/<invoice_number>.pdf
-    Returns the full Path object.
+    Saves the PDF to S3 or local storage.
+    Returns a dict with path and storage_mode.
     """
-    save_dir  = _ensure_invoice_dir()
-    # Sanitise the invoice number so it is safe as a filename
+    from fastapi_app.routes.storage import USE_S3, save_bytes_content_sync, invoice_path
+    
     safe_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in invoice_number)
-    file_path = save_dir / f"Talenta_Invoice_{safe_name}.pdf"
-    file_path.write_bytes(pdf_bytes)
-    logger.info("Invoice PDF saved | path=%s", file_path)
-    return file_path
+    filename = f"Talenta_Invoice_{safe_name}.pdf"
+    
+    if USE_S3:
+        # ✅ Save to S3
+        s3_key = invoice_path(filename)
+        save_bytes_content_sync(
+            content=pdf_bytes,
+            s3_key=s3_key,
+            content_type="application/pdf"
+        )
+        logger.info(f"Invoice PDF saved to S3: {s3_key}")
+        return {
+            "path": s3_key,
+            "storage_mode": "s3"
+        }
+    else:
+        # ✅ Save locally
+        save_dir = _ensure_invoice_dir()
+        file_path = save_dir / filename
+        file_path.write_bytes(pdf_bytes)
+        logger.info(f"Invoice PDF saved locally: {file_path}")
+        return {
+            "path": str(file_path),
+            "storage_mode": "local"
+        }
 
 
 # =========================================================
-# CREATE INVOICE DB RECORD
+# CREATE INVOICE DB RECORD (UPDATED)
 # =========================================================
 
 def create_invoice_record(
     *,
     user,
-    subscription,          # UserSubscription instance (may be None)
+    subscription,
     invoice_number: str,
     amount_paid: float,
-    pdf_file_path: Optional[Path] = None,
+    pdf_save_result: Optional[dict] = None,
 ):
     """
-    Creates (or updates) an Invoice row in the database.
-    Imported lazily to avoid AppRegistryNotReady errors.
+    Creates or updates an Invoice record in the database.
+    pdf_save_result should be a dict with 'path' and 'storage_mode'.
     """
-    try:
-        from creator_app.models import Invoice   # lazy import – Django is ready by now
+    from creator_app.models import Invoice
 
-        # Relative path for the FileField  (relative to MEDIA_ROOT)
-        relative_path = None
-        if pdf_file_path and pdf_file_path.exists():
-            try:
-                media_root = Path(settings.MEDIA_ROOT)
-                relative_path = str(pdf_file_path.relative_to(media_root))
-            except ValueError:
-                # pdf_file_path is not inside MEDIA_ROOT – store absolute as fallback
-                relative_path = str(pdf_file_path)
+    relative_path = None
+    if pdf_save_result:
+        if pdf_save_result["storage_mode"] == "s3":
+            # S3 mode - store the S3 key
+            relative_path = pdf_save_result["path"]
+        else:
+            # Local mode - store relative path to MEDIA_ROOT
+            local_path = Path(pdf_save_result["path"])
+            if local_path.exists():
+                try:
+                    relative_path = str(local_path.relative_to(Path(settings.MEDIA_ROOT)))
+                except ValueError:
+                    relative_path = str(local_path)
 
-        invoice, created = Invoice.objects.update_or_create(
-            invoice_number=invoice_number,
-            defaults={
-                "user":         user,
-                "subscription": subscription,
-                "amount":       amount_paid,
-                "currency":     "inr",
-                "status":       "paid",
-                "paid_date":    get_localized_now(user),  # Use localized time
-                # Store the relative path in the FileField
-                **({"pdf_file": relative_path} if relative_path else {}),
-            },
-        )
-
-        action = "Created" if created else "Updated"
-        logger.info("%s Invoice record | invoice=%s | user=%s", action, invoice_number, user.email)
-        return invoice
-
-    except Exception as exc:
-        logger.error(
-            "Failed to create Invoice record | invoice=%s | error=%s",
-            invoice_number,
-            exc,
-            exc_info=True,
-        )
-        return None
+    invoice, created = Invoice.objects.update_or_create(
+        invoice_number=invoice_number,
+        defaults={
+            "user": user,
+            "subscription": subscription,
+            "amount": amount_paid,
+            "currency": "inr",
+            "status": "paid",
+            "paid_date": get_localized_now(user),
+            **({"pdf_file": relative_path} if relative_path else {}),
+        },
+    )
+    
+    action = "Created" if created else "Updated"
+    logger.info("%s Invoice record | invoice=%s | user=%s", action, invoice_number, user.email)
+    return invoice
 
 
 # =========================================================
-# SEND EMAIL  (sync)
+# SEND EMAIL (UPDATED)
 # =========================================================
 
 def send_invoice_email(
@@ -426,11 +350,14 @@ def send_invoice_email(
     invoice_number: str,
     order_id: str,
     invoice_date: Optional[datetime] = None,
-    subscription=None,          # ← NEW optional param; pass UserSubscription if available
+    subscription=None,
 ) -> bool:
 
     try:
-        # Pass None as invoice_date to trigger automatic localized datetime
+        logger.info(f"📧 Starting invoice email generation for {user.email}")
+        logger.info(f"   Invoice: {invoice_number}, Plan: {plan.name}")
+
+        # Build context
         context = build_invoice_context(
             user=user,
             plan=plan,
@@ -438,32 +365,31 @@ def send_invoice_email(
             duration_display=duration_display,
             invoice_number=invoice_number,
             order_id=order_id,
-            invoice_date=None,  # This will use user's local time
+            invoice_date=None,
         )
 
+        # Generate PDF
         pdf_bytes = generate_invoice_pdf(context)
+        logger.info(f"✅ PDF generated: {len(pdf_bytes)} bytes")
 
-        # ── 1. Save PDF to disk ───────────────────────────────────────────────
-        pdf_file_path = save_invoice_pdf(pdf_bytes, invoice_number)
+        # Save PDF to S3 or local
+        pdf_save_result = save_invoice_pdf(pdf_bytes, invoice_number)
+        logger.info(f"✅ PDF saved: {pdf_save_result}")
 
-        # ── 2. Create / update the Invoice DB record ─────────────────────────
+        # Create invoice record
         create_invoice_record(
             user=user,
             subscription=subscription,
             invoice_number=invoice_number,
             amount_paid=amount_paid,
-            pdf_file_path=pdf_file_path,
+            pdf_save_result=pdf_save_result,
         )
+        logger.info(f"✅ Invoice record created/updated")
 
-        # ── 3. Build email attachment filename ───────────────────────────────
+        # Build email
         filename = f"Talenta_Invoice_{invoice_number}.pdf"
+        subject = f"Your Talenta Invoice — {plan.name} ({duration_display})"
 
-        subject = (
-            f"Your Talenta Invoice — "
-            f"{plan.name} ({duration_display})"
-        )
-
-        # Get localized time for email body
         localized_now = get_localized_now(user)
         time_str = localized_now.strftime("%B %d, %Y at %I:%M %p")
         if hasattr(localized_now, 'tzinfo') and localized_now.tzinfo:
@@ -496,6 +422,7 @@ Best regards,
 Talenta Team
 """
 
+        # Send email with attachment
         email = EmailMessage(
             subject=subject,
             body=body,
@@ -506,16 +433,12 @@ Talenta Team
         email.attach(filename, pdf_bytes, "application/pdf")
         email.send(fail_silently=False)
 
-        logger.info(
-            "Invoice email sent | user=%s | invoice=%s",
-            user.email,
-            invoice_number,
-        )
+        logger.info(f"✅ Invoice email sent successfully to {user.email}")
         return True
 
     except Exception as exc:
         logger.error(
-            "Invoice email failed | user=%s | error=%s",
+            "❌ Invoice email failed | user=%s | error=%s",
             getattr(user, "email", "unknown"),
             exc,
             exc_info=True,
@@ -536,7 +459,7 @@ async def send_invoice_email_async(
     invoice_number: str,
     order_id: str,
     invoice_date: Optional[datetime] = None,
-    subscription=None,          # ← NEW: pass-through
+    subscription=None,
 ) -> bool:
 
     loop = asyncio.get_event_loop()
@@ -551,6 +474,6 @@ async def send_invoice_email_async(
             invoice_number=invoice_number,
             order_id=order_id,
             invoice_date=invoice_date,
-            subscription=subscription,      # ← pass it along
+            subscription=subscription,
         ),
     )

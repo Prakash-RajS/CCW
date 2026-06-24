@@ -19,6 +19,7 @@ import asyncio
 from asgiref.sync import sync_to_async
 import shutil
 from pathlib import Path
+import urllib.parse  # Add this at the top with other imports
 from fastapi_app.routes.storage import (
     USE_S3,
     save_upload_file,
@@ -605,7 +606,6 @@ def set_typing(payload: TypingPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/send")
-@router.post("/send")
 async def send_message(
     request: Request,
     background_tasks: BackgroundTasks,  
@@ -617,8 +617,6 @@ async def send_message(
 ):
     """UPDATED: Send message with S3 support for file attachments"""
     try:
-        #print(f"📤 Send message request: sender={sender_id}, receiver={receiver_id}")
-        
         sender = await sync_to_async(UserData.objects.filter(id=sender_id).first)()
         receiver = await sync_to_async(UserData.objects.filter(id=receiver_id).first)()
 
@@ -637,37 +635,37 @@ async def send_message(
             reply_obj = await sync_to_async(Message.objects.filter(id=reply_to).first)()
 
         file_path = None
+        original_filename = None
         final_content = content
         msg_type = "text"
+        filename = None  # ✅ Initialize filename variable here
 
         if file:
-            # Use S3-aware file saving
+            # ✅ Store original filename
+            original_filename = file.filename
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_filename = file.filename.replace("..", "").replace("/", "").replace("\\", "")
             filename = f"{timestamp}_{safe_filename}"
-            
+
             # Save file using the storage module
-            # For message files, we save to message_files folder
             if USE_S3:
-                # S3 path will be message_files/filename
                 file_path = f"message_files/{filename}"
                 await save_upload_file(file, file_path)
             else:
-                # Local storage
                 save_path = MESSAGE_FILES_DIR / filename
                 with open(save_path, "wb") as buffer:
                     shutil.copyfileobj(file.file, buffer)
                 file_path = f"message_files/{filename}"
-            
-            # Detect file type
+
             ext = filename.split(".")[-1].lower() if '.' in filename else ''
             image_extensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico']
-            
+
             if ext in image_extensions:
                 msg_type = "image"
             else:
                 msg_type = "file"
-            
+
             if not final_content:
                 final_content = f"Sent a file: {safe_filename}"
 
@@ -680,13 +678,21 @@ async def send_message(
             content=final_content,
             reply_to=reply_obj,
             file=file_path,
-            message_type=msg_type
+            message_type=msg_type,
         )
-        
+
+        # ✅ If you have a metadata field on Message model, store original filename
+        if hasattr(msg, 'metadata'):
+            msg.metadata = {
+                'original_filename': original_filename,
+                'uploaded_at': datetime.now().isoformat()
+            }
+            await sync_to_async(msg.save)()
+
         background_tasks.add_task(
-        sync_to_async(create_message_notification),
-        msg, receiver, sender
-    )
+            sync_to_async(create_message_notification),
+            msg, receiver, sender
+        )
 
         # Build URL using the helper function
         file_url = build_full_url(
@@ -695,7 +701,7 @@ async def send_message(
             file_type="message"
         )
 
-        # Send WebSocket notification
+        # Send WebSocket notification with original filename
         await manager.send_personal_message({
             "type": "new_message",
             "sender_id": sender_id,
@@ -703,6 +709,8 @@ async def send_message(
             "message_id": msg.id,
             "content": final_content,
             "file_url": file_url,
+            "file_name": original_filename,  # ✅ Send original filename (None if no file)
+            "stored_filename": filename,      # ✅ Send stored filename (None if no file)
             "message_type": msg_type,
             "timestamp": msg.created_at.isoformat(),
             "storage_mode": "s3" if USE_S3 else "local"
@@ -714,18 +722,18 @@ async def send_message(
             "message_id": msg.id,
             "reply_to": reply_to,
             "file_url": file_url,
-            "file_name": file.filename if file else None,
+            "file_name": original_filename,  # ✅ Return original filename (None if no file)
+            "stored_filename": filename,      # ✅ Return stored filename (None if no file)
             "message_type": msg_type,
             "created_at": msg.created_at.isoformat(),
             "storage_mode": "s3" if USE_S3 else "local"
         }
 
     except Exception as e:
-        #print(f"❌ Error in send_message: {str(e)}")
+        print(f"❌ Error in send_message: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
-
 
 # fastapi_app/routes/message.py - Fix delete_message
 
@@ -1278,18 +1286,47 @@ async def mark_all_messages_read(
 
 
 
-# fastapi_app/routes/message.py - Updated download_file endpoint with force download
-
 @router.get("/download/{file_type}/{filename}")
-async def download_file(file_type: str, filename: str):
+async def download_file(
+    file_type: str, 
+    filename: str,
+    original_filename: Optional[str] = None
+):
     """
     Download a file from message_files or chat_files with S3 support.
-    Forces download for all files (no inline viewing).
+    Uses original filename if provided.
     """
     try:
+        # ✅ Decode filename if it's URL encoded
+        filename = urllib.parse.unquote(filename)
+        
+        # ✅ Import re for regex
+        import re
+        pattern = r'^\d{8}_\d{6}_'
+        
+        # ✅ Determine the clean download filename
+        if original_filename:
+            # Use provided original filename and clean it
+            download_filename = re.sub(pattern, '', original_filename)
+        else:
+            # Extract from stored filename
+            download_filename = re.sub(pattern, '', filename)
+        
+        # ✅ If no extension, try to preserve it
+        if '.' not in download_filename and '.' in filename:
+            ext = filename.split('.')[-1]
+            download_filename = f"{download_filename}.{ext}"
+        
+        # ✅ If still has timestamp (shouldn't happen with regex), but just in case
+        if download_filename.startswith('20') and '_' in download_filename[:9]:
+            parts = download_filename.split('_', 1)
+            if len(parts) == 2 and parts[0].isdigit():
+                download_filename = parts[1]
+        
+        print(f"📥 Download: stored={filename}, clean={download_filename}")
+        
         # ✅ If using S3, generate a presigned URL with force download
         if USE_S3:
-            # Determine the S3 folder path
             if file_type == "message_files":
                 s3_folder = "message_files"
             elif file_type == "chat_files":
@@ -1297,29 +1334,28 @@ async def download_file(file_type: str, filename: str):
             else:
                 raise HTTPException(status_code=400, detail="Invalid file type")
             
-            # Build the S3 key
             s3_key = f"{s3_folder}/{filename}"
             
-            # ✅ Generate presigned URL with FORCE DOWNLOAD
+            # ✅ Generate presigned URL with custom clean filename
             presigned_url = generate_presigned_url(
                 s3_key=s3_key,
                 expires_in=ExpiryPreset.DAILY,
-                force_download=True  # ✅ THIS FORCES DOWNLOAD
+                force_download=True,
+                custom_filename=download_filename  # ✅ Pass the clean filename
             )
             
             if presigned_url:
-                # ✅ Return the download URL directly (frontend will handle download)
+                # ✅ Return JSON with download URL and clean filename
                 return {
                     "success": True,
                     "download_url": presigned_url,
-                    "filename": filename,
+                    "filename": download_filename,
                     "storage_mode": "s3"
                 }
             else:
                 raise HTTPException(status_code=404, detail="File not found in S3")
         
-        # ✅ Local storage mode - return FileResponse with download headers
-        # Determine the file path based on type
+        # ✅ Local storage mode
         if file_type == "message_files":
             file_path = MESSAGE_FILES_DIR / filename
         elif file_type == "chat_files":
@@ -1327,22 +1363,19 @@ async def download_file(file_type: str, filename: str):
         else:
             raise HTTPException(status_code=400, detail="Invalid file type")
         
-        # Check if file exists locally
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="File not found")
         
-        # Get MIME type
         mime_type, _ = mimetypes.guess_type(str(file_path))
         if not mime_type:
             mime_type = "application/octet-stream"
         
-        # ✅ Force download with attachment header
         return FileResponse(
             path=file_path,
             media_type=mime_type,
-            filename=filename,
+            filename=download_filename,
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',  # ✅ Forces download
+                "Content-Disposition": f'attachment; filename="{download_filename}"',
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
                 "Access-Control-Allow-Headers": "*",
@@ -1357,6 +1390,7 @@ async def download_file(file_type: str, filename: str):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+    
 # Health check endpoint
 @router.get("/health")
 async def health_check():

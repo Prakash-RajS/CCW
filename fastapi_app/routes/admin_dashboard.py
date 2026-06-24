@@ -35,7 +35,7 @@ from fastapi_app.services.admin_notification_service import (
     clear_all_notifications  # ✅ ADD THIS
 )
 
-BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:8000")
+BASE_URL = os.getenv("BACKEND_BASE_URL", "http://67.202.26.110/api")
 
 # ✅ IMPORT YOUR EXISTING MODELS
 from creator_app.models import (

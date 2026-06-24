@@ -173,20 +173,24 @@ const EMPTY_USER = {
   provider: "",
 };
 
-// ✅ FIX: Complete public routes list — must stay in sync with axiosConfig PUBLIC_PATHS
+// ✅ FIX: Public routes - only truly public pages
+// Role-section is NOT public - it requires authentication
 const PUBLIC_ROUTES = [
   "/",
   "/login",
   "/signup",
   "/signupac",
   "/signup-otp",
-  "/role-section",
   "/forgot-password",
   "/auth-callback",
   "/reset-password",
   "/enter-otp",
   "/otp-request",
   "/reset-succes",
+  "/post-project",
+  "/complete-project",
+  "/Findwork",
+  "/contact",
 ];
 
 const isPublicRoute = (path) =>
@@ -196,7 +200,7 @@ export const UserProvider = ({ children }) => {
   const [userData, setUserData] = useState(EMPTY_USER);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false); // ✅ NEW: Logout flag
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const broadcastChannelRef = useRef(null);
 
@@ -210,7 +214,6 @@ export const UserProvider = ({ children }) => {
      Fetch user data from backend (/auth/me)
   ===================================================== */
   const fetchUserData = async () => {
-    // ✅ NEW: Skip fetch if we're in the middle of logging out
     if (isLoggingOut) {
       console.log("⏭ Skipping fetch - logout in progress");
       setLoading(false);
@@ -236,7 +239,6 @@ export const UserProvider = ({ children }) => {
       setIsAuthenticated(true);
       return user;
     } catch (error) {
-      // ✅ Only reset state on explicit 401, not network errors
       if (error.response?.status === 401) {
         console.log("🔒 401 received - clearing user state");
         setUserData(EMPTY_USER);
@@ -259,15 +261,12 @@ export const UserProvider = ({ children }) => {
   };
 
   /* =====================================================
-     Logout function - Properly resets everything
+     Logout function
   ===================================================== */
   const logout = async () => {
     console.log("🚪 Starting logout process");
     
-    // Set flag BEFORE API call to prevent race conditions
     setIsLoggingOut(true);
-    
-    // Clear user state immediately
     setUserData(EMPTY_USER);
     setIsAuthenticated(false);
 
@@ -276,20 +275,14 @@ export const UserProvider = ({ children }) => {
       console.log("✅ Logout API call successful");
     } catch (error) {
       console.error("❌ Logout API error:", error);
-      // Continue with client-side cleanup even if API fails
     } finally {
-      // Keep the flag for a moment to prevent race conditions
-      // then reset it so future logins work
       setTimeout(() => {
         setIsLoggingOut(false);
         console.log("🔄 Logout flag reset");
       }, 1000);
     }
 
-    // Broadcast to other tabs
     broadcastChannel.postMessage({ type: "userLoggedOut" });
-    
-    // Clear any remembered username
     localStorage.removeItem('rememberedUsername');
   };
 
@@ -299,7 +292,7 @@ export const UserProvider = ({ children }) => {
   useEffect(() => {
     const path = window.location.pathname;
 
-    // ✅ FIX: Use isPublicRoute() — covers all public paths including subpaths
+    // Only skip auth check for truly public routes
     if (isPublicRoute(path)) {
       console.log(`🌐 Public route (${path}) - skipping auth check`);
       setLoading(false);
@@ -316,7 +309,6 @@ export const UserProvider = ({ children }) => {
         console.log("📡 Broadcast: userDataUpdated - refetching");
         fetchUserData();
       }
-      // ✅ NEW: Handle logout broadcast from other tabs
       if (event.data?.type === "userLoggedOut") {
         console.log("📡 Broadcast: userLoggedOut - clearing state");
         setUserData(EMPTY_USER);
@@ -337,10 +329,10 @@ export const UserProvider = ({ children }) => {
         userData,
         loading,
         isAuthenticated,
-        isLoggingOut, // ✅ Expose logout flag
+        isLoggingOut,
         fetchUserData,
         updateUserData,
-        logout, // ✅ Expose logout function
+        logout,
       }}
     >
       {children}

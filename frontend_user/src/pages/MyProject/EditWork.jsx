@@ -21,6 +21,7 @@ export default function EditWork() {
     pending: 0,
     completed: 0,
     in_review: 0,
+    cancelled: 0, // ensure it exists
   });
 
   const navigate = useNavigate();
@@ -55,7 +56,6 @@ export default function EditWork() {
     }
   }, [contractId, userData]);
 
-  // Parse milestones when contract loads
   useEffect(() => {
     if (contract?.milestones_data) {
       setMilestones(contract.milestones_data);
@@ -105,7 +105,6 @@ export default function EditWork() {
     }
   };
 
-  // Helper to get milestone status badge
   const getMilestoneStatusBadge = (status) => {
     switch(status) {
       case 'paid':
@@ -123,7 +122,6 @@ export default function EditWork() {
     }
   };
 
-  // Render milestone timeline
   const renderMilestoneTimeline = () => {
     if (!milestones || milestones.length === 0) {
       return null;
@@ -142,7 +140,6 @@ export default function EditWork() {
           Milestone Timeline
         </h3>
         
-        {/* Progress bar */}
         <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-600 mb-1">
             <span>Progress</span>
@@ -156,7 +153,6 @@ export default function EditWork() {
           </div>
         </div>
 
-        {/* Milestone list */}
         <div className="space-y-3">
           {milestones.map((milestone, idx) => {
             const isExpanded = expandedMilestones[idx];
@@ -217,7 +213,6 @@ export default function EditWork() {
                   </div>
                 </div>
                 
-                {/* Expanded details */}
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-0 border-t border-gray-100 mt-2">
                     {isSubmitted && milestone.submission && (
@@ -327,266 +322,288 @@ export default function EditWork() {
         <div className="absolute inset-0 bg-black opacity-35" />
 
        <div className="relative z-10 text-white max-w-[1221px] mx-auto px-2 sm:px-3 md:px-4 pt-6 md:pt-[131px]">
-  <div className="flex justify-between items-start md:items-center mb-1">
-    {/* Desktop version */}
-    <div className="hidden md:block">
-      <button
-        onClick={() => navigate(-1)}
-        className="flex items-center gap-2 px-4 py-2 text-white hover:text-white/80 transition-colors group mt-14 md:mb-4"
-      >
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-        </div>
-        <span className="font-medium text-base">Back</span>
-      </button>
-      <h2 className="text-[18px] md:text-[28px] font-semibold">My contracts</h2>
-    </div>
-    
-    {/* Mobile & Tablet version */}
-    <div className="block md:hidden w-full">
-      <div className="flex justify-between items-center mt-14">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-1 px-2 py-1 text-white hover:text-white/80 transition-colors group"
-        >
-          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+          <div className="flex justify-between items-start md:items-center mb-1">
+            <div className="hidden md:block">
+              <button
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 px-4 py-2 text-white hover:text-white/80 transition-colors group mt-14 md:mb-4"
+              >
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                  </svg>
+                </div>
+                <span className="font-medium text-base">Back</span>
+              </button>
+              <h2 className="text-[18px] md:text-[28px] font-semibold">My contracts</h2>
+            </div>
+            
+            <div className="block md:hidden w-full">
+              <div className="flex justify-between items-center mt-14">
+                <button
+                  onClick={() => navigate(-1)}
+                  className="flex items-center gap-1 px-2 py-1 text-white hover:text-white/80 transition-colors group"
+                >
+                  <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#51218F] to-[#2a0e4a] group-hover:from-[#3d1768] group-hover:to-[#1a0830] transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                      <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                  </div>
+                  <span className="font-medium text-sm">Back</span>
+                </button>
+                <p className="text-[9px] sm:text-[10px] md:text-[10px] font-semibold">
+                  Total Budget: ₹{contract?.budget || "0.00"} INR
+                </p>
+              </div>
+              <h2 className="text-[15px] sm:text-[16px] md:text-[16px] font-semibold text-center mt-2">
+                My contracts
+              </h2>
+            </div>
+            
+            <p className="text-[14px] md:text-[22px] mt-20 font-semibold hidden md:block">
+              Total Budget: ₹{contract?.budget || "0.00"} INR
+            </p>
           </div>
-          <span className="font-medium text-sm">Back</span>
-        </button>
-        <p className="text-[9px] sm:text-[10px] md:text-[10px] font-semibold">
-          Total Budget: ₹{contract?.budget || "0.00"} INR
-        </p>
-      </div>
-      <h2 className="text-[15px] sm:text-[16px] md:text-[16px] font-semibold text-center mt-2">
-        My contracts
-      </h2>
-    </div>
-    
-    {/* Desktop total budget */}
-    <p className="text-[14px] md:text-[22px] mt-20 font-semibold hidden md:block">
-      Total Budget: ₹{contract?.budget || "0.00"} INR
-    </p>
-  </div>
 
-  {/* TABS */}
-  <div className="relative">
-    {/* Mobile & Tablet layout: 3 top, 2 bottom */}
-    <div className="md:hidden">
-      {/* Top row - first 3 tabs */}
-      <div className="flex border-b border-white/20 font-semibold">
-        {tabs.slice(0, 3).map((tab) => {
-          const tabKey = tab.path.replace("/", "");
-          const isActive = tabKey === fromTab;
-          return (
-            <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className={`relative flex-1 pb-2 pt-1 px-0.5 whitespace-nowrap transition-colors duration-150 ${
-                isActive
-                  ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
-                  : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
-              }`}
-            >
-              <span className="text-[8px] sm:text-[9px] md:text-[9px]">{tab.name}</span>
-              <span className="text-[7px] sm:text-[8px] md:text-[8px] ml-0.5">({statusCounts[tab.key] || 0})</span>
-              {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#8B5CF6] rounded-full" />}
-            </button>
-          );
-        })}
-      </div>
-      
-      {/* Bottom row - remaining 2 tabs */}
-      <div className="flex border-b border-white/20 font-semibold">
-        {tabs.slice(3, 5).map((tab) => {
-          const tabKey = tab.path.replace("/", "");
-          const isActive = tabKey === fromTab;
-          return (
-            <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className={`relative flex-1 pb-2 pt-1 px-0.5 whitespace-nowrap transition-colors duration-150 ${
-                isActive
-                  ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
-                  : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
-              }`}
-            >
-              <span className="text-[8px] sm:text-[9px] md:text-[9px]">{tab.name}</span>
-              <span className="text-[7px] sm:text-[8px] md:text-[8px] ml-0.5">({statusCounts[tab.key] || 0})</span>
-              {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#8B5CF6] rounded-full" />}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+          {/* TABS */}
+          <div className="relative">
+            <div className="md:hidden">
+              {/* Top row - first 3 tabs */}
+              <div className="flex border-b border-white/20 font-semibold">
+                {tabs.slice(0, 3).map((tab) => {
+                  const tabKey = tab.path.replace("/", "");
+                  const isActive = tabKey === fromTab;
+                  // FIXED: use sum for in_review
+                  const count = tab.key === 'in_review' 
+                    ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) 
+                    : (statusCounts[tab.key] || 0);
+                  return (
+                    <button
+                      key={tab.path}
+                      onClick={() => navigate(tab.path)}
+                      className={`relative flex-1 pb-2 pt-1 px-0.5 whitespace-nowrap transition-colors duration-150 ${
+                        isActive
+                          ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
+                          : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      <span className="text-[8px] sm:text-[9px] md:text-[9px]">{tab.name}</span>
+                      <span className="text-[7px] sm:text-[8px] md:text-[8px] ml-0.5">({count})</span>
+                      {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#8B5CF6] rounded-full" />}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              {/* Bottom row - remaining 2 tabs */}
+              <div className="flex border-b border-white/20 font-semibold">
+                {tabs.slice(3, 5).map((tab) => {
+                  const tabKey = tab.path.replace("/", "");
+                  const isActive = tabKey === fromTab;
+                  // FIXED: use sum for in_review
+                  const count = tab.key === 'in_review' 
+                    ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) 
+                    : (statusCounts[tab.key] || 0);
+                  return (
+                    <button
+                      key={tab.path}
+                      onClick={() => navigate(tab.path)}
+                      className={`relative flex-1 pb-2 pt-1 px-0.5 whitespace-nowrap transition-colors duration-150 ${
+                        isActive
+                          ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
+                          : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      <span className="text-[8px] sm:text-[9px] md:text-[9px]">{tab.name}</span>
+                      <span className="text-[7px] sm:text-[8px] md:text-[8px] ml-0.5">({count})</span>
+                      {isActive && <span className="absolute bottom-0 left-0 w-full h-[2px] bg-[#8B5CF6] rounded-full" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-    {/* Desktop layout: centered tabs */}
-    <div className="hidden md:flex justify-center">
-      <div className="flex border-b border-white/20 font-semibold">
-        {tabs.map((tab) => {
-          const tabKey = tab.path.replace("/", "");
-          const isActive = tabKey === fromTab;
-          return (
-            <button
-              key={tab.path}
-              onClick={() => navigate(tab.path)}
-              className={`relative pb-3 pt-1 px-3 lg:px-4 whitespace-nowrap transition-colors duration-150 text-[12px] md:text-[14px] lg:text-[17px] ${
-                isActive
-                  ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
-                  : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
-              }`}
-            >
-              {tab.name} ({statusCounts[tab.key] || 0})
-              {isActive && <span className="absolute bottom-0 left-0 w-full h-[3px] bg-[#8B5CF6] rounded-full" />}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  </div>
-</div>
+            {/* Desktop layout */}
+            <div className="hidden md:flex justify-center">
+              <div className="flex border-b border-white/20 font-semibold">
+                {tabs.map((tab) => {
+                  const tabKey = tab.path.replace("/", "");
+                  const isActive = tabKey === fromTab;
+                  // Already fixed - using sum
+                  const count = tab.key === 'in_review' 
+                    ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) 
+                    : (statusCounts[tab.key] || 0);
+                  return (
+                    <button
+                      key={tab.path}
+                      onClick={() => navigate(tab.path)}
+                      className={`relative pb-3 pt-1 px-3 lg:px-4 whitespace-nowrap transition-colors duration-150 text-[12px] md:text-[14px] lg:text-[17px] ${
+                        isActive
+                          ? "text-white font-bold [text-shadow:0_1px_8px_rgba(0,0,0,0.8)]"
+                          : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      {tab.name} ({count})
+                      {isActive && <span className="absolute bottom-0 left-0 w-full h-[3px] bg-[#8B5CF6] rounded-full" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* MAIN CARD */}
-    <div className="relative -mt-[40px] md:-mt-[90px] max-w-[1200px] mx-auto px-3 sm:px-4 pb-10">
-  <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-    <div className="p-4 sm:p-6 md:p-8">
-      {job && contract && (
-        <div className="mb-6 md:mb-8 space-y-3 md:space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 md:gap-3">
-            <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">{job.title || "Untitled Project"}</h3>
-            <span className="px-2.5 py-1 md:px-4 md:py-1.5 rounded-full bg-[#5A1FA8] text-white text-[10px] sm:text-xs md:text-sm font-medium shadow-sm">
-              {job.budget_type === "hourly" ? "Hourly rate" : "Fixed rate"}
-            </span>
-          </div>
+      <div className="relative -mt-[40px] md:-mt-[90px] max-w-[1200px] mx-auto px-3 sm:px-4 pb-10">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="p-4 sm:p-6 md:p-8">
+            {job && contract && (
+              <div className="mb-6 md:mb-8 space-y-3 md:space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 md:gap-3">
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-800">{job.title || "Untitled Project"}</h3>
+                  <span className="px-2.5 py-1 md:px-4 md:py-1.5 rounded-full bg-[#5A1FA8] text-white text-[10px] sm:text-xs md:text-sm font-medium shadow-sm">
+                    {job.budget_type === "hourly" ? "Hourly rate" : "Fixed rate"}
+                  </span>
+                </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 bg-gray-50 p-3 sm:p-4 rounded-xl">
-            <div>
-              <p className="text-gray-500 text-[11px] sm:text-sm">Collaborator</p>
-              <p className="font-semibold text-gray-800 text-sm sm:text-base">{getCollaboratorName()}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[11px] sm:text-sm">Creator</p>
-              <p className="font-semibold text-gray-800 text-sm sm:text-base">{getCreatorName()}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-[11px] sm:text-sm">Contract amount</p>
-              <p className="text-xl sm:text-2xl font-bold text-[#5A1FA8]">₹{contract.budget}</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 md:gap-4">
-              <div>
-                <p className="text-gray-500 text-[11px] sm:text-sm">Start date</p>
-                <p className="font-medium text-gray-800 text-sm sm:text-base">{formatDate(contract.start_date)}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 bg-gray-50 p-3 sm:p-4 rounded-xl">
+                  <div>
+                    <p className="text-gray-500 text-[11px] sm:text-sm">Collaborator</p>
+                    <p className="font-semibold text-gray-800 text-sm sm:text-base">{getCollaboratorName()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-[11px] sm:text-sm">Creator</p>
+                    <p className="font-semibold text-gray-800 text-sm sm:text-base">{getCreatorName()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-[11px] sm:text-sm">Contract amount</p>
+                    <p className="text-xl sm:text-2xl font-bold text-[#5A1FA8]">₹{contract.budget}</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2 md:gap-4">
+                    <div>
+                      <p className="text-gray-500 text-[11px] sm:text-sm">Start date</p>
+                      <p className="font-medium text-gray-800 text-sm sm:text-base">{formatDate(contract.start_date)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-[11px] sm:text-sm">End date</p>
+                      <p className="font-medium text-gray-800 text-sm sm:text-base">{formatDate(contract.end_date)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {job.description && (
+                  <div>
+                    <p className="text-gray-500 text-[11px] sm:text-sm mb-1">Project description</p>
+                    <p className="text-gray-700 leading-relaxed text-sm sm:text-base">{job.description}</p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3 md:gap-4 text-[11px] sm:text-sm">
+                  <p>
+                    <span className="text-gray-500">Status:</span>{" "}
+                    <span className="capitalize font-medium text-[#5A1FA8]">{contract.status}</span>
+                  </p>
+                  <p>
+                    <span className="text-gray-500">Work submitted:</span>{" "}
+                    {contract.has_attachment ? "Yes" : "No"}
+                    {contract.work_submitted_at && ` on ${new Date(contract.work_submitted_at).toLocaleDateString()}`}
+                  </p>
+                </div>
+
+                {renderMilestoneTimeline()}
+
+                {contract.status === "awaiting" && contract.status_reason && (
+                  <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-blue-50 border border-blue-300 rounded-xl">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg width="14" height="14" sm:width="18" sm:height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm font-semibold text-blue-800 mb-0.5 sm:mb-1">Reason for Awaiting Status</p>
+                      <p className="text-xs sm:text-sm text-blue-700 leading-relaxed whitespace-pre-wrap">
+                        {contract.status_reason}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {contract.status === "pending" && contract.status_reason && (
+                  <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-amber-50 border border-amber-300 rounded-xl">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg width="14" height="14" sm:width="18" sm:height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" strokeLinecap="round" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm font-semibold text-amber-800 mb-0.5 sm:mb-1">Reason for Pending Status</p>
+                      <p className="text-xs sm:text-sm text-amber-700 leading-relaxed whitespace-pre-wrap">
+                        {contract.status_reason}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {contract.status === "cancelled" && contract.status_reason && (
+                  <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-red-50 border border-red-300 rounded-xl">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <svg width="14" height="14" sm:width="18" sm:height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="15" y1="9" x2="9" y2="15" strokeLinecap="round" />
+                        <line x1="9" y1="9" x2="15" y2="15" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm font-semibold text-red-800 mb-0.5 sm:mb-1">Reason for Cancellation</p>
+                      <p className="text-xs sm:text-sm text-red-700 leading-relaxed whitespace-pre-wrap">
+                        {contract.status_reason}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="text-gray-500 text-[11px] sm:text-sm">End date</p>
-                <p className="font-medium text-gray-800 text-sm sm:text-base">{formatDate(contract.end_date)}</p>
-              </div>
-            </div>
-          </div>
+            )}
 
-          {job.description && (
-            <div>
-              <p className="text-gray-500 text-[11px] sm:text-sm mb-1">Project description</p>
-              <p className="text-gray-700 leading-relaxed text-sm sm:text-base">{job.description}</p>
-            </div>
-          )}
+            <div className="border-t border-gray-200 my-4 md:my-6" />
 
-          <div className="flex flex-wrap gap-3 md:gap-4 text-[11px] sm:text-sm">
-            <p>
-              <span className="text-gray-500">Status:</span>{" "}
-              <span className="capitalize font-medium text-[#5A1FA8]">{contract.status}</span>
-            </p>
-            <p>
-              <span className="text-gray-500">Work submitted:</span>{" "}
-              {contract.has_attachment ? "Yes" : "No"}
-              {contract.work_submitted_at && ` on ${new Date(contract.work_submitted_at).toLocaleDateString()}`}
-            </p>
-          </div>
-
-          {/* Milestone Timeline - Main Feature */}
-          {renderMilestoneTimeline()}
-
-          {/* Pending status reason banner */}
-          {contract.status === "pending" && contract.status_reason && (
-            <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-amber-50 border border-amber-300 rounded-xl">
-              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg width="14" height="14" sm:width="18" sm:height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                  <line x1="12" y1="9" x2="12" y2="13" strokeLinecap="round" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" strokeLinecap="round" />
+            <div className="mb-4 md:mb-6">
+              <h3 className="text-base sm:text-lg font-semibold text-[#5A1FA8] mb-2 md:mb-3 flex items-center gap-2">
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs sm:text-sm font-semibold text-amber-800 mb-0.5 sm:mb-1">Reason for Pending Status</p>
-                <p className="text-xs sm:text-sm text-amber-700 leading-relaxed whitespace-pre-wrap">
-                  {contract.status_reason}
-                </p>
+                Contract Details
+              </h3>
+              <div className="bg-gray-50 p-3 sm:p-5 rounded-xl space-y-1.5 sm:space-y-2 text-[11px] sm:text-sm">
+                <p><span className="font-semibold text-gray-700">Contract ID:</span> <span className="text-gray-600">{contract.id}</span></p>
+                {contract.description && (
+                  <p><span className="font-semibold text-gray-700">Contract Description:</span> <span className="text-gray-600">{contract.description}</span></p>
+                )}
+                <p><span className="font-semibold text-gray-700">Created:</span> <span className="text-gray-600">{contract.job_created_at ? new Date(contract.job_created_at).toLocaleDateString() : "N/A"}</span></p>
+                <p><span className="font-semibold text-gray-700">Expertise Level:</span> <span className="text-gray-600 capitalize">{contract.job_expertise_level || "Not specified"}</span></p>
               </div>
             </div>
-          )}
 
-          {/* Cancelled status reason banner */}
-          {contract.status === "cancelled" && contract.status_reason && (
-            <div className="flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-red-50 border border-red-300 rounded-xl">
-              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg width="14" height="14" sm:width="18" sm:height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.2">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="15" y1="9" x2="9" y2="15" strokeLinecap="round" />
-                  <line x1="9" y1="9" x2="15" y2="15" strokeLinecap="round" />
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  const receiverId = contract.viewer_role === "creator" ? contract.collaborator?.id : contract.creator?.id;
+                  navigate(`/message?user=${receiverId}`, { state: { contractId, jobTitle: job?.title } });
+                }}
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-gradient-to-r from-[#5A1FA8] to-[#8B5CF6] text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs sm:text-sm font-semibold text-red-800 mb-0.5 sm:mb-1">Reason for Cancellation</p>
-                <p className="text-xs sm:text-sm text-red-700 leading-relaxed whitespace-pre-wrap">
-                  {contract.status_reason}
-                </p>
-              </div>
+                Message {contract.viewer_role === "creator" ? "Collaborator" : "Creator"}
+              </button>
             </div>
-          )}
-        </div>
-      )}
-
-      <div className="border-t border-gray-200 my-4 md:my-6" />
-
-      <div className="mb-4 md:mb-6">
-        <h3 className="text-base sm:text-lg font-semibold text-[#5A1FA8] mb-2 md:mb-3 flex items-center gap-2">
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Contract Details
-        </h3>
-        <div className="bg-gray-50 p-3 sm:p-5 rounded-xl space-y-1.5 sm:space-y-2 text-[11px] sm:text-sm">
-          <p><span className="font-semibold text-gray-700">Contract ID:</span> <span className="text-gray-600">{contract.id}</span></p>
-          {contract.description && (
-            <p><span className="font-semibold text-gray-700">Contract Description:</span> <span className="text-gray-600">{contract.description}</span></p>
-          )}
-          <p><span className="font-semibold text-gray-700">Created:</span> <span className="text-gray-600">{contract.job_created_at ? new Date(contract.job_created_at).toLocaleDateString() : "N/A"}</span></p>
-          <p><span className="font-semibold text-gray-700">Expertise Level:</span> <span className="text-gray-600 capitalize">{contract.job_expertise_level || "Not specified"}</span></p>
+          </div>
         </div>
       </div>
-
-      <div className="flex justify-end">
-        <button
-          onClick={() => {
-            const receiverId = contract.viewer_role === "creator" ? contract.collaborator?.id : contract.creator?.id;
-            navigate(`/message?user=${receiverId}`, { state: { contractId, jobTitle: job?.title } });
-          }}
-          className="inline-flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-full bg-gradient-to-r from-[#5A1FA8] to-[#8B5CF6] text-white font-semibold shadow-md hover:shadow-lg transition-all duration-200 text-sm sm:text-base"
-        >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          Message {contract.viewer_role === "creator" ? "Collaborator" : "Creator"}
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
 
       <Footer />
     </div>

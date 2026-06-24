@@ -102,6 +102,8 @@ def _to_dict(obj: DropdownOption) -> dict:
 
 # ── PUBLIC endpoint ────────────────────────────────────────────────────────────
 
+# fastapi_app/routes/dropdown_options.py
+
 @router.get("/all")
 def get_all_options():
     """
@@ -115,7 +117,8 @@ def get_all_options():
         cat = item['category']
         if cat not in result:
             result[cat] = []
-        result[cat].append({"label": item['label']})
+        # Make sure we're sending the right structure
+        result[cat].append({"label": item['label'], "value": item['label']})
     return result
 
 

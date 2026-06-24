@@ -568,7 +568,8 @@ def delete_file_by_path(storage_type: StoragePath, filename: str):
 def generate_presigned_url(
     s3_key: str,
     expires_in: int = ExpiryPreset.STANDARD,
-    force_download: bool = False
+    force_download: bool = False,
+    custom_filename: str = None  # ✅ Added custom filename parameter
 ) -> Optional[str]:
     """
     Generate presigned URL that AUTO EXPIRES after specified time.
@@ -587,16 +588,35 @@ def generate_presigned_url(
         params = {
             "Bucket": S3_BUCKET,
             "Key": s3_key,
-            # ✅ CHANGE: Allow caching in browser
             "ResponseCacheControl": "public, max-age=86400, immutable",
         }
 
         if content_type:
             params["ResponseContentType"] = content_type
 
+        # ✅ Determine the filename to use
+        if custom_filename:
+            # Use the custom filename provided
+            filename_for_header = custom_filename
+        else:
+            # Extract from S3 key
+            filename_for_header = extract_filename_from_path(s3_key)
+            
+        # ✅ Clean the filename: remove timestamp prefix (YYYYMMDD_HHMMSS_)
+        import re
+        pattern = r'^\d{8}_\d{6}_'
+        clean_filename = re.sub(pattern, '', filename_for_header)
+        
+        # ✅ If no extension, try to preserve it from original
+        if '.' not in clean_filename and '.' in filename_for_header:
+            ext = filename_for_header.split('.')[-1]
+            clean_filename = f"{clean_filename}.{ext}"
+
+        # ✅ Set the Content-Disposition with clean filename
         if force_download:
-            filename = extract_filename_from_path(s3_key)
-            params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
+            params["ResponseContentDisposition"] = f'attachment; filename="{clean_filename}"'
+        else:
+            params["ResponseContentDisposition"] = f'inline; filename="{clean_filename}"'
 
         url = S3_CLIENT.generate_presigned_url(
             ClientMethod="get_object",
@@ -605,6 +625,7 @@ def generate_presigned_url(
         )
 
         logger.info(f"Generated presigned URL for: {s3_key} (expires in {expires_in}s)")
+        logger.info(f"   Clean filename: {clean_filename}")
         return url
 
     except ClientError as e:

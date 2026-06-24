@@ -167,7 +167,7 @@ export default function PendingStatusContracts() {
                 : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
             }`}
           >
-            {tab.name} ({statusCounts[tab.key] || 0})
+            {tab.name} ({tab.key === 'in_review' ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) : statusCounts[tab.key] || 0})
             {isActive && (
               <span className="absolute bottom-0 left-1 right-1 lg:left-2 lg:right-2 h-[2px] md:h-[3px] bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA] rounded-full" />
             )}
@@ -190,7 +190,7 @@ export default function PendingStatusContracts() {
                 : "text-white font-normal [text-shadow:0_1px_8px_rgba(0,0,0,0.8)] opacity-80 hover:opacity-100"
             }`}
           >
-            {tab.name} ({statusCounts[tab.key] || 0})
+            {tab.name} ({tab.key === 'in_review' ? (statusCounts.in_review || 0) + (statusCounts.cancelled || 0) : statusCounts[tab.key] || 0})
             {isActive && (
               <span className="absolute bottom-0 left-1 right-1 lg:left-2 lg:right-2 h-[2px] md:h-[3px] bg-gradient-to-r from-[#8B5CF6] to-[#A78BFA] rounded-full" />
             )}

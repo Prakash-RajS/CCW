@@ -1254,12 +1254,12 @@ def get_collaborator_contracts(
 
         for c in contracts:
             job = c.job
-            
+
             creator_pic_url = get_user_profile_picture_url(c.creator, base_url)
-            
+
             # ✅ FIXED: Get creator location from CreatorProfile
             creator_location = get_creator_location(c.creator)
-            
+
             # ✅ FIXED: Get collaborator location from CollaboratorProfile
             collaborator_location = get_collaborator_location(current_user)
 
@@ -1293,6 +1293,7 @@ def get_collaborator_contracts(
 
                 "start_date": c.start_date,
                 "end_date": c.end_date,
+                "completed_at": c.completed_at.isoformat() if c.completed_at else None,
                 "work_submitted_at": c.work_submitted_at,
                 "has_attachment": bool(c.work_attachment),
 
@@ -1304,7 +1305,7 @@ def get_collaborator_contracts(
                 "job_expertise_level": job.expertise_level if job else "Intermediate",
                 "revision_description": c.revision_description,
                 "status_reason": c.status_reason,
-                
+
                 "milestones_data": c.milestones_data if hasattr(c, 'milestones_data') and c.milestones_data else [],
                 "current_milestone": c.current_milestone if hasattr(c, 'current_milestone') else 0,
                 "total_paid": float(c.total_paid) if hasattr(c, 'total_paid') and c.total_paid else 0,

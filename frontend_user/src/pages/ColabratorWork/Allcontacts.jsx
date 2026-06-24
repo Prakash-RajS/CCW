@@ -4937,7 +4937,7 @@ const Allcontacts = () => {
                           <div key={contract.id || idx} className={`grid grid-cols-6 px-8 py-4 items-center text-center text-[13px] text-gray-700 hover:bg-purple-50/20 transition ${rowBorderClass(isLast)}`}>
                             <span className="font-medium truncate">{getClientName(contract)}</span>
                             <span className="truncate">{contract.job_title}</span>
-                            <span>{formatDate(contract.end_date)}</span>
+                            <span>{formatDate(contract.completed_at || contract.end_date)}</span>
                             <span className="font-bold text-emerald-600">{getContractRevenue(contract)}</span>
                             <div className="flex justify-center">
                               <span className={`${badgeBase} text-white ${getStatusColor(contract.status)}`}>
@@ -4983,7 +4983,7 @@ const Allcontacts = () => {
                       <div className="flex justify-between items-center mb-2.5">
                         <div>
                           <p className="text-[9px] text-gray-400 uppercase tracking-wide">Completed</p>
-                          <p className="text-[10px] text-gray-600">{formatDate(contract.end_date)}</p>
+                          <p className="text-[10px] text-gray-600">{formatDate(contract.completed_at || contract.end_date)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[9px] text-gray-400 uppercase tracking-wide">Revenue</p>
