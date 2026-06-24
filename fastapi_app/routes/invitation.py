@@ -352,6 +352,33 @@ def _update_invitation_status_sync(invitation_id: int, status: str):
 
     invitation.status = status.capitalize()
     invitation.save()
+    job_title = (
+    invitation.job.title
+    if invitation.job and invitation.job.title
+    else invitation.project_name
+    )
+
+    if status.lower() == "accepted":
+        create_notification(
+            user=invitation.sender,
+            sender=invitation.receiver,
+            notification_type="invitation_accepted",
+            title="Invitation Accepted",
+            message=f"{invitation.receiver.full_name or invitation.receiver.email} accepted your invitation for '{job_title}'",
+            job=invitation.job,
+            url="/proposalspage"
+        )
+    elif status.lower() == "rejected":
+            create_notification(
+        user=invitation.sender,
+        sender=invitation.receiver,
+        notification_type="invitation_rejected",
+        title="Invitation Rejected",
+        message=f"{invitation.receiver.full_name or invitation.receiver.email} rejected your invitation for '{job_title}'",
+        job=invitation.job,
+        url="/proposalspage"
+    )
+         
 
     if status.lower() == "accepted" and old_status.lower() != "accepted":
         if not invitation.job_id:

@@ -1600,8 +1600,8 @@ def update_contract_status(
         "pending": "/pendingstatuscontracts",
         "awaiting": "/awaitingcontracts",
         "in_progress": "/activecontracts",
-        "completed": "/completedcontracts",
-        "cancelled": "/cancelledcontracts"
+        "completed": "/pendingcontracts",
+        "cancelled": "/pendingcontracts"
     }
 
     # Get the appropriate URL for the actual status
@@ -1754,12 +1754,28 @@ def request_revision(
     contract.work_attachment = None
     contract.save()
 
+    # --- ADD NOTIFICATION TO COLLABORATOR ---
+    job_title = contract.job.title if contract.job and contract.job.title else "your project"
+    creator_name = contract.creator.full_name or contract.creator.email.split("@")[0]
+
+    create_notification(
+        user=contract.collaborator,
+        sender=contract.creator,
+        notification_type="contract_updated",
+        title="Revision Requested",
+        message=f"{creator_name} requested a revision for '{job_title}'",
+        contract=contract,
+        job=contract.job,
+        url="/all-contacts"   
+    )
+
     return {
         "message": "Revision requested successfully",
         "contract_id": contract.id,
         "status": contract.status,
         "revision_description": contract.revision_description
     }
+ 
 
 
 # ==========================================================

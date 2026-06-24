@@ -3,6 +3,7 @@ import fastapi_app.django_setup
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from fastapi_app.routes.dbconnection import ensure_db_connection
+from fastapi_app.services.notification_service import create_notification  # <-- ADD THIS
 
 from creator_app.models import Review, UserData, Contract
 
@@ -34,8 +35,6 @@ def create_or_update_review(
             )
 
         # Determine which direction this review is:
-        #   Direction A — collaborator (freelancer) reviews creator (client)
-        #   Direction B — creator (client) reviews collaborator (freelancer)
         is_collaborator_reviewing_creator = (
             contract.collaborator == reviewer and contract.creator == recipient
         )
@@ -49,17 +48,20 @@ def create_or_update_review(
                 detail="You can only review the other party involved in your completed contract."
             )
 
-        # One review per contract per reviewer (reviewer + contract is unique)
+        # One review per contract per reviewer
         existing_review = Review.objects.filter(
             reviewer=reviewer,
             contract=contract
         ).first()
 
+        is_new_review = existing_review is None
+
         if existing_review:
             existing_review.rating = rating
             existing_review.comment = comment if comment else existing_review.comment
             existing_review.save()
-            return {"message": "Review updated successfully", "review_id": existing_review.id}
+            review_id = existing_review.id
+            message = "Review updated successfully"
         else:
             review = Review.objects.create(
                 reviewer=reviewer,
@@ -68,7 +70,26 @@ def create_or_update_review(
                 rating=rating,
                 comment=comment or ""
             )
-            return {"message": "Review created successfully", "review_id": review.id}
+            review_id = review.id
+            message = "Review created successfully"
+
+        # --- Send notification to recipient only on new review ---
+        if is_new_review:
+            reviewer_name = reviewer.full_name or reviewer.email.split("@")[0]
+            job_title = contract.job.title if contract.job else "project"
+
+            create_notification(
+                user=recipient,
+                sender=reviewer,
+                notification_type="review",
+                title=f"New review from {reviewer_name}",
+                message=f"{reviewer_name} left a {rating}-star review for your work on '{job_title}'",
+                contract=contract,
+                job=contract.job,
+                url=f"/profile/{recipient.id}"  # adjust to your frontend profile page
+            )
+
+        return {"message": message, "review_id": review_id}
 
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")

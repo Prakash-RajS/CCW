@@ -364,28 +364,28 @@ export default function ColabProfile() {
 
 
   // Description for Work & Education: only alphabets, spaces, and punctuation (no numbers)
-const validateTextDescription = (value, maxLength = 200) => {
-  if (!value.trim()) return "";
-  const allowedPattern = /^[A-Za-z\s.,!?\-_:;"'()\/&@#$%*]+$/;
-  if (!allowedPattern.test(value)) {
-    return "Description can only contain letters, spaces, and punctuation (no numbers)";
-  }
-  if (value.length > maxLength) {
-    return `Description should be less than ${maxLength} characters`;
-  }
-  return "";
-};
+  const validateTextDescription = (value, maxLength = 200) => {
+    if (!value.trim()) return "";
+    const allowedPattern = /^[A-Za-z\s.,!?\-_:;"'()\/&@#$%*]+$/;
+    if (!allowedPattern.test(value)) {
+      return "Description can only contain letters, spaces, and punctuation (no numbers)";
+    }
+    if (value.length > maxLength) {
+      return `Description should be less than ${maxLength} characters`;
+    }
+    return "";
+  };
 
-const validateSkillCategory = (value) => {
-  if (!value.trim()) return "";
-  if (!/^[A-Za-z\s\-_/]+$/.test(value)) {
-    return "Only letters, spaces, -, _, and / are allowed (no numbers)";
-  }
-  if (value.length > 50) {
-    return "Skill category should be less than 50 characters";
-  }
-  return "";
-};
+  const validateSkillCategory = (value) => {
+    if (!value.trim()) return "";
+    if (!/^[A-Za-z\s\-_/]+$/.test(value)) {
+      return "Only letters, spaces, -, _, and / are allowed (no numbers)";
+    }
+    if (value.length > 50) {
+      return "Skill category should be less than 50 characters";
+    }
+    return "";
+  };
 
   // Timing: flexible – allow letters, numbers, spaces, and basic punctuation
   const validateTimingFlexible = (value) => {
@@ -400,30 +400,30 @@ const validateSkillCategory = (value) => {
   };
 
   // Portfolio Description: only letters, spaces, and punctuation (no numbers)
-const validatePortfolioDescription = (value, maxLength = 200) => {
-  if (!value.trim()) return "";
-  // Allow letters (A-Z a-z), spaces, and common punctuation only
-  const allowedPattern = /^[A-Za-z\s.,!?\-_:;"'()\/&@#$%*]+$/;
-  if (!allowedPattern.test(value)) {
-    return "Description can only contain letters, spaces, and punctuation (no numbers)";
-  }
-  if (value.length > maxLength) {
-    return `Description should be less than ${maxLength} characters`;
-  }
-  return "";
-};
+  const validatePortfolioDescription = (value, maxLength = 200) => {
+    if (!value.trim()) return "";
+    // Allow letters (A-Z a-z), spaces, and common punctuation only
+    const allowedPattern = /^[A-Za-z\s.,!?\-_:;"'()\/&@#$%*]+$/;
+    if (!allowedPattern.test(value)) {
+      return "Description can only contain letters, spaces, and punctuation (no numbers)";
+    }
+    if (value.length > maxLength) {
+      return `Description should be less than ${maxLength} characters`;
+    }
+    return "";
+  };
 
   // About: allow letters, spaces, and basic punctuation (NO numbers)
-const validateAbout = (value) => {
-  if (!value.trim()) return "";
-  if (!/^[A-Za-z\s.,!?;:'"()\-]+$/.test(value)) {
-    return "Only letters, spaces, and basic punctuation are allowed (no numbers)";
-  }
-  if (value.length > 200) {
-    return "About should be less than 200 characters";
-  }
-  return "";
-};
+  const validateAbout = (value) => {
+    if (!value.trim()) return "";
+    if (!/^[A-Za-z\s.,!?;:'"()\-]+$/.test(value)) {
+      return "Only letters, spaces, and basic punctuation are allowed (no numbers)";
+    }
+    if (value.length > 200) {
+      return "About should be less than 200 characters";
+    }
+    return "";
+  };
 
   const validatePhoneRequired = (value) => {
     if (!value || value.trim() === "") {
@@ -1743,13 +1743,11 @@ const validateAbout = (value) => {
         formData.append(key, fixedData[key].join(","));
       } else if (
         fixedData[key] !== null &&
-        fixedData[key] !== undefined &&
-        fixedData[key] !== ""
+        fixedData[key] !== undefined
       ) {
         formData.append(key, fixedData[key]);
       }
     });
-
     if (editFormData.email && editFormData.email !== profileData?.email) {
       formData.append("email", editFormData.email.trim().toLowerCase());
     }
@@ -2236,7 +2234,7 @@ const validateAbout = (value) => {
       company_name: validateCompanyName(workForm.company_name),
       role: validateRole(workForm.role),
       location: validateLocation(workForm.location),
-      description: workForm.description ? validateTextDescription(workForm.description, 200) : "", 
+      description: workForm.description ? validateTextDescription(workForm.description, 200) : "",
       start_year: validateYear(workForm.start_year),
       end_year:
         !workForm.is_current && workForm.end_year
@@ -3080,11 +3078,10 @@ const validateAbout = (value) => {
                             <button
                               onClick={handleEditProfile}
                               disabled={isSavingProfile}
-                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${
-                                isSavingProfile
-                                  ? "opacity-50 cursor-not-allowed bg-gray-400"
-                                  : "bg-[#51218F] hover:bg-[#6D28D9]"
-                              }`}
+                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${isSavingProfile
+                                ? "opacity-50 cursor-not-allowed bg-gray-400"
+                                : "bg-[#51218F] hover:bg-[#6D28D9]"
+                                }`}
                             >
                               <span className="font-montserrat font-bold text-[12px] leading-[100%] text-white whitespace-nowrap flex items-center gap-2">
                                 {isSavingProfile ? (
@@ -3109,11 +3106,10 @@ const validateAbout = (value) => {
                                 setProfilePicturePreview(null);
                               }}
                               disabled={isSavingProfile}
-                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${
-                                isSavingProfile
-                                  ? "opacity-50 cursor-not-allowed bg-gray-400"
-                                  : "bg-[#5B2D8B] hover:bg-[#4A2575] border border-[#6A3EA1]"
-                              }`}
+                              className={`w-[122px] h-[39px] opacity-100 rounded-[100px] flex items-center justify-center px-[36px] py-[12px] gap-[10px] transition-all duration-200 cursor-pointer group ${isSavingProfile
+                                ? "opacity-50 cursor-not-allowed bg-gray-400"
+                                : "bg-[#5B2D8B] hover:bg-[#4A2575] border border-[#6A3EA1]"
+                                }`}
                             >
                               <span className="font-montserrat font-bold text-[12px] leading-[100%] text-white whitespace-nowrap">
                                 Cancel
@@ -3620,11 +3616,10 @@ const validateAbout = (value) => {
                               !!portfolioValidationErrors.description ||
                               isSavingPortfolio
                             }
-                            className={`w-[122px] h-[39px] rounded-[100px] font-montserrat font-bold text-[12px] leading-[100%] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 ${
-                              (portfolioValidationErrors.title || (!portfolioForm.id && portfolioValidationErrors.file) || portfolioValidationErrors.description || isSavingPortfolio)
-                                ? "opacity-50 cursor-not-allowed bg-gray-400 text-white"
-                                : "bg-[#51218F] hover:bg-[#6D28D9] text-white"
-                            }`}
+                            className={`w-[122px] h-[39px] rounded-[100px] font-montserrat font-bold text-[12px] leading-[100%] transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 ${(portfolioValidationErrors.title || (!portfolioForm.id && portfolioValidationErrors.file) || portfolioValidationErrors.description || isSavingPortfolio)
+                              ? "opacity-50 cursor-not-allowed bg-gray-400 text-white"
+                              : "bg-[#51218F] hover:bg-[#6D28D9] text-white"
+                              }`}
                           >
                             {isSavingPortfolio ? (
                               <>
@@ -3768,111 +3763,111 @@ const validateAbout = (value) => {
             )}
 
             {/* WORK EXPERIENCE SECTION */}
-<div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
-  <div className="flex justify-between items-center mb-4">
-    <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Work Experience</h3>
-    <div className="flex items-center gap-2">
-      {workExperiences.length > initialItemsToShow && (
-        <button onClick={() => setShowAllWork(!showAllWork)} className="text-[#6A3EA1] text-sm hover:underline">
-          {showAllWork ? "Show Less" : "View All"}
-        </button>
-      )}
-      <button
-        onClick={() => {
-          setWorkForm({ company_name: "", role: "", description: "", location: "", start_year: "", end_year: "", is_current: false, id: null });
-          setWorkFormErrors({ company_name: "", role: "", location: "", description: "", start_year: "", end_year: "", date_range: "" });
-          setActiveModal("experience");
-        }}
-        className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
-        style={{
-          border: '1px solid #51218F'
-        }}
-        disabled={isSavingWork}
-      >
-        {isSavingWork ? (
-          <>
-            <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Adding...
-          </>
-        ) : (
-          "Add Experience"
-        )}
-      </button>
-    </div>
-  </div>
-  <div className="h-px bg-gray-200 my-4" />
-  <div className="space-y-6">
-    {displayedWork.map((exp, index) => (
-      <div key={exp.id || index} className="border-b border-gray-100 pb-4 last:border-0 group relative">
-        <div className="flex justify-between items-start">
-          <div className="flex-1 min-w-0"> {/* Add min-w-0 to allow flex child to shrink */}
-            <h4 className="font-semibold break-words">{exp.role} | {exp.company_name}</h4>
-            <p className="text-sm text-gray-500 mt-1">{exp.start_year} – {exp.end_year || "Present"}</p>
-            {/* Fix: Add proper word wrapping and overflow handling */}
-            <p className="text-sm text-gray-600 mt-2 break-words overflow-wrap-anywhere whitespace-pre-wrap">
-              {exp.description}
-            </p>
-          </div>
-          <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex-shrink-0 ml-4">
-            <button
-              onClick={() => handleEditWorkExperience(exp)}
-              className="p-1 hover:bg-gray-100 rounded"
-            >
-              <div className="bg-[#51218F] rounded-full w-6 h-6 lg:w-7 lg:h-7 flex items-center justify-center shadow-sm transition-transform hover:scale-110">
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="lg:w-[16px] lg:h-[16px]"
-                >
-                  <path
-                    d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  <polygon
-                    points="18 2 22 6 12 16 8 16 8 12 18 2"
-                    fill="white"
-                    stroke="white"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+            <div className="mt-8 bg-white shadow-lg rounded-xl p-6 w-full xl:w-[804px] xl:max-w-[804px]">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-base xs:text-lg sm:text-xl font-semibold">Work Experience</h3>
+                <div className="flex items-center gap-2">
+                  {workExperiences.length > initialItemsToShow && (
+                    <button onClick={() => setShowAllWork(!showAllWork)} className="text-[#6A3EA1] text-sm hover:underline">
+                      {showAllWork ? "Show Less" : "View All"}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setWorkForm({ company_name: "", role: "", description: "", location: "", start_year: "", end_year: "", is_current: false, id: null });
+                      setWorkFormErrors({ company_name: "", role: "", location: "", description: "", start_year: "", end_year: "", date_range: "" });
+                      setActiveModal("experience");
+                    }}
+                    className="px-3 xs:px-4 sm:px-6 py-1 xs:py-1.5 sm:py-2 rounded-full text-[#6A3EA1] text-[11px] xs:text-xs sm:text-sm hover:bg-[#6A3EA1]/10 transition whitespace-nowrap flex items-center gap-2"
+                    style={{
+                      border: '1px solid #51218F'
+                    }}
+                    disabled={isSavingWork}
+                  >
+                    {isSavingWork ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3 text-[#6A3EA1]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Adding...
+                      </>
+                    ) : (
+                      "Add Experience"
+                    )}
+                  </button>
+                </div>
               </div>
-            </button>
-            <button
-              onClick={() => handleDeleteWorkExperience(exp.id)}
-              className="p-1 hover:bg-gray-100 rounded"
-            >
-              <svg
-                className="w-5 h-5 lg:w-6 lg:h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    ))}
-  </div>
-  {workExperiences.length === 0 && <p className="text-center text-gray-500 py-4">No work experience added yet.</p>}
-</div>
+              <div className="h-px bg-gray-200 my-4" />
+              <div className="space-y-6">
+                {displayedWork.map((exp, index) => (
+                  <div key={exp.id || index} className="border-b border-gray-100 pb-4 last:border-0 group relative">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0"> {/* Add min-w-0 to allow flex child to shrink */}
+                        <h4 className="font-semibold break-words">{exp.role} | {exp.company_name}</h4>
+                        <p className="text-sm text-gray-500 mt-1">{exp.start_year} – {exp.end_year || "Present"}</p>
+                        {/* Fix: Add proper word wrapping and overflow handling */}
+                        <p className="text-sm text-gray-600 mt-2 break-words overflow-wrap-anywhere whitespace-pre-wrap">
+                          {exp.description}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity flex-shrink-0 ml-4">
+                        <button
+                          onClick={() => handleEditWorkExperience(exp)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          <div className="bg-[#51218F] rounded-full w-6 h-6 lg:w-7 lg:h-7 flex items-center justify-center shadow-sm transition-transform hover:scale-110">
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="lg:w-[16px] lg:h-[16px]"
+                            >
+                              <path
+                                d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"
+                                stroke="white"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <polygon
+                                points="18 2 22 6 12 16 8 16 8 12 18 2"
+                                fill="white"
+                                stroke="white"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteWorkExperience(exp.id)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          <svg
+                            className="w-5 h-5 lg:w-6 lg:h-6"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {workExperiences.length === 0 && <p className="text-center text-gray-500 py-4">No work experience added yet.</p>}
+            </div>
 
             {/* ADD/EDIT WORK EXPERIENCE MODAL */}
             {activeModal === "experience" && (
@@ -4022,9 +4017,9 @@ const validateAbout = (value) => {
                             value={workForm.description}
                             onChange={(e) => {
                               const value = e.target.value;
-    if (value.length <= 200) {
-      setWorkForm({ ...workForm, description: value });
-      setWorkFormErrors({ ...workFormErrors, description: validateTextDescription(value, 200) }); 
+                              if (value.length <= 200) {
+                                setWorkForm({ ...workForm, description: value });
+                                setWorkFormErrors({ ...workFormErrors, description: validateTextDescription(value, 200) });
                               }
                             }}
                             maxLength={200}
@@ -4388,9 +4383,9 @@ const validateAbout = (value) => {
                               value={educationForm.description}
                               onChange={(e) => {
                                 const value = e.target.value;
-    if (value.length <= 200) {
-      setEducationForm({ ...educationForm, description: value });
-      setEducationFormErrors({ ...educationFormErrors, description: validateTextDescription(value, 200) });
+                                if (value.length <= 200) {
+                                  setEducationForm({ ...educationForm, description: value });
+                                  setEducationFormErrors({ ...educationFormErrors, description: validateTextDescription(value, 200) });
                                 }
                               }}
                               maxLength={200}
