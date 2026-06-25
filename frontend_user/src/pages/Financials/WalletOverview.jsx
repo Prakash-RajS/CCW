@@ -135,34 +135,36 @@ export default function WalletOverview() {
   }, [userData]);
 
   const fetchWalletData = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/wallet/?user_id=${userData.id}`);
-      const txResponse = await api.get(
-        `/wallet/transactions?user_id=${userData.id}`,
-      );
-      const deposits = txResponse.data
-        .filter((tx) => tx.type === "Deposit")
-        .reduce((sum, tx) => sum + tx.amount, 0);
+  try {
+    setLoading(true);
+    const response = await api.get(`/wallet/?user_id=${userData.id}`);
+    const txResponse = await api.get(
+      `/wallet/transactions?user_id=${userData.id}`,
+    );
+    
+    // FIX: Check if transaction type starts with "Deposit" instead of exact match
+    const deposits = txResponse.data
+      .filter((tx) => tx.type && tx.type.startsWith("Deposit"))
+      .reduce((sum, tx) => sum + tx.amount, 0);
 
-      setWalletData({
-        balance: response.data.balance || 0,
-        pending: 0,
-        totalDeposits: deposits,
-        currency: response.data.currency || "USD",
-      });
-      setError("");
-    } catch (err) {
-      console.error("Error fetching wallet:", err);
-      setError("Failed to load wallet data");
-      toast.error(
-        "Failed to load wallet data",
-        "Please refresh the page and try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    setWalletData({
+      balance: response.data.balance || 0,
+      pending: 0,
+      totalDeposits: deposits,
+      currency: response.data.currency || "USD",
+    });
+    setError("");
+  } catch (err) {
+    console.error("Error fetching wallet:", err);
+    setError("Failed to load wallet data");
+    toast.error(
+      "Failed to load wallet data",
+      "Please refresh the page and try again.",
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   const completeMilestoneAfterPayment = async (contractId, milestoneIdx) => {
     try {
@@ -1096,84 +1098,93 @@ export default function WalletOverview() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-[11px] sm:text-xs md:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                        Amount to Transfer
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Enter amount"
-                        value={amount}
-                        onChange={(e) => {
-                          let value = e.target.value.replace(/[^0-9.]/g, "");
-                          const parts = value.split(".");
-                          if (parts.length > 2)
-                            value = parts[0] + "." + parts[1];
-                          setAmount(value);
-                          setFormError("");
-                        }}
-                        className={`w-full px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 rounded-xl bg-[#F5F6F8] !border-2 outline-none transition-all text-[11px] sm:text-xs md:text-sm lg:text-base ${
-                          contractData &&
-                          amount &&
-                          (isOverdue
-                            ? Number(amount) > contractData.budget
-                            : Number(amount) !== contractData.budget)
-                            ? "!border-yellow-400 focus:!border-yellow-500"
-                            : "!border-gray-400 focus:!border-[#51218F]"
-                        } focus:ring-2 focus:ring-[#51218F]/20`}
-                        disabled={paymentStep === 2 || verifyingCollaborator}
-                      />
-                      {contractData && (
-                        <>
-                          <p
-                            className={`text-[9px] sm:text-[10px] md:text-xs mt-1 ${!isOverdue && Number(amount) === contractData.budget ? "text-green-600" : "text-yellow-600"}`}
-                          >
-                            {contractData.isMilestonePayment ? (
-                              <>
-                                {Number(amount) === contractData.budget &&
-                                  `✓ Amount matches milestone: ₹${contractData.budget}`}
-                                {Number(amount) !== contractData.budget &&
-                                  Number(amount) < contractData.budget &&
-                                  `ℹ️ Partial payment: ₹${amount} of ₹${contractData.budget}`}
-                                {Number(amount) !== contractData.budget &&
-                                  Number(amount) > contractData.budget &&
-                                  `⚠️ Cannot exceed milestone amount: ₹${contractData.budget}`}
-                              </>
-                            ) : (
-                              <>
-                                {!isOverdue &&
-                                  Number(amount) === contractData.budget &&
-                                  `✓ Amount matches: ₹${contractData.budget}`}
-                                {!isOverdue &&
-                                  Number(amount) !== contractData.budget &&
-                                  `⚠️ Contract amount: ₹${contractData.budget}`}
-                                {isOverdue &&
-                                  Number(amount) === contractData.budget &&
-                                  `Original budget: ₹${contractData.budget} (no deduction)`}
-                                {isOverdue &&
-                                  Number(amount) < contractData.budget &&
-                                  `✓ Deducted amount: ₹${(contractData.budget - Number(amount)).toFixed(2)}`}
-                                {isOverdue &&
-                                  Number(amount) > contractData.budget &&
-                                  `⚠️ Cannot exceed original budget: ₹${contractData.budget}`}
-                              </>
-                            )}
-                          </p>
-                          {isOverdue && (
-                            <p className="text-[9px] sm:text-[10px] md:text-xs text-gray-500 mt-1">
-                              You can enter any amount up to ₹      
-                              {contractData.budget}. The difference will be
-                              considered a penalty for late submission.
-                            </p>
-                          )}
-                        </>
-                      )}
-                      {!contractData && walletData.balance > 0 && (
-                        <p className="text-[9px] sm:text-[10px] md:text-xs text-gray-500 mt-1">
-                          Available: ₹{walletData.balance.toFixed(2)}
-                        </p>
-                      )}
-                    </div>
+                                        <div>
+  <label className="block text-[11px] sm:text-xs md:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+    Amount to Transfer
+  </label>
+  <input
+    type="text"
+    placeholder="Enter amount"
+    value={amount}
+    onChange={(e) => {
+      let value = e.target.value.replace(/[^0-9.]/g, "");
+      const parts = value.split(".");
+      if (parts.length > 2)
+        value = parts[0] + "." + parts[1];
+      setAmount(value);
+      setFormError("");
+    }}
+    className={`w-full px-2.5 sm:px-3 md:px-4 py-2 sm:py-2.5 md:py-3 rounded-xl bg-[#F5F6F8] !border-2 outline-none transition-all text-[11px] sm:text-xs md:text-sm lg:text-base ${
+      contractData &&
+      amount &&
+      (isOverdue
+        ? Number(amount) > contractData.budget
+        : Number(amount) !== contractData.budget)
+        ? "!border-yellow-400 focus:!border-yellow-500"
+        : "!border-gray-400 focus:!border-[#51218F]"
+    } focus:ring-2 focus:ring-[#51218F]/20`}
+    disabled={paymentStep === 2 || verifyingCollaborator}
+  />
+
+  {/* ✅ SIMPLE INSUFFICIENT BALANCE WARNING - NO RED BORDER */}
+  {Number(amount) > walletData.balance && amount !== "" && (
+    <p className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs md:text-sm text-red-600">
+      ⚠️ Insufficient balance. Available: ₹{walletData.balance.toFixed(2)}
+    </p>
+  )}
+
+  {/* Contract info messages */}
+  {contractData && (
+    <>
+      <p
+        className={`text-[9px] sm:text-[10px] md:text-xs mt-1 ${!isOverdue && Number(amount) === contractData.budget ? "text-green-600" : "text-yellow-600"}`}
+      >
+        {contractData.isMilestonePayment ? (
+          <>
+            {Number(amount) === contractData.budget &&
+              `✓ Amount matches milestone: ₹${contractData.budget}`}
+            {Number(amount) !== contractData.budget &&
+              Number(amount) < contractData.budget &&
+              `ℹ️ Partial payment: ₹${amount} of ₹${contractData.budget}`}
+            {Number(amount) !== contractData.budget &&
+              Number(amount) > contractData.budget &&
+              `⚠️ Cannot exceed milestone amount: ₹${contractData.budget}`}
+          </>
+        ) : (
+          <>
+            {!isOverdue &&
+              Number(amount) === contractData.budget &&
+              `✓ Amount matches: ₹${contractData.budget}`}
+            {!isOverdue &&
+              Number(amount) !== contractData.budget &&
+              `⚠️ Contract amount: ₹${contractData.budget}`}
+            {isOverdue &&
+              Number(amount) === contractData.budget &&
+              `Original budget: ₹${contractData.budget} (no deduction)`}
+            {isOverdue &&
+              Number(amount) < contractData.budget &&
+              `✓ Deducted amount: ₹${(contractData.budget - Number(amount)).toFixed(2)}`}
+            {isOverdue &&
+              Number(amount) > contractData.budget &&
+              `⚠️ Cannot exceed original budget: ₹${contractData.budget}`}
+          </>
+        )}
+      </p>
+      {isOverdue && (
+        <p className="text-[9px] sm:text-[10px] md:text-xs text-gray-500 mt-1">
+          You can enter any amount up to ₹{contractData.budget}. The difference will be
+          considered a penalty for late submission.
+        </p>
+      )}
+    </>
+  )}
+
+  {!contractData && walletData.balance > 0 && (
+    <p className="text-[9px] sm:text-[10px] md:text-xs text-gray-500 mt-1">
+      Available: ₹{walletData.balance.toFixed(2)}
+    </p>
+  )}
+</div>
 
                     {paymentStep === 2 && (
                       <div className="bg-blue-50 p-2.5 sm:p-3 md:p-4 rounded-xl border border-blue-200">

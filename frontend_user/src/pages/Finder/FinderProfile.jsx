@@ -980,17 +980,38 @@ const hasExperience = () => {
         {/* HERO SECTION */}
         <section className="w-full h-[800px] relative flex items-center justify-center">
           <div className="text-center mb-160 w-[913px] h-[266px]">
-            <div className="relative inline-block mt-2 ml-10">
-              <p className="text-[18px] bg-white px-6 py-2 inline-block rounded-full font-medium relative z-10 border-[3px] border-black mb-2" style={{ boxShadow: "0 0 0 2px black" }}>Hello!</p>
-              <svg className="absolute -top-10 -right-10 w-[55px] h-[55px] z-0" viewBox="0 0 60 60" fill="none">
-                <path d="M18 42 C20 32 18 22 16 14 M30 45 C36 34 42 26 50 18 M38 52 C45 48 52 44 58 40" stroke="#51218F" strokeWidth="5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h1 className="text-[90px] font-bold leading-[100px] mt-6">I'm <span className="text-purple-600">{collaboratorData?.name || "Sivaselvam"}</span>,</h1>
-            <div className="relative inline-block">
-              <h1 className="text-[90px] font-bold leading-[100px] -mt-2">{collaboratorData?.skill_category || "Software"}</h1>
-              <img src={BigScribble} alt="ui-scribble" className="absolute -left-[70px] top-[90px] w-[55px]" />
-            </div>
+            <div className="flex justify-center mt-2">
+  <div className="relative inline-block ml-10">
+    <p className="text-[18px] bg-white px-6 py-2 inline-block rounded-full font-medium relative z-10 border-[3px] border-black mb-2" style={{ boxShadow: "0 0 0 2px black" }}>
+      Hello!
+    </p>
+    <svg className="absolute -top-10 -right-10 w-[55px] h-[55px] z-0" viewBox="0 0 60 60" fill="none">
+      <path d="M18 42 C20 32 18 22 16 14 M30 45 C36 34 42 26 50 18 M38 52 C45 48 52 44 58 40" stroke="#51218F" strokeWidth="5" strokeLinecap="round" />
+    </svg>
+  </div>
+</div>
+         <div className="text-center">
+  <h1 className="text-[30px] sm:text-[40px] md:text-[50px] lg:text-[60px] font-bold leading-[1.2] mt-6 whitespace-nowrap">
+    I'm <span className="text-purple-600">{collaboratorData?.name || "Sivaselvam"}</span>,
+  </h1>
+  <div className="relative inline-block">
+  <h1 
+    className="font-bold leading-[1.2] -mt-2 whitespace-nowrap text-center"
+    style={{
+      fontSize: collaboratorData?.skill_category?.length > 15 ? 'clamp(24px, 3vw, 40px)' :
+                collaboratorData?.skill_category?.length > 10 ? 'clamp(30px, 4vw, 50px)' :
+                'clamp(40px, 5vw, 60px)'
+    }}
+  >
+    {collaboratorData?.skill_category || "Software"}
+  </h1>
+  <img 
+    src={BigScribble} 
+    alt="ui-scribble" 
+    className="absolute -left-[20px] sm:-left-[40px] top-[30px] sm:top-[60px] w-[15px] sm:w-[40px]" 
+  />
+</div>
+</div>
             <img src={HalfCircle} alt="half bg" className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[871px] h-[575px] opacity-90" />
             <img src={ManImg} alt="man" className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[600px] object-contain" />
             <div className="absolute left-1/2 -translate-x-1/2 top-[470px] w-[367px] h-[82px] flex items-center justify-center relative">
@@ -1209,19 +1230,46 @@ const hasExperience = () => {
       <div className="block lg:hidden">
         {/* MOBILE HERO */}
         <section className="w-full relative bg-white overflow-hidden pb-8">
-          <div className="relative text-center pt-6 mb-17">
-            <div className="relative inline-block mb-4">
-              <p className="text-[16px] bg-white px-6 py-2 rounded-full font-medium border-[2.5px] border-black inline-block" style={{ boxShadow: "0 0 0 2px black" }}>Hello!</p>
-              <svg className="absolute -top-6 -right-8 w-[40px]" viewBox="0 0 60 60" fill="none">
-                <path d="M18 42 C20 32 18 22 16 14 M30 45 C36 34 42 26 50 18 M38 52 C45 48 52 44 58 40" stroke="#51218F" strokeWidth="4" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h1 className="text-[26px] font-bold leading-[42px]">I'm <span className="text-[#6D28D9]">{collaboratorData?.name || "Sivaselvam"}</span>,</h1>
-            <div className="relative inline-block mt-1">
-              <h2 className="text-[26px] font-bold leading-[38px]">{collaboratorData?.skill_category || "Software"}</h2>
-              <img src={BigScribble} className="absolute -left-[30px] -top-[-25px] w-[32px]" alt="scribble" />
-            </div>
-          </div>
+         <div className="relative text-center pt-6 mb-17">
+  <div className="relative flex justify-center mb-4">
+  <div className="relative inline-block">
+    <p className="text-[12px] sm:text-[16px] bg-white px-4 sm:px-6 py-1.5 sm:py-2 rounded-full font-medium border-[2px] sm:border-[2.5px] border-black inline-block whitespace-nowrap" style={{ boxShadow: "0 0 0 2px black" }}>
+      Hello!
+    </p>
+    <svg className="absolute -top-4 sm:-top-6 -right-5 sm:-right-8 w-[25px] sm:w-[40px]" viewBox="0 0 60 60" fill="none">
+      <path d="M18 42 C20 32 18 22 16 14 M30 45 C36 34 42 26 50 18 M38 52 C45 48 52 44 58 40" stroke="#51218F" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  </div>
+</div>
+  
+  <h1 className="text-[18px] sm:text-[26px] font-bold leading-[28px] sm:leading-[42px] whitespace-nowrap">
+    I'm <span className="text-[#6D28D9]">{collaboratorData?.name || "Sivaselvam"}</span>,
+  </h1>
+  
+ <div 
+  className="relative inline-block mt-0 sm:mt-1"
+  style={{
+    paddingLeft: collaboratorData?.skill_category?.length > 15 ? '20px' :
+                  collaboratorData?.skill_category?.length > 10 ? '25px' : '30px'
+  }}
+>
+  <h2 
+    className="font-bold leading-[28px] sm:leading-[38px] whitespace-nowrap"
+    style={{
+      fontSize: collaboratorData?.skill_category?.length > 15 ? 'clamp(14px, 2vw, 26px)' :
+                collaboratorData?.skill_category?.length > 10 ? 'clamp(16px, 2.5vw, 26px)' :
+                'clamp(18px, 3vw, 26px)'
+    }}
+  >
+    {collaboratorData?.skill_category || "Software"}
+  </h2>
+  <img 
+    src={BigScribble} 
+    className="absolute left-0 bottom-0 w-[12px] sm:w-[20px]" 
+    alt="scribble" 
+  />
+</div>
+</div>
 
           <div className="relative mt-8 flex justify-center px-4">
             <div className="absolute left-2 top-[-50px] sm:top-[-40px] md:top-[-30px] lg:top-2 w-[110px] text-left z-20">
