@@ -1556,7 +1556,7 @@ const Home = () => {
 
   const handleVerifyPhone = () => {
     if (!currentUser?.phone_number || !currentUser.phone_number.trim()) {
-      toast.error("Please add your phone number in profile settings first");
+      toast.error("Phone number missing. Please add your phone number in your profile before verifying");
       setTimeout(() => navigate("/creator-edit-profile"), 2000);
       return;
     }
@@ -1567,18 +1567,19 @@ const Home = () => {
   };
 
   const handleVerifyEmail = () => {
-    if (emailVerified) {
-      toast.success("Email is already verified!");
-      return;
-    }
-    if (!currentUser?.email || currentUser.email.trim() === "") {
-      setShowEmailSetupPopup(true);
-      return;
-    }
-    setEmail(currentUser.email);
-    setCurrentVerificationType("email");
-    setShowEmailPopup(true);
-  };
+  if (emailVerified) {
+    toast.success("Email is already verified!");
+    return;
+  }
+  if (!currentUser?.email || currentUser.email.trim() === "") {
+    toast.error("Email address missing. Please add your email address in your profile before verifying");
+    setTimeout(() => navigate("/creator-edit-profile"), 2000);
+    return;
+  }
+  setEmail(currentUser.email);
+  setCurrentVerificationType("email");
+  setShowEmailPopup(true);
+};
 
   const handlePhoneSubmit = async () => {
     if (phoneNumber.length !== 10) {
@@ -2170,20 +2171,18 @@ const Home = () => {
                               </p>
                               
                               <div className="mt-3 space-y-2">
-                                {profile.about &&
-                                  profile.about.trim() !== "" && (
-                                    <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
-                                      <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
-                                        About:
-                                      </span>
-                                      <p className="text-[11px] lg:text-[12px] text-black/70 leading-relaxed flex-1 break-words">
-                                        {profile.about.length > 120
-                                          ? `${profile.about.substring(0, 120)}...`
-                                          : profile.about}
-                                      </p>
-                                    </div>
-                                  )}
-
+                                {profile.about && profile.about.trim() !== "" && (
+  <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 w-full">
+    <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
+      About:
+    </span>
+    <p className="text-[11px] lg:text-[12px] text-black/70 leading-relaxed flex-1 min-w-0 break-all whitespace-pre-wrap overflow-wrap-break-word hyphens-auto w-full max-w-full">
+      {profile.about.length > 120
+        ? `${profile.about.substring(0, 120)}...`
+        : profile.about}
+    </p>
+  </div>
+)}
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
                                   <span className="text-[11px] lg:text-[12px] font-semibold text-[#51218F] sm:min-w-[70px] shrink-0">
                                     Expertise:

@@ -917,44 +917,44 @@ export default function ColabProfile() {
   };
 
   const handleVerifyPhone = () => {
-    if (phoneVerified) {
-      toast.success("Phone number is already verified!");
-      return;
-    }
+  if (phoneVerified) {
+    toast.success("Phone number is already verified!");
+    return;
+  }
 
-    const userPhoneNumber =
-      userData?.phone_number ||
-      profileData?.phone_number ||
-      editFormData.phone_number;
+  const userPhoneNumber =
+    userData?.phone_number ||
+    profileData?.phone_number ||
+    editFormData.phone_number;
 
-    if (!userPhoneNumber || userPhoneNumber.trim() === "") {
-      toast.error("Please add your phone number in profile first");
-      return;
-    }
+  if (!userPhoneNumber || userPhoneNumber.trim() === "") {
+    toast.error("Phone number missing. Please add your phone number in your profile before verifying");
+    return;
+  }
 
-    setCurrentVerificationType("phone");
-    setRateLimitError("");
-    setShowPhonePopup(true);
-  };
+  setCurrentVerificationType("phone");
+  setRateLimitError("");
+  setShowPhonePopup(true);
+};
 
   const handleVerifyEmail = () => {
-    if (emailVerified) {
-      toast.success("Email is already verified!");
-      return;
-    }
+  if (emailVerified) {
+    toast.success("Email is already verified!");
+    return;
+  }
 
-    const userEmail = profileData?.email || userData?.email;
+  const userEmail = profileData?.email || userData?.email;
 
-    if (!userEmail || userEmail.trim() === "") {
-      toast.error("Email address missing", "Please add your email address in your profile before verifying.");
-      return;
-    }
+  if (!userEmail || userEmail.trim() === "") {
+    toast.error("Email address missing. Please add your email address in your profile before verifying.");
+    return;
+  }
 
-    setCurrentVerificationType("email");
-    setEmail(userEmail);
-    setRateLimitError("");
-    setShowEmailPopup(true);
-  };
+  setCurrentVerificationType("email");
+  setEmail(userEmail);
+  setRateLimitError("");
+  setShowEmailPopup(true);
+};
 
   const handlePhoneSubmit = async () => {
     if (phoneNumber.length !== 10) {

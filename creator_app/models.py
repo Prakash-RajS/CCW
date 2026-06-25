@@ -556,7 +556,7 @@ class UserSubscription(models.Model):
         related_name="subscription"
     )
 
-    email = models.EmailField()
+    email = models.EmailField(null=True, blank=True)
 
     # =========================================================
     # PLAN INFO
@@ -1139,7 +1139,7 @@ class SubscriptionHistory(models.Model):
         on_delete=models.CASCADE,
         related_name="subscription_history"
     )
-    email = models.EmailField()
+    email = models.EmailField(null=True, blank=True)
 
     # ── Plan snapshot at the time of the event ────────────────────────────────
     plan_name  = models.CharField(max_length=100)

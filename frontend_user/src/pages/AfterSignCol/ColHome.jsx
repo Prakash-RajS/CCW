@@ -730,33 +730,33 @@ const ColHome = () => {
 
   // ========== VERIFICATION HANDLERS ==========
   const handleVerifyPhone = () => {
-    const phone = userData?.phone_number || currentUser?.phone_number;
-    if (!phone || !phone.trim()) {
-      toast.error("Please add your phone number in profile settings first");
-      setTimeout(() => navigate('/ColabProfile'), 2000);
-      return;
-    }
-    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-    setPhoneNumber(cleanPhone);
-    setCurrentVerificationType('phone');
-    setShowPhonePopup(true);
-  };
+  const phone = userData?.phone_number || currentUser?.phone_number;
+  if (!phone || !phone.trim()) {
+    toast.error("Phone number missing. Please add your phone number in your profile before verifying");
+    setTimeout(() => navigate('/ColabProfile'), 2000);
+    return;
+  }
+  const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+  setPhoneNumber(cleanPhone);
+  setCurrentVerificationType('phone');
+  setShowPhonePopup(true);
+};
 
   const handleVerifyEmail = () => {
-    if (emailVerified) {
-      toast.success('Email is already verified!');
-      return;
-    }
-    const userEmail = userData?.email || currentUser?.email;
-    if (!userEmail || !userEmail.trim()) {
-      toast.error("Please add your email address in profile settings first");
-      setTimeout(() => navigate('/ColabProfile'), 2000);
-      return;
-    }
-    setEmail(userEmail);
-    setCurrentVerificationType('email');
-    setShowEmailPopup(true);
-  };
+  if (emailVerified) {
+    toast.success('Email is already verified!');
+    return;
+  }
+  const userEmail = userData?.email || currentUser?.email;
+  if (!userEmail || !userEmail.trim()) {
+    toast.error("Email address missing. Please add your email address in your profile before verifying");
+    setTimeout(() => navigate('/ColabProfile'), 2000);
+    return;
+  }
+  setEmail(userEmail);
+  setCurrentVerificationType('email');
+  setShowEmailPopup(true);
+};
 
   const handleSaveEmail = async () => {
     if (!isValidEmail(newEmail)) {

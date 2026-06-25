@@ -23,7 +23,7 @@ from django.db.models import Count
 from fastapi_app.routes.dbconnection import ensure_db_connection, check_db_connection
 # Add this near the top with other imports
 import logging
-from pathlib import Path
+from pathlib import Path as PathLib
 
 logger = logging.getLogger(__name__)
 
@@ -1516,74 +1516,138 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
         from collections import defaultdict
         now = django_timezone.now()
         
-        # Get ALL active subscriptions
-        active_subscriptions = UserSubscription.objects.filter(
-            status__in=['active', 'trialing'],
-            plan_end_date__gt=now
-        ).select_related('user')
+        # ✅ DEBUG: Log what's in the database
+        print("🔍 DEBUG: Checking UserSubscription table...")
+        all_subs = UserSubscription.objects.all()
+        print(f"   Total subscriptions in DB: {all_subs.count()}")
+        
+        for sub in all_subs[:5]:
+            print(f"   - User: {sub.user.email if sub.user else 'None'}, "
+                  f"Plan: {sub.current_plan or sub.plan_name or 'None'}, "
+                  f"Status: {sub.status}, "
+                  f"End Date: {sub.plan_end_date}")
+        
+        # ✅ FIX: Get ALL subscriptions regardless of status first
+        # Then filter by status and end date
+        all_subscriptions = UserSubscription.objects.select_related('user').all()
+        
+        # Filter for active subscriptions - be more flexible with status
+        active_subscriptions = []
+        for sub in all_subscriptions:
+            is_active = False
+            
+            # Check status - include more status values
+            if sub.status in ['active', 'trialing', 'subscribed', 'paid', 'completed', 'pending']:
+                # Check if not expired
+                if not sub.plan_end_date or sub.plan_end_date > now:
+                    is_active = True
+                    print(f"✅ Active: {sub.user.email} - Plan: {sub.current_plan or sub.plan_name} - Status: {sub.status}")
+            
+            if is_active:
+                active_subscriptions.append(sub)
+        
+        print(f"📊 Found {len(active_subscriptions)} active subscriptions")
         
         # Get unique user IDs with active subscriptions
-        subscriber_ids = list(active_subscriptions.values_list('user_id', flat=True).distinct())
+        subscriber_ids = set()
+        for sub in active_subscriptions:
+            if sub.user:
+                subscriber_ids.add(sub.user.id)
+        
         total_subscribers = len(subscriber_ids)
         
         # Get all unique plan names from active subscriptions
         plan_stats = defaultdict(lambda: {"creator": 0, "collaborator": 0, "total": 0})
         
         for sub in active_subscriptions:
-            # Get plan name (prefer current_plan, fallback to plan_name)
+            # Get plan name - try both fields
             plan_name = sub.current_plan or sub.plan_name or "Unknown"
             
             # Get user role
-            role = sub.user.role.lower() if sub.user and sub.user.role else "unknown"
+            if sub.user and sub.user.role:
+                role = sub.user.role.lower()
+            else:
+                role = "unknown"
             
             if role == "creator":
                 plan_stats[plan_name]["creator"] += 1
             elif role == "collaborator":
                 plan_stats[plan_name]["collaborator"] += 1
+            else:
+                # If role is unknown, try to determine from profile
+                if sub.user:
+                    try:
+                        if hasattr(sub.user, 'creatorprofile'):
+                            plan_stats[plan_name]["creator"] += 1
+                        elif hasattr(sub.user, 'collaborator_profile'):
+                            plan_stats[plan_name]["collaborator"] += 1
+                        else:
+                            plan_stats[plan_name]["total"] += 1
+                    except:
+                        plan_stats[plan_name]["total"] += 1
+                else:
+                    plan_stats[plan_name]["total"] += 1
             
             plan_stats[plan_name]["total"] += 1
         
-        # Get ALL active plans from SubscriptionPlan model (including those with 0 subscribers)
+        # Get ALL active plans from SubscriptionPlan model
         all_plans = SubscriptionPlan.objects.filter(is_active=True)
+        active_plan_names = set(all_plans.values_list('name', flat=True))
         
-        # Ensure all active plans are included even if they have 0 subscribers
-        for plan in all_plans:
-            plan_name = plan.name
-            if plan_name not in plan_stats:
-                plan_stats[plan_name] = {"creator": 0, "collaborator": 0, "total": 0}
+        # Also include plans that have subscribers
+        all_plan_names = set(plan_stats.keys()) | active_plan_names
         
-        # Users with NO active subscription
-        all_user_ids = set(UserData.objects.values_list('id', flat=True))
-        users_without_subs = len(all_user_ids - set(subscriber_ids))
-        
-        # Prepare response with role information
+        # Prepare response
         plans_data = []
-        for plan in all_plans:
-            plan_name = plan.name
+        
+        for plan_name in all_plan_names:
+            # Check if plan exists in SubscriptionPlan
+            plan_obj = SubscriptionPlan.objects.filter(name=plan_name).first()
+            
             counts = plan_stats.get(plan_name, {"creator": 0, "collaborator": 0, "total": 0})
+            
+            # Determine role from plan or infer from subscriptions
+            if plan_obj:
+                role = plan_obj.role
+            else:
+                if counts["creator"] > 0 and counts["collaborator"] > 0:
+                    role = "both"
+                elif counts["creator"] > 0:
+                    role = "creator"
+                elif counts["collaborator"] > 0:
+                    role = "collaborator"
+                else:
+                    role = "both"
+            
             plans_data.append({
                 "name": plan_name,
                 "creator_count": counts["creator"],
                 "collaborator_count": counts["collaborator"],
                 "total_count": counts["total"],
-                "role": plan.role  # 'creator', 'collaborator', or 'both'
+                "role": role,
+                "is_deleted_plan": not bool(plan_obj)
             })
         
-        # print(f"📊 Dynamic Stats Summary:")
-        # print(f"  - Total Subscribers: {total_subscribers}")
-        # print(f"  - Plans found: {len(plans_data)}")
-        # for plan in plans_data:
-        #     print(f"    - {plan['name']} (role: {plan['role']}): Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
-        # print(f"  - Users without subscription: {users_without_subs}")
+        # Users with NO active subscription
+        all_user_ids = set(UserData.objects.values_list('id', flat=True))
+        users_without_subs = len(all_user_ids - set(subscriber_ids))
+        
+        print(f"📊 Dynamic Stats Summary:")
+        print(f"  - Total Subscribers: {total_subscribers}")
+        print(f"  - Plans found: {len(plans_data)}")
+        for plan in plans_data:
+            deleted_tag = " (DELETED PLAN)" if plan.get("is_deleted_plan") else ""
+            print(f"    - {plan['name']}{deleted_tag}: Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
+        print(f"  - Users without subscription: {users_without_subs}")
        
         return {
             "total_subscribers": total_subscribers,
             "users_without_subscription": users_without_subs,
-            "plans": plans_data  # Dynamic plans data with role info
+            "plans": plans_data
         }
         
     except Exception as e:
-        # print(f"❌ Error in get_subscription_stats: {e}")
+        print(f"❌ Error in get_subscription_stats: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -1591,15 +1655,217 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
             "users_without_subscription": 0,
             "plans": []
         }
+# ==============================================================================
+# 💳 11a. SUBSCRIPTION PLAN MANAGEMENT WITH SUBSCRIBER HANDLING
+# ==============================================================================
+
+@router.get("/subscriptions/plan-subscribers/{plan_id}")
+def get_plan_subscribers(
+    plan_id: int = Path(..., description="ID of the plan to check"),
+    admin: AdminUser = Depends(get_current_admin)
+):
+    """
+    Get active subscribers for a specific plan.
+    This helps admins know if a plan has active users before deleting.
+    """
+    ensure_db_connection()
+    
+    try:
+        # Get the plan
+        plan = SubscriptionPlan.objects.get(id=plan_id)
+        
+        # Get active subscriptions for this plan
+        subscriptions = UserSubscription.objects.filter(
+            Q(current_plan__iexact=plan.name) | Q(plan_name__iexact=plan.name),
+            status__in=['active', 'trialing'],
+            plan_end_date__gt=django_timezone.now()
+        ).select_related('user')
+        
+        active_count = subscriptions.count()
+        users = []
+        
+        for sub in subscriptions:
+            users.append({
+                "id": sub.user.id,
+                "email": sub.user.email,
+                "full_name": sub.user.full_name or sub.user.email.split('@')[0],
+                "role": sub.user.role,
+                "subscription_status": sub.status,
+                "end_date": sub.plan_end_date.isoformat() if sub.plan_end_date else None
+            })
+        
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "active_count": active_count,
+            "users": users
+        }
+        
+    except SubscriptionPlan.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    except Exception as e:
+        logger.error(f"Error getting plan subscribers: {e}")
+        return {
+            "plan_id": plan_id,
+            "active_count": 0,
+            "users": []
+        }
+
+
+@router.delete("/plans/admin/delete-plan/{plan_id}")
+def delete_plan(
+    plan_id: int = Path(..., description="ID of the plan to delete"),
+    admin: AdminUser = Depends(get_current_admin)
+):
+    """
+    Delete a plan only if it has NO active subscribers.
+    If it has active subscribers, show error message.
+    """
+    ensure_db_connection()
+    
+    try:
+        plan = SubscriptionPlan.objects.get(id=plan_id)
+        
+        # Check if it's a Basic/Free plan (should not be deleted)
+        if plan.name.lower() in ['basic', 'free']:
+            raise HTTPException(
+                status_code=400,
+                detail="Basic and Free plans cannot be deleted. These plans are mandatory for the system."
+            )
+        
+        # Check if plan has active subscribers
+        active_subscriptions = UserSubscription.objects.filter(
+            Q(current_plan__iexact=plan.name) | Q(plan_name__iexact=plan.name),
+            status__in=['active', 'trialing'],
+            plan_end_date__gt=django_timezone.now()
+        )
+        
+        active_count = active_subscriptions.count()
+        
+        if active_count > 0:
+            # Get list of affected users
+            user_names = list(active_subscriptions.values_list('user__full_name', flat=True)[:5])
+            user_emails = list(active_subscriptions.values_list('user__email', flat=True)[:5])
+            
+            # Build error message
+            user_list = '\n'.join([f"  • {name or email}" for name, email in zip(user_names, user_emails)])
+            more_users = f"\n  ... and {active_count - 5} more" if active_count > 5 else ""
+            
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": f"Cannot delete plan '{plan.name}' because it has {active_count} active subscriber(s).",
+                    "subscriber_count": active_count,
+                    "subscribers": [
+                        {"name": name or email, "email": email} 
+                        for name, email in zip(user_names, user_emails)
+                    ],
+                    "more_count": active_count - 5 if active_count > 5 else 0
+                }
+            )
+        
+        # No active subscribers, can delete permanently
+        plan_name = plan.name
+        plan.delete()
+        
+        create_notification_for_all_admins(
+            notification_type="plan_deleted",
+            title=f"Plan '{plan_name}' Deleted",
+            subtitle=f"Admin {admin.name or admin.email} permanently deleted plan '{plan_name}'",
+            exclude_admin=None
+        )
+        
+        return {
+            "status": "success",
+            "message": f"Plan '{plan_name}' has been permanently deleted.",
+            "deleted": True
+        }
+        
+    except SubscriptionPlan.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting plan: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/subscriptions/expire-plan/{plan_id}")
+def expire_plan_subscriptions(
+    plan_id: int = Path(..., description="ID of the plan to expire subscriptions for"),
+    admin: AdminUser = Depends(get_current_admin)
+):
+    """
+    Force expire all active subscriptions for a plan.
+    Use this when you want to forcefully end all subscriptions for a deleted plan.
+    WARNING: This will cancel all active subscriptions for this plan.
+    """
+    ensure_db_connection()
+    
+    try:
+        plan = SubscriptionPlan.objects.get(id=plan_id)
+        
+        # Count active subscriptions before expiring
+        active_subs = UserSubscription.objects.filter(
+            Q(current_plan__iexact=plan.name) | Q(plan_name__iexact=plan.name),
+            status__in=['active', 'trialing'],
+            plan_end_date__gt=django_timezone.now()
+        )
+        
+        expired_count = active_subs.count()
+        
+        if expired_count > 0:
+            # Get affected users for notification
+            user_emails = list(active_subs.values_list('user__email', flat=True)[:10])
+            
+            # Expire all subscriptions
+            active_subs.update(
+                status='expired',
+                plan_end_date=django_timezone.now()
+            )
+            
+            # Create notification
+            create_notification_for_all_admins(
+                notification_type="plan_subscriptions_expired",
+                title=f"Subscriptions for '{plan.name}' Expired",
+                subtitle=f"Admin {admin.name or admin.email} expired {expired_count} subscriptions for plan '{plan.name}'. Affected users: {', '.join(user_emails[:5])}{'...' if len(user_emails) > 5 else ''}",
+                exclude_admin=None
+            )
+            
+            return {
+                "status": "success",
+                "message": f"Expired {expired_count} subscriptions for plan '{plan.name}'",
+                "expired_count": expired_count,
+                "affected_users": user_emails
+            }
+        else:
+            return {
+                "status": "success",
+                "message": f"No active subscriptions found for plan '{plan.name}'",
+                "expired_count": 0
+            }
+        
+    except SubscriptionPlan.DoesNotExist:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    except Exception as e:
+        logger.error(f"Error expiring plan subscriptions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/subscriptions/plans")
-def get_subscription_plans(admin: AdminUser = Depends(get_current_admin)):
-    """Get all subscription plans with user counts"""
-    # Ensure database connection
+def get_subscription_plans(
+    include_archived: bool = Query(False, description="Include archived (inactive) plans"),
+    admin: AdminUser = Depends(get_current_admin)
+):
+    """Get all subscription plans with user counts (including archived if requested)"""
     ensure_db_connection()
    
     try:
-        plans = SubscriptionPlan.objects.filter(is_active=True).order_by('price')
+        # Filter based on include_archived parameter
+        if include_archived:
+            plans = SubscriptionPlan.objects.all().order_by('price', '-is_active')
+        else:
+            plans = SubscriptionPlan.objects.filter(is_active=True).order_by('price')
+            
         result = []
        
         for plan in plans:
@@ -1644,14 +1910,16 @@ def get_subscription_plans(admin: AdminUser = Depends(get_current_admin)):
                 "role": getattr(plan, 'role', 'both'),
                 "discount_code": plan.discount_code,
                 "discount_percentage": plan.discount_percentage,
-                "discounted_price": round(discounted_price, 2)
+                "discounted_price": round(discounted_price, 2),
+                "is_active": plan.is_active,  # ✅ Include this so frontend knows if plan is active
+                "is_archived": not plan.is_active  # ✅ Convenience flag for frontend
             }
             result.append(plan_data)
        
         return {"plans": result}
        
     except Exception as e:
-        # print(f"Error in get_subscription_plans: {e}")
+        logger.error(f"Error in get_subscription_plans: {e}")
         return {"plans": []}
 
 @router.get("/subscriptions/history")

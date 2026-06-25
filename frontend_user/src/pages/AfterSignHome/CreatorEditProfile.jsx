@@ -805,46 +805,41 @@ const handleEmailBlur = () => {
   }, [showOTPPopup, resendTime]);
 
   const handleVerifyPhone = () => {
-    // Try to get phone from multiple sources
-    const userPhone = userData?.phone_number || profileData?.phone_number || currentUser?.phone_number;
+  const userPhone = userData?.phone_number || profileData?.phone_number || currentUser?.phone_number;
 
-    // Set verification type FIRST
-    setCurrentVerificationType("phone");
+  setCurrentVerificationType("phone");
 
-    if (!userPhone || userPhone.trim() === "") {
-      toast.error("Please add your phone number in profile first");
-      setPhoneNumber("");
-      setShowPhonePopup(true);
-      return;
-    }
+  if (!userPhone || userPhone.trim() === "") {
+    toast.error("Phone number missing. Please add your phone number in your profile before verifying");
+    // ❌ Removed: setShowPhonePopup(true);
+    // ❌ Removed: setPhoneNumber("");
+    return;
+  }
 
-    // Pre-fill the phone number (extract last 10 digits)
-    const cleanPhone = userPhone.replace(/\D/g, '').slice(-10);
-    setPhoneNumber(cleanPhone);
-    setRateLimitError("");
-    setShowPhonePopup(true);
-  };
+  const cleanPhone = userPhone.replace(/\D/g, "").slice(-10);
+  setPhoneNumber(cleanPhone);
+  setRateLimitError("");
+  setShowPhonePopup(true);
+};
 
   const handleVerifyEmail = () => {
-    if (emailVerified) {
-      toast.success("Email is already verified!");
-      return;
-    }
+  if (emailVerified) {
+    toast.success("Email is already verified!");
+    return;
+  }
 
-    // Try to get email from multiple sources
-    const userEmail = profileData?.email || userData?.email || currentUser?.email;
+  const userEmail = profileData?.email || userData?.email || currentUser?.email;
 
-    if (!userEmail || userEmail.trim() === "") {
-      // Show email setup popup instead of just opening edit profile
-      setShowEmailSetupPopup(true);
-      return;
-    }
+  if (!userEmail || userEmail.trim() === "") {
+    toast.error("Email address missing. Please add your email address in your profile before verifying");
+    // ❌ Removed: setShowEmailSetupPopup(true);
+    return;
+  }
 
-    setEmail(userEmail);
-    setCurrentVerificationType("email");
-    setShowEmailPopup(true);
-  };
-
+  setEmail(userEmail);
+  setCurrentVerificationType("email");
+  setShowEmailPopup(true);
+};
   // UPDATED: Phone Submit with stateless JWT
   const handlePhoneSubmit = async () => {
     if (phoneNumber.length !== 10) {
@@ -2706,22 +2701,15 @@ if (formData.email && formData.email.trim() !== "") {
                     </span>
                   </div>
                   {!phoneVerified ? (
-                    <span
-                      onClick={() => {
-                        if (!userData?.phone_number && !profileData?.phone_number) {
-                          toast.error("Please add your phone number in profile first");
-                          setEditOpen(true);
-                          return;
-                        }
-                        handleVerifyPhone();
-                      }}
-                      className="text-[#6A3EA1] font-medium cursor-pointer"
-                    >
-                      Verify
-                    </span>
-                  ) : (
-                    <span className="text-green-600 font-medium text-sm">Verified</span>
-                  )}
+  <span
+    onClick={handleVerifyPhone}
+    className="text-[#6A3EA1] font-medium cursor-pointer"
+  >
+    Verify
+  </span>
+) : (
+  <span className="text-green-600 font-medium text-sm">Verified</span>
+)}
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">

@@ -17,7 +17,7 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 import pytz
 
-from weasyprint import HTML
+
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +240,7 @@ def _render_template(template_path: Path, context: dict) -> str:
 # =========================================================
 
 def generate_invoice_pdf(context: dict) -> bytes:
+    from weasyprint import HTML
     html_content = _render_template(TEMPLATE_PATH, context)
     pdf_bytes = HTML(
         string=html_content,

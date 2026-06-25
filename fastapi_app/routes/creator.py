@@ -215,42 +215,72 @@ async def save_creator_profile(
     portfolio_uploads: Optional[UploadFile] = File(None),
     profile_picture: Optional[UploadFile] = File(None),
 ):
-    # Ensure database connection
+    # ✅ FORCE DATABASE RECONNECTION (same as collaborator)
+    from django.db import connection
+    try:
+        @sync_to_async
+        def reset_connection():
+            connection.close()
+            connection.ensure_connection()
+        await reset_connection()
+    except Exception:
+        pass
     ensure_db_connection()
 
+    # ========== GET USER ==========
     try:
-        user = await sync_to_async(UserData.objects.get)(id=user_id)
+        @sync_to_async
+        def get_user():
+            return UserData.objects.get(id=user_id)
+        
+        user = await get_user()
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="User not found")
+    except Exception as e:
+        # ✅ RETRY ON CONNECTION ERROR (same as collaborator)
+        try:
+            @sync_to_async
+            def reset_connection_retry():
+                connection.close()
+                connection.ensure_connection()
+            await reset_connection_retry()
+            
+            @sync_to_async
+            def get_user_retry():
+                return UserData.objects.get(id=user_id)
+            
+            user = await get_user_retry()
+        except UserData.DoesNotExist:
+            raise HTTPException(status_code=404, detail="User not found")
+        except Exception as inner_e:
+            raise HTTPException(status_code=500, detail=f"Database error: {str(inner_e)}")
 
     use_s3 = os.getenv("USE_S3", "False").lower() == "true"
 
     # ---------------- Profile Picture ----------------
     if profile_picture:
-        if use_s3:
-            try:
+        try:
+            if use_s3:
                 s3_key = await save_profile_pic(profile_picture, str(user_id))
-                user.profile_picture = s3_key
-            except Exception as e:
-                # Fallback to local storage
+                @sync_to_async
+                def update_profile_pic():
+                    user.profile_picture = s3_key
+                    user.save()
+                await update_profile_pic()
+            else:
                 ext = PathLib(profile_picture.filename).suffix
                 filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
                 content = await profile_picture.read()
-                await sync_to_async(user.profile_picture.save)(
-                    filename,
-                    ContentFile(content),
-                    save=True
-                )
-        else:
-            # Use local storage
-            ext = PathLib(profile_picture.filename).suffix
-            filename = f"creator_{user_id}_{generate_random_digits()}{ext}"
-            content = await profile_picture.read()
-            await sync_to_async(user.profile_picture.save)(
-                filename,
-                ContentFile(content),
-                save=True
-            )
+                @sync_to_async
+                def save_profile_pic_local():
+                    user.profile_picture.save(
+                        filename,
+                        ContentFile(content),
+                        save=True
+                    )
+                await save_profile_pic_local()
+        except Exception as e:
+            print(f"⚠️ Profile picture error: {e}")
 
     # ---------------- Save / Update Creator Profile ----------------
     defaults = {
@@ -267,111 +297,138 @@ async def save_creator_profile(
         "location": location,
     }
 
-    profile, _ = await sync_to_async(
-        lambda: CreatorProfile.objects.update_or_create(
-            user=user,
-            defaults=defaults
-        )
-    )()
+    try:
+        @sync_to_async
+        def save_profile():
+            profile, _ = CreatorProfile.objects.update_or_create(
+                user=user,
+                defaults=defaults
+            )
+            return profile
+        
+        profile = await save_profile()
+    except Exception as e:
+        @sync_to_async
+        def reset_connection_on_error():
+            connection.close()
+            connection.ensure_connection()
+        
+        await reset_connection_on_error()
+        raise HTTPException(status_code=500, detail=f"Profile save error: {str(e)}")
 
     # ---------------- SAVE PORTFOLIO INTO PortfolioItem ----------------
     if portfolio_uploads:
         try:
             content = await portfolio_uploads.read()
 
-            portfolio_item = await sync_to_async(PortfolioItem.objects.create)(
-                user=user,
-                role="creator",
-                title=portfolio_category or "Portfolio",
-                media_link=portfolio_link.strip() if portfolio_link else None,
-            )
+            @sync_to_async
+            def create_portfolio_item():
+                return PortfolioItem.objects.create(
+                    user=user,
+                    role="creator",
+                    title=portfolio_category or "Portfolio",
+                    media_link=portfolio_link.strip() if portfolio_link else None,
+                )
+            
+            portfolio_item = await create_portfolio_item()
 
             if use_s3:
                 from fastapi_app.routes.storage import save_portfolio_upload_creator
-                s3_key = await save_portfolio_upload_creator(portfolio_uploads, str(user_id), str(portfolio_item.id))
-                portfolio_item.file.name = s3_key
-                await sync_to_async(portfolio_item.save)()
+                try:
+                    s3_key = await save_portfolio_upload_creator(portfolio_uploads, str(user_id), str(portfolio_item.id))
+                    @sync_to_async
+                    def update_portfolio_s3():
+                        portfolio_item.file.name = s3_key
+                        portfolio_item.save()
+                    await update_portfolio_s3()
+                except Exception as s3_error:
+                    ext = PathLib(portfolio_uploads.filename).suffix
+                    filename = f"{user_id}_{generate_random_digits()}{ext}"
+                    @sync_to_async
+                    def save_portfolio_local():
+                        portfolio_item.file.save(
+                            filename,
+                            ContentFile(content),
+                            save=True,
+                        )
+                    await save_portfolio_local()
             else:
                 ext = PathLib(portfolio_uploads.filename).suffix
                 filename = f"{user_id}_{generate_random_digits()}{ext}"
-                await sync_to_async(portfolio_item.file.save)(
-                    filename,
-                    ContentFile(content),
-                    save=True,
-                )
+                @sync_to_async
+                def save_portfolio_local():
+                    portfolio_item.file.save(
+                        filename,
+                        ContentFile(content),
+                        save=True,
+                    )
+                await save_portfolio_local()
 
         except Exception as e:
-            pass
+            print(f"⚠️ Portfolio upload error: {e}")
 
     elif portfolio_link and portfolio_link.strip():
-        await sync_to_async(PortfolioItem.objects.create)(
-            user=user,
-            role="creator",
-            title=portfolio_category or "Portfolio",
-            media_link=portfolio_link.strip(),
-        )
+        @sync_to_async
+        def create_portfolio_link():
+            PortfolioItem.objects.create(
+                user=user,
+                role="creator",
+                title=portfolio_category or "Portfolio",
+                media_link=portfolio_link.strip(),
+            )
+        await create_portfolio_link()
 
     # ---------------- Update user role ----------------
-    user.role = "creator"
-    user.full_name = creator_name 
-    await sync_to_async(user.save)()
+    @sync_to_async
+    def update_user():
+        user.role = "creator"
+        user.full_name = creator_name 
+        user.save()
+    await update_user()
 
-    # ========== SUBSCRIPTION CREATION - FIXED ==========
-    # Get or create Basic plan for creator role
-    basic_plan = await sync_to_async(get_or_create_basic_plan)("creator")
-    
-    # Debug logging
-    print(f"🔍 Basic plan: ID={basic_plan.id}, Name={basic_plan.name}, Price={basic_plan.price}")
-    
-    # Create a UserSubscription only if the user doesn't have one yet
-    subscription_exists = await sync_to_async(
-        lambda: UserSubscription.objects.filter(user=user).exists()
-    )()
-    
-    if not subscription_exists:
-        now = datetime.now()
+    # ========== SUBSCRIPTION CREATION ==========
+    try:
+        @sync_to_async
+        def create_subscription():
+            basic_plan = get_or_create_basic_plan("creator")
+            
+            if not UserSubscription.objects.filter(user=user).exists():
+                now = datetime.now()
+                is_basic = basic_plan.price == 0 or "basic" in basic_plan.name.lower()
+                
+                subscription = UserSubscription.objects.create(
+                    user=user,
+                    email=user.email or "",
+                    current_plan=basic_plan.name,
+                    plan_name=basic_plan.name,
+                    duration=basic_plan.duration.capitalize(),
+                    plan_price=basic_plan.price,
+                    plan_start_date=now,
+                    plan_end_date=None if is_basic else now + timedelta(days=30),
+                    renewal_date=None if is_basic else now + timedelta(days=30),
+                    status="active",
+                    is_trial=False,
+                )
+                
+                SubscriptionHistory.objects.create(
+                    user=user,
+                    email=user.email or "",
+                    plan_name=basic_plan.name,
+                    duration=basic_plan.duration,
+                    plan_price=basic_plan.price,
+                    start_date=now,
+                    end_date=None,
+                    status="active",
+                    action="created",
+                    plan_id=basic_plan.id,
+                    stripe_subscription_id=subscription.stripe_subscription_id,
+                )
+            
+            return basic_plan
         
-        # ✅ Check if it's a Basic plan
-        is_basic = basic_plan.price == 0 or "basic" in basic_plan.name.lower()
-        
-        # ✅ Create subscription with explicit end_date logic
-        subscription = await sync_to_async(UserSubscription.objects.create)(
-            user=user,
-            email=user.email or "",
-            current_plan=basic_plan.name,
-            plan_name=basic_plan.name,
-            duration=basic_plan.duration.capitalize(),
-            plan_price=basic_plan.price,
-            plan_start_date=now,
-            plan_end_date=None if is_basic else now + timedelta(days=30),  # ✅ Only set end date for paid plans
-            renewal_date=None if is_basic else now + timedelta(days=30),   # ✅ Only set renewal for paid plans
-            status="active",
-            is_trial=False,
-        )
-        
-        # Debug: Verify what was saved
-        print(f"✅ Subscription created: ID={subscription.id}")
-        print(f"   plan_end_date={subscription.plan_end_date}")
-        print(f"   renewal_date={subscription.renewal_date}")
-        print(f"   plan_price={subscription.plan_price}")
-        print(f"   is_basic={is_basic}")
-        
-        # ✅ Create subscription history with explicit None end_date for Basic
-        await sync_to_async(SubscriptionHistory.objects.create)(
-            user=user,
-            email=user.email or "",
-            plan_name=basic_plan.name,
-            duration=basic_plan.duration,
-            plan_price=basic_plan.price,
-            start_date=now,
-            end_date=None,  # ✅ Always None for Basic
-            status="active",
-            action="created",
-            plan_id=basic_plan.id,
-            stripe_subscription_id=subscription.stripe_subscription_id,
-        )
-        
-        print(f"✅ Subscription history created with end_date=None")
+        await create_subscription()
+    except Exception as e:
+        print(f"⚠️ Subscription creation error: {e}")
 
     return {
         "message": "Creator profile saved successfully"

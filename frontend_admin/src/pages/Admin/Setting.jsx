@@ -822,7 +822,7 @@ const Setting = () => {
 
   /* ================== RENDER ================== */
   return (
-    <div className={`flex gap-8 font-outfit p-4 items-start min-h-screen mt-[-20px] mb-[30px] transition-colors duration-300 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
+     <div className={`flex gap-8 font-outfit p-4 items-start min-h-screen mt-[-20px] mb-[30px] transition-colors duration-300 ${isDark ? 'bg-black' : 'bg-gray-100'}`}>
 
       {/* Loading Overlay */}
       {loading && (
@@ -972,7 +972,12 @@ const Setting = () => {
       </div>
 
       {/* RIGHT: Content */}
-      <aside className={`w-[620px] min-h-[740px] rounded-2xl shadow-lg p-4 transition-colors duration-300 ${isDark ? 'bg-gray-900 text-white border border-gray-800' : 'bg-white text-gray-800 border border-gray-200'}`}>
+       <aside className={`
+      rounded-2xl shadow-lg p-4 transition-colors duration-300
+      w-full sm:flex-1 md:flex-1 lg:flex-1 xl:flex-1 2xl:flex-1
+      min-h-[740px]
+      ${isDark ? 'bg-gray-900 text-white border border-gray-800' : 'bg-white text-gray-800 border border-gray-200'}
+    `}>
 
         {/* ===== DASHBOARD TAB ===== */}
         {activeSetting === 'dashboard' && (

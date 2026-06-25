@@ -23,20 +23,20 @@ export default function App() {
   }, []);
 
   return (
-    <Router>
+    <Router basename="/admin">
       <ScrollToTop />
       <ToastProvider />
       <Routes>
         {/* Public Routes - No auth check needed */}
-        <Route path="/" element={<PublicRoute><AdminLogin /></PublicRoute>} />
-        <Route path="/admin-login" element={<PublicRoute><AdminLogin /></PublicRoute>} />
+        <Route path="/" element={<AdminLogin />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
         
         {/* Protected Routes - Auth check here */}
-        <Route path="/admin/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/admin/users" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/admin/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/admin/subscription" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/admin/settings" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/users" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/subscription" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

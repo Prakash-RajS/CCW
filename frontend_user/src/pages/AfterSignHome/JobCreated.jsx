@@ -583,34 +583,39 @@ useEffect(() => {
   };
 
   const handleVerifyPhone = () => {
-    if (!userData?.phone_number) {
-      toast.error("Please add your phone number in profile first");
-      return;
-    }
-    setCurrentVerificationType("phone");
-    setRateLimitError("");
-    setShowPhonePopup(true);
-  };
+  if (phoneVerified) {
+    toast.success("Phone is already verified!");
+    return;
+  }
+
+  if (!userData?.phone_number || userData.phone_number.trim() === "") {
+    toast.error("Phone number missing. Please add your phone number in your profile before verifying");
+    setTimeout(() => navigate("/creator-edit-profile"), 2000);
+    return;
+  }
+
+  setCurrentVerificationType("phone");
+  setRateLimitError("");
+  setShowPhonePopup(true);
+};
 
   const handleVerifyEmail = () => {
-    if (emailVerified) {
-      toast.success("Email is already verified!");
-      return;
-    }
+  if (emailVerified) {
+    toast.success("Email is already verified!");
+    return;
+  }
 
-    const userEmail = userData?.email;
+  if (!userData?.email || userData.email.trim() === "") {
+    toast.error("Email address missing. Please add your email address in your profile before verifying");
+    setTimeout(() => navigate("/creator-edit-profile"), 2000);
+    return;
+  }
 
-    if (!userEmail || userEmail.trim() === "") {
-      setShowEmailSetupPopup(true);
-      return;
-    }
-
-    setEmail(userEmail);
-    setCurrentVerificationType("email");
-    setRateLimitError("");
-    setShowEmailPopup(true);
-  };
-
+  setEmail(userData.email);
+  setCurrentVerificationType("email");
+  setRateLimitError("");
+  setShowEmailPopup(true);
+};
   const handlePhoneSubmit = async () => {
     if (phoneNumber.length !== 10) {
       toast.error("Please enter a valid 10-digit phone number");

@@ -154,7 +154,7 @@ const AdminLogin = () => {
         sessionStorage.setItem('justLoggedIn', 'true');
 
         toast.success("Login successful!");
-        navigate("/admin/dashboard");
+        navigate("/dashboard");
       }
     } catch (error) {
       setErrors({ email: "", password: "" });
