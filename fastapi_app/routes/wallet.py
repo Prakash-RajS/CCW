@@ -1211,13 +1211,13 @@ async def withdraw(data: WithdrawRequest):
 
     # Get withdrawal methods
     withdrawal_methods = getattr(user, 'withdrawal_methods', [])
-    
+
     if not withdrawal_methods:
         raise HTTPException(
             400,
             "No withdrawal method registered"
         )
-    
+
     # Select the withdrawal method
     selected_method = None
     if data.method_id:
@@ -1276,13 +1276,17 @@ async def withdraw(data: WithdrawRequest):
     wallet.balance -= amount
     await sync_to_async(wallet.save)()
 
+    # ✅ Get user display name
+    withdrawal_display_name = user.full_name or user.email or "User"
+
+    # ✅ Store withdrawal with clear format: "Withdrawal - [Username]"
     await sync_to_async(_record_tx)(
         wallet,
         amount,
-        f"Withdrawal Pending [{transfer_id}] to {selected_method['type']}",
+        f"Withdrawal - {withdrawal_display_name}",
         user=user,
     )
-    
+
     # ==========================================================
     # WITHDRAWAL NOTIFICATIONS
     # ==========================================================
@@ -1328,7 +1332,7 @@ async def withdraw(data: WithdrawRequest):
         #     f"{notification_error}"
         # )           
 
- 
+
 
     return {
         "success": True,
@@ -1340,10 +1344,6 @@ async def withdraw(data: WithdrawRequest):
         "new_balance": float(wallet.balance),
         "balance": float(wallet.balance),
     }
-
-# =============================================================================
-# 7. TRANSACTIONS
-# =============================================================================
 
 @router.get("/transactions")
 def transactions(user_id: int):
@@ -1381,25 +1381,32 @@ def transactions(user_id: int):
             show = True
 
         if show:
+            # ✅ Get the user's name for the transaction
+            user_name = None
+            if tx.user:
+                user_name = tx.user.full_name or tx.user.email
+
             result.append({
                 "id": tx.id,
                 "type": tx.transaction_type,
                 "amount": float(tx.amount),
                 "date": tx.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 "from_user": (
-    tx.from_user.full_name
-    if tx.from_user and tx.from_user.full_name
-    else tx.from_user.email if tx.from_user else None
-),
-
-"to_user": (
-    tx.to_user.full_name
-    if tx.to_user and tx.to_user.full_name
-    else tx.to_user.email if tx.to_user else None
-),
+                    tx.from_user.full_name
+                    if tx.from_user and tx.from_user.full_name
+                    else tx.from_user.email if tx.from_user else None
+                ),
+                "to_user": (
+                    tx.to_user.full_name
+                    if tx.to_user and tx.to_user.full_name
+                    else tx.to_user.email if tx.to_user else None
+                ),
+                "user": user_name,  # ✅ ADD THIS: The user associated with the transaction
+                "user_id": tx.user_id,  # ✅ ADD THIS: The user ID for reference
             })
 
     return result
+ 
 
 # =============================================================================
 # 8. WALLET STATUS (UPDATED)

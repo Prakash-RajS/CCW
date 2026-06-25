@@ -20,6 +20,10 @@ from fastapi_app.routes.dbconnection import ensure_db_connection
 # 🔹 GET USER PLAN (CREATES BASIC PLAN IF MISSING)
 # =========================================================
 def get_user_plan(user: UserData):
+    """
+    Get or create a subscription plan for a user.
+    ALWAYS creates Lifetime Basic plans for new users.
+    """
     ensure_db_connection()
 
     sub = UserSubscription.objects.filter(user=user).first()
@@ -27,54 +31,70 @@ def get_user_plan(user: UserData):
     # ✅ CREATE SUBSCRIPTION IF IT DOESN'T EXIST
     if not sub:
         role = user.role if user.role else "collaborator"
+        role = role.lower()
+        
+        # ✅ Get or create Lifetime Basic plan for this role
         basic_plan = SubscriptionPlan.objects.filter(
-            name__icontains="basic",
+            name__iexact="basic",
             role__iexact=role,
+            duration__iexact="lifetime",  # ← ALWAYS LIFETIME
             is_active=True
         ).first()
         
         if not basic_plan:
+            # ✅ Create Lifetime Basic plan (NEVER monthly)
             basic_plan = SubscriptionPlan.objects.create(
                 name="Basic",
                 role=role,
-                duration="lifetime",
-                price=0,
+                duration="lifetime",  # ← ALWAYS LIFETIME
+                price=0.00,
                 is_active=True,
+                description=f"Lifetime Basic plan for {role}s",
+                features=[
+                    {"title": "Up to 1 project", "description": "Basic support"},
+                    {"title": "Basic support", "description": "Email support only"}
+                ],
                 limits={
-                    "max_job_posts": 5,
-                    "max_invitations": 10,
-                    "max_contracts": 3,
-                    "max_proposals": 10
+                    "max_job_posts": 5 if role == "creator" else 0,
+                    "max_invitations": 10 if role == "creator" else 5,
+                    "max_contracts": 3 if role == "creator" else 1,
+                    "max_proposals": 10 if role == "collaborator" else 0,
+                    "max_users": 1,
+                    "max_workspaces": 1,
+                    "max_storage": 1,
                 }
             )
         
         now = timezone.now()
         
+        # ✅ Create UserSubscription - ALWAYS LIFETIME (no end date)
         sub = UserSubscription.objects.create(
             user=user,
             email=user.email,
             current_plan=basic_plan.name,
             plan_name=basic_plan.name,
-            duration="Lifetime",
+            duration="lifetime",  # ← ALWAYS LIFETIME
             plan_price=basic_plan.price,
             plan_start_date=now,
-            plan_end_date=None,
-            renewal_date=None,
+            plan_end_date=None,  # ← NO END DATE = NEVER EXPIRES
+            renewal_date=None,   # ← NO RENEWAL
             status="active",
             is_trial=False,
         )
         
+        # ✅ Reset counters when creating Basic plan
         reset_user_counters(user)
         
+        # ✅ Create SubscriptionHistory - ALWAYS LIFETIME
         from creator_app.models import SubscriptionHistory
         SubscriptionHistory.objects.create(
             user=user,
             email=user.email,
             plan_name=basic_plan.name,
-            duration=basic_plan.duration,
+            duration="lifetime",  # ← ALWAYS LIFETIME
             plan_price=basic_plan.price,
             start_date=now,
-            end_date=None,
+            end_date=None,  # ← NO END DATE = NEVER EXPIRES
             status="active",
             action="created",
             plan_id=basic_plan.id,
@@ -86,16 +106,22 @@ def get_user_plan(user: UserData):
     if sub.status != "active":
         raise HTTPException(403, "Subscription not active")
 
+    # ✅ Check expiration only if there's an end date
     if sub.plan_end_date and sub.plan_end_date < timezone.now():
+        # ✅ If expired, move to Lifetime Basic
         basic_plan = SubscriptionPlan.objects.filter(
             role__iexact=user.role,
-            name__icontains="basic",
+            name__iexact="basic",
+            duration__iexact="lifetime",  # ← ALWAYS LIFETIME
             is_active=True
         ).first()
 
         if basic_plan:
             sub.current_plan = basic_plan.name
             sub.plan_name = basic_plan.name
+            sub.duration = "lifetime"  # ← ALWAYS LIFETIME
+            sub.plan_end_date = None
+            sub.renewal_date = None
             sub.status = "expired"
             sub.save()
             raise HTTPException(403, "Subscription expired and moved to Basic Plan")
@@ -176,13 +202,12 @@ def increment_contract_counter(user: UserData):
 
 
 # =========================================================
-# 🔹 JOB LIMIT (ONLY UserData.total_jobs_created)
+# 🔹 JOB LIMIT
 # =========================================================
 def check_job_limit(user: UserData):
     """
     Check if user can create a new job.
-    Uses ONLY total_jobs_created from UserData table.
-    This column is reset to 0 when user changes plan.
+    Uses TOTAL jobs ever created (never resets except on plan change).
     """
     plan = get_user_plan(user)
     ensure_db_connection()
@@ -192,6 +217,21 @@ def check_job_limit(user: UserData):
     if max_jobs == 0:
         return  # Unlimited
 
+    # ✅ Check ACTIVE jobs (concurrent limit)
+    active_jobs = JobPost.objects.filter(
+        employer=user,
+        status="posted"
+    ).count()
+    
+    if active_jobs >= max_jobs:
+        raise HTTPException(
+            403, 
+            f"Active job limit reached ({max_jobs} active jobs). "
+            f"You have {active_jobs} active job{'s' if active_jobs > 1 else ''}. "
+            f"Upgrade your plan for more jobs."
+        )
+
+    # ✅ Check TOTAL jobs ever created
     if user.total_jobs_created >= max_jobs:
         raise HTTPException(
             403, 
@@ -202,13 +242,12 @@ def check_job_limit(user: UserData):
 
 
 # =========================================================
-# 🔹 PROPOSAL LIMIT (ONLY UserData.total_proposals_created)
+# 🔹 PROPOSAL LIMIT
 # =========================================================
 def check_proposal_limit(user: UserData):
     """
     Check if user can create a new proposal.
-    Uses ONLY total_proposals_created from UserData table.
-    This column is reset to 0 when user changes plan.
+    Uses TOTAL proposals ever created (never resets except on plan change).
     """
     plan = get_user_plan(user)
     ensure_db_connection()
@@ -218,6 +257,21 @@ def check_proposal_limit(user: UserData):
     if max_proposals == 0:
         return  # Unlimited
 
+    # ✅ Check ACTIVE proposals
+    active_proposals = Proposal.objects.filter(
+        freelancer=user,
+        status__in=['pending', 'accepted', 'shortlisted']
+    ).count()
+
+    if active_proposals >= max_proposals:
+        raise HTTPException(
+            403,
+            f"Active proposal limit reached ({max_proposals} active proposals). "
+            f"You have {active_proposals} active proposal{'s' if active_proposals > 1 else ''}. "
+            f"Upgrade your plan for more proposals."
+        )
+
+    # ✅ Check TOTAL proposals ever created
     if user.total_proposals_created >= max_proposals:
         raise HTTPException(
             403,
@@ -228,13 +282,12 @@ def check_proposal_limit(user: UserData):
 
 
 # =========================================================
-# 🔹 INVITATION LIMIT (ONLY UserData.total_invitations_sent)
+# 🔹 INVITATION LIMIT
 # =========================================================
 def check_invite_limit(user: UserData):
     """
     Check if user can send new invitations.
-    Uses ONLY total_invitations_sent from UserData table.
-    This column is reset to 0 when user changes plan.
+    Uses TOTAL invitations ever sent (never resets except on plan change).
     """
     plan = get_user_plan(user)
     ensure_db_connection()
@@ -244,6 +297,7 @@ def check_invite_limit(user: UserData):
     if max_invites == 0:
         return  # Unlimited
 
+    # ✅ Check TOTAL invitations ever sent
     if user.total_invitations_sent >= max_invites:
         raise HTTPException(
             403,
@@ -254,13 +308,12 @@ def check_invite_limit(user: UserData):
 
 
 # =========================================================
-# 🔹 CONTRACT LIMIT (ONLY UserData.total_contracts_created)
+# 🔹 CONTRACT LIMIT
 # =========================================================
 def check_contract_limit(user: UserData):
     """
     Check if user can create a new contract.
-    Uses ONLY total_contracts_created from UserData table.
-    This column is reset to 0 when user changes plan.
+    Uses TOTAL contracts ever created (never resets except on plan change).
     """
     plan = get_user_plan(user)
     ensure_db_connection()
@@ -270,6 +323,21 @@ def check_contract_limit(user: UserData):
     if max_contracts == 0:
         return  # Unlimited
 
+    # ✅ Check ACTIVE contracts
+    active_contracts = Contract.objects.filter(
+        creator=user,
+        status__in=["awaiting", "in_progress"]
+    ).count()
+
+    if active_contracts >= max_contracts:
+        raise HTTPException(
+            403,
+            f"Active contract limit reached ({max_contracts} active contracts). "
+            f"You have {active_contracts} active contract{'s' if active_contracts > 1 else ''}. "
+            f"Complete or cancel a contract to create a new one."
+        )
+
+    # ✅ Check TOTAL contracts ever created
     if user.total_contracts_created >= max_contracts:
         raise HTTPException(
             403,

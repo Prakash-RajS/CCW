@@ -151,66 +151,116 @@ const Subscription = () => {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const userData = await fetchUserData();
-        if (userData) {
-          await fetchUserSubscription(userData.email);
-        } else {
-          setUser(null);
-          setCurrentUserPlan(null);
-          setCurrentPlanName("");
-        }
+   const fetchData = async () => {
+  try {
+    setLoading(true);
+    const userData = await fetchUserData();
+    if (userData) {
+      await fetchUserSubscription(userData.email);
+    } else {
+      setUser(null);
+      setCurrentUserPlan(null);
+      setCurrentPlanName("");
+    }
 
-        let response = await api.get("/plans/list", { params: { role: "creator", is_active: true } });
-        let allPlans = [];
+    // ✅ FIX: Fetch plans for the user's role, or all plans if role is not set
+    let userRole = userData?.role || "creator";
+    
+    // ✅ First try with user's role
+    let response = await api.get("/plans/list", { 
+      params: { 
+        role: userRole, 
+        is_active: true 
+      } 
+    });
+    
+    let allPlans = [];
 
-        if (response.data) {
-          if (Array.isArray(response.data)) allPlans = response.data;
-          else if (response.data.plans && Array.isArray(response.data.plans)) allPlans = response.data.plans;
-          else if (response.data.data && Array.isArray(response.data.data)) allPlans = response.data.data;
-        }
+    if (response.data) {
+      if (Array.isArray(response.data)) allPlans = response.data;
+      else if (response.data.plans && Array.isArray(response.data.plans)) allPlans = response.data.plans;
+      else if (response.data.data && Array.isArray(response.data.data)) allPlans = response.data.data;
+    }
 
-        if (allPlans.length === 0) {
-          response = await api.get("/plans/list", { params: { is_active: true } });
-          if (response.data) {
-            if (Array.isArray(response.data)) allPlans = response.data;
-            else if (response.data.plans && Array.isArray(response.data.plans)) allPlans = response.data.plans;
-            else if (response.data.data && Array.isArray(response.data.data)) allPlans = response.data.data;
-          }
-        }
-
-        if (allPlans.length > 0) {
-          const processedPlans = allPlans.map(plan => {
-            let features = plan.features;
-            if (typeof features === "string") {
-              try { features = JSON.parse(features); } catch { features = []; }
-            }
-            if (!Array.isArray(features)) features = [];
-            return { ...plan, features };
-          });
-
-          setPlans({
-            monthly: processedPlans
-              .filter(p => ["monthly", "month"].includes(String(p.duration || "").toLowerCase().trim()))
-              .sort((a, b) => a.price - b.price),
-            yearly: processedPlans
-              .filter(p => ["yearly", "year", "annual"].includes(String(p.duration || "").toLowerCase().trim()))
-              .sort((a, b) => a.price - b.price),
-          });
-          setError("");
-        } else {
-          setPlans({ monthly: [], yearly: [] });
-          setError("No subscription plans are currently available. Please check back later or contact support.");
-        }
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching plans:", err);
-        setError("Failed to load subscription plans. Please try again later.");
-        setLoading(false);
+    // ✅ If no plans found, try with no role filter (get all plans)
+    if (allPlans.length === 0) {
+      response = await api.get("/plans/list", { 
+        params: { is_active: true } 
+      });
+      if (response.data) {
+        if (Array.isArray(response.data)) allPlans = response.data;
+        else if (response.data.plans && Array.isArray(response.data.plans)) allPlans = response.data.plans;
+        else if (response.data.data && Array.isArray(response.data.data)) allPlans = response.data.data;
       }
-    };
+    }
+
+    // ✅ If still no plans, try admin endpoint (includes all plans)
+    if (allPlans.length === 0) {
+      try {
+        const adminResponse = await api.get("/plans/admin/list-all");
+        if (adminResponse.data && adminResponse.data.plans) {
+          allPlans = adminResponse.data.plans;
+        }
+      } catch (adminErr) {
+        console.log("Admin endpoint not accessible, continuing...");
+      }
+    }
+
+    if (allPlans.length > 0) {
+      const processedPlans = allPlans.map(plan => {
+        let features = plan.features;
+        if (typeof features === "string") {
+          try { features = JSON.parse(features); } catch { features = []; }
+        }
+        if (!Array.isArray(features)) features = [];
+        return { ...plan, features };
+      });
+
+      // ✅ Filter plans based on role compatibility
+      const userRoleLower = (userData?.role || "creator").toLowerCase();
+      const compatiblePlans = processedPlans.filter(plan => {
+        const planRole = (plan.role || "both").toLowerCase();
+        return planRole === "both" || planRole === userRoleLower;
+      });
+
+      // If compatible plans exist, use them; otherwise use all plans
+      const plansToShow = compatiblePlans.length > 0 ? compatiblePlans : processedPlans;
+
+     setPlans({
+  monthly: plansToShow
+    .filter(p => {
+      const duration = String(p.duration || "").toLowerCase().trim();
+      // ✅ Include lifetime plans in monthly view
+      return ["monthly", "month", "lifetime"].includes(duration);
+    })
+    .sort((a, b) => {
+      // ✅ Put lifetime plans first
+      const aIsLifetime = String(a.duration || "").toLowerCase().trim() === "lifetime";
+      const bIsLifetime = String(b.duration || "").toLowerCase().trim() === "lifetime";
+      if (aIsLifetime && !bIsLifetime) return -1;
+      if (!aIsLifetime && bIsLifetime) return 1;
+      return a.price - b.price;
+    }),
+  yearly: plansToShow
+    .filter(p => {
+      const duration = String(p.duration || "").toLowerCase().trim();
+      return ["yearly", "year", "annual"].includes(duration);
+    })
+    .sort((a, b) => a.price - b.price),
+});
+
+      setError("");
+    } else {
+      setPlans({ monthly: [], yearly: [] });
+      setError("No subscription plans are currently available. Please check back later or contact support.");
+    }
+    setLoading(false);
+  } catch (err) {
+    console.error("Error fetching plans:", err);
+    setError("Failed to load subscription plans. Please try again later.");
+    setLoading(false);
+  }
+};
     fetchData();
   }, []);
 
@@ -403,18 +453,26 @@ const Subscription = () => {
   };
 
   const renderPlanCard = (plan, index) => {
-    const features = getPlanFeatures(plan);
-    const showDiscount = hasDiscount(plan);
-    const displayPrice = showDiscount ? plan.discounted_price : plan.price;
-    const isCurrentPlan = isCurrentUserPlan(plan);
-    const isThisLoading = loadingPlanId === plan.id;
-    const action = getPlanAction(plan);
-    const isBlocked = action === "basic" || action === "downgrade";
+  const features = getPlanFeatures(plan);
+  const showDiscount = hasDiscount(plan);
+  const displayPrice = showDiscount ? plan.discounted_price : plan.price;
+  const isCurrentPlan = isCurrentUserPlan(plan);
+  const isThisLoading = loadingPlanId === plan.id;
+  const action = getPlanAction(plan);
+  const isBlocked = action === "basic" || action === "downgrade";
+  
+  // ✅ Get duration display
+  const getPlanDurationDisplay = (plan) => {
+    const duration = String(plan.duration || "").toLowerCase().trim();
+    if (duration === "lifetime") return "Lifetime";
+    if (duration === "yearly" || duration === "year" || duration === "annual") return "year";
+    return "month";
+  };
 
-    return (
-      <div className="w-full">
-        <div
-          className={`
+  return (
+    <div className="w-full">
+      <div
+        className={`
           w-full max-w-[380px] mx-auto
           h-auto min-h-[780px]
           rounded-[24px] p-5 sm:p-6
@@ -427,92 +485,101 @@ const Subscription = () => {
               : "border-transparent"
             }
         `}
-          style={{
-            backgroundImage: `url(${cardBackgrounds[index % cardBackgrounds.length]})`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        >
-          {/* Popular Badge */}
-          {plan.is_popular && (
-            <div className="absolute top-4 left-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-full z-20 shadow-lg">
-              ⭐ POPULAR
-            </div>
+        style={{
+          backgroundImage: `url(${cardBackgrounds[index % cardBackgrounds.length]})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        {/* Popular Badge */}
+        {plan.is_popular && (
+          <div className="absolute top-4 left-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1.5 rounded-full z-20 shadow-lg">
+            ⭐ POPULAR
+          </div>
+        )}
+
+        {/* Lifetime Badge */}
+        {String(plan.duration || "").toLowerCase().trim() === "lifetime" && (
+          <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full z-20 shadow-lg">
+            ♾️ LIFETIME
+          </div>
+        )}
+
+        {/* Icon */}
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+          <div className="flex items-center justify-center w-12 h-12 bg-[#3e1c71] rounded-full border border-white/20 shadow-lg">
+            <svg className="w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Plan Name & Price */}
+        <div className="pt-16 flex flex-col items-center">
+          <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">{plan.name}</h3>
+          <div className="flex flex-col items-center mt-2">
+            {showDiscount && (
+              <p className="text-lg text-gray-300 line-through">₹{plan.price}</p>
+            )}
+            <p className="text-4xl sm:text-5xl font-extrabold text-white leading-[1.1] flex items-end gap-1">
+              ₹{displayPrice}
+              <span className="text-base sm:text-lg font-medium mb-1">
+                /{getPlanDurationDisplay(plan)}
+              </span>
+            </p>
+          </div>
+          {plan.description && (
+            <p className="text-white/80 text-sm text-center mt-2 mb-3 px-2">
+              {plan.description}
+            </p>
           )}
 
-          {/* Icon */}
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
-            <div className="flex items-center justify-center w-12 h-12 bg-[#3e1c71] rounded-full border border-white/20 shadow-lg">
-              <svg className="w-6 h-6 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
+          {/* Discount Badge */}
+          {showDiscount ? (
+            <div className="mt-4 bg-yellow-400/10 px-4 py-2 rounded-lg border border-yellow-500/30 w-full">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-1">
+                <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full">{plan.discount_percentage}% OFF</span>
+              </div>
+              {plan.discount_description && <p className="text-yellow-200 text-xs text-center">{plan.discount_description}</p>}
             </div>
-          </div>
+          ) : (
+            <div className="mt-4 bg-gray-800/50 px-4 py-2 rounded-lg border border-gray-600 w-full">
+              <p className="text-gray-300 text-xs font-medium text-center">No discount available</p>
+            </div>
+          )}
+        </div>
 
-          {/* Plan Name & Price */}
-          <div className="pt-16 flex flex-col items-center">
-            <h3 className="text-xl sm:text-2xl font-bold text-white mb-1">{plan.name}</h3>
-            <div className="flex flex-col items-center mt-2">
-              {showDiscount && (
-                <p className="text-lg text-gray-300 line-through">₹{plan.price}</p>
+        {/* Features List */}
+        <div className="mt-6 mb-4 text-left flex-1">
+          <div className="h-[320px] overflow-y-auto pr-2 custom-scrollbar">
+            <ul className="space-y-3 text-white">
+              {features.length > 0 ? (
+                features.map((feature, idx) => (
+                  <li key={idx} className="flex items-start gap-2.5 list-none">
+                    <div className="mt-0.5 flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-transparent shrink-0">
+                      <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <span className="font-semibold text-sm sm:text-base">
+                        {feature.title || feature.description || `Feature ${idx + 1}`}
+                      </span>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li className="text-white/70 text-sm text-center py-8">No features listed</li>
               )}
-              <p className="text-4xl sm:text-5xl font-extrabold text-white leading-[1.1] flex items-end gap-1">
-                ₹{displayPrice}
-                <span className="text-base sm:text-lg font-medium mb-1">/{getPlanDuration(plan)}</span>
-              </p>
-            </div>
-            {plan.description && (
-              <p className="text-white/80 text-sm text-center mt-2 mb-3 px-2">
-                {plan.description}
-              </p>
-            )}
-
-            {/* Discount Badge */}
-            {showDiscount ? (
-              <div className="mt-4 bg-yellow-400/10 px-4 py-2 rounded-lg border border-yellow-500/30 w-full">
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mb-1">
-                  <span className="bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded-full">{plan.discount_percentage}% OFF</span>
-                </div>
-                {plan.discount_description && <p className="text-yellow-200 text-xs text-center">{plan.discount_description}</p>}
-              </div>
-            ) : (
-              <div className="mt-4 bg-gray-800/50 px-4 py-2 rounded-lg border border-gray-600 w-full">
-                <p className="text-gray-300 text-xs font-medium text-center">No discount available</p>
-              </div>
-            )}
+            </ul>
           </div>
+        </div>
 
-          {/* Features List */}
-          <div className="mt-6 mb-4 text-left flex-1">
-            <div className="h-[320px] overflow-y-auto pr-2 custom-scrollbar">
-              <ul className="space-y-3 text-white">
-                {features.length > 0 ? (
-                  features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5 list-none">
-                      <div className="mt-0.5 flex items-center justify-center w-5 h-5 rounded-full border-2 border-white bg-transparent shrink-0">
-                        <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <span className="font-semibold text-sm sm:text-base">
-                          {feature.title || feature.description || `Feature ${idx + 1}`}
-                        </span>
-                      </div>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-white/70 text-sm text-center py-8">No features listed</li>
-                )}
-              </ul>
-            </div>
-          </div>
-
-          {/* Subscribe Button */}
-          <div className="w-full flex justify-center mt-auto pt-4">
-            <button
-              onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
-              className={`
+        {/* Subscribe Button */}
+        <div className="w-full flex justify-center mt-auto pt-4">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleSubscribe(plan); }}
+            className={`
               w-full py-3.5 rounded-full font-bold text-sm sm:text-base
               transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg
               flex items-center justify-center gap-2
@@ -529,21 +596,21 @@ const Subscription = () => {
                           : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 border-2 border-blue-500"
                 }
             `}
-              disabled={isButtonDisabled(plan)}
-            >
-              {isThisLoading && (
-                <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-              )}
-              {getButtonText(plan)}
-            </button>
-          </div>
+            disabled={isButtonDisabled(plan)}
+          >
+            {isThisLoading && (
+              <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+            )}
+            {getButtonText(plan)}
+          </button>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   return (
     <div
@@ -600,11 +667,24 @@ const Subscription = () => {
 
           {!loading && (plans.monthly.length > 0 || plans.yearly.length > 0) && (
             <div className="flex justify-center mt-12">
-              <div className="flex rounded-full p-1 bg-[#2D0A4A] border border-white ring-1 ring-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.25)]">
-                <button onClick={() => setBilling("monthly")} className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "monthly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`} disabled={loading || isVerifyingPayment}>Monthly billing</button>
-                <button onClick={() => setBilling("yearly")} className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "yearly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`} disabled={loading || isVerifyingPayment}>Annual billing</button>
-              </div>
-            </div>
+  <div className="flex rounded-full p-1 bg-[#2D0A4A] border border-white ring-1 ring-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.25)]">
+    <button 
+      onClick={() => setBilling("monthly")} 
+      className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "monthly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`}
+      disabled={loading || isVerifyingPayment}
+    >
+      Lifetime / Monthly
+    </button>
+    <button 
+      onClick={() => setBilling("yearly")} 
+      className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "yearly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`}
+      disabled={loading || isVerifyingPayment}
+    >
+      Annual billing
+    </button>
+  </div>
+</div>
+
           )}
 
           {/* 🔹 SIMPLE HELPER TEXT - ONLY SHOWN WHEN USER HAS NO EMAIL */}

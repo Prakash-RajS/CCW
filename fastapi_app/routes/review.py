@@ -3,7 +3,7 @@ import fastapi_app.django_setup
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from fastapi_app.routes.dbconnection import ensure_db_connection
-from fastapi_app.services.notification_service import create_notification  # <-- ADD THIS
+from fastapi_app.services.notification_service import create_notification
 
 from creator_app.models import Review, UserData, Contract
 
@@ -78,6 +78,17 @@ def create_or_update_review(
             reviewer_name = reviewer.full_name or reviewer.email.split("@")[0]
             job_title = contract.job.title if contract.job else "project"
 
+            # Determine recipient's role and set appropriate URL
+            # Check if recipient is a creator or collaborator based on the contract
+            if contract.creator == recipient:
+                # Recipient is the creator
+                redirect_url = "/creator-edit-profile"
+            elif contract.collaborator == recipient:
+                # Recipient is the collaborator
+                redirect_url = "/ColabProfile"
+            else:
+                pass
+
             create_notification(
                 user=recipient,
                 sender=reviewer,
@@ -86,7 +97,7 @@ def create_or_update_review(
                 message=f"{reviewer_name} left a {rating}-star review for your work on '{job_title}'",
                 contract=contract,
                 job=contract.job,
-                url=f"/profile/{recipient.id}"  # adjust to your frontend profile page
+                url=redirect_url  # Use role-based URL
             )
 
         return {"message": message, "review_id": review_id}

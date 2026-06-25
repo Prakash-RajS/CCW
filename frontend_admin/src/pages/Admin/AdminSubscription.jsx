@@ -550,45 +550,29 @@ const SubscriptionPage = () => {
         plans: response.data.plans || [],
       });
 
-      // ✅ Create cards directly from the plans array
       const cards = [];
       if (response.data.plans && response.data.plans.length > 0) {
         response.data.plans.forEach((plan) => {
-          // Get the actual counts
-          const creatorCount = plan.creator_count || 0;
-          const collaboratorCount = plan.collaborator_count || 0;
+          // ✅ Clean plan name - remove suffix
+          let cleanName = plan.name;
+          cleanName = cleanName
+            .replace(/ \((Monthly|Yearly|Lifetime)\)/g, "")
+            .trim();
 
-          // Add Creator card if plan supports creator role
-          if (plan.role === "creator" || plan.role === "both") {
-            cards.push({
-              id: `${plan.name}_creator`,
-              name: plan.name,
-              role: "creator",
-              users: creatorCount, // ✅ This will show 1 for JE CJA
-              price_value: 0,
-              duration: "monthly",
-              features: [],
-              is_basic_or_free:
-                plan.name.toLowerCase() === "basic" ||
-                plan.name.toLowerCase() === "free",
-            });
-          }
-
-          // Add Collaborator card if plan supports collaborator role
-          if (plan.role === "collaborator" || plan.role === "both") {
-            cards.push({
-              id: `${plan.name}_collaborator`,
-              name: plan.name,
-              role: "collaborator",
-              users: collaboratorCount, // ✅ This will show 1 for afd
-              price_value: 0,
-              duration: "monthly",
-              features: [],
-              is_basic_or_free:
-                plan.name.toLowerCase() === "basic" ||
-                plan.name.toLowerCase() === "free",
-            });
-          }
+          cards.push({
+            id: `${plan.name}_${plan.role}_${plan.id || "deleted"}`,
+            name: cleanName,
+            role: plan.role,
+            users: plan.total_count || 0,
+            price_value: plan.price || 0,
+            duration: plan.duration || "Lifetime",
+            features: [],
+            is_basic_or_free:
+              cleanName.toLowerCase() === "basic" ||
+              cleanName.toLowerCase() === "free",
+            is_deleted_plan: plan.is_deleted_plan || false,
+            plan_id: plan.id,
+          });
         });
       }
 
@@ -639,7 +623,7 @@ const SubscriptionPage = () => {
 
         toast.error(
           `❌ Cannot delete "${planName}" plan!\n\n` +
-            `This plan has ${activeCount} active subscriber(s):\n\n${userList}\n\n` +
+            `This plan has ${activeCount} active subscriber(s):` +
             `Please expire or migrate these subscribers before deleting the plan.`,
         );
         return;
@@ -714,100 +698,109 @@ const SubscriptionPage = () => {
     }
   };
   const fetchPlans = async () => {
-    setIsLoading((prev) => ({ ...prev, plans: true }));
+  setIsLoading((prev) => ({ ...prev, plans: true }));
 
-    try {
-      // Fetch both plans and stats in parallel
-      const [plansResponse, statsResponse] = await Promise.all([
-        api.get(`${PLANS_API_URL}/admin/list-all`),
-        api.get(`${ADMIN_API_URL}/subscriptions/stats`),
-      ]);
+  try {
+    // Fetch both plans and stats in parallel
+    const [plansResponse, statsResponse] = await Promise.all([
+      api.get(`${PLANS_API_URL}/admin/list-all`),
+      api.get(`${ADMIN_API_URL}/subscriptions/stats`),
+    ]);
 
-      console.log("📊 Plans API Response:", plansResponse.data);
-      console.log("📊 Stats API Response:", statsResponse.data);
+    console.log("📊 Plans API Response:", plansResponse.data);
+    console.log("📊 Stats API Response:", statsResponse.data);
 
-      if (plansResponse.data && plansResponse.data.plans) {
-        // ✅ FIX: Create stats map with correct keys
-        const statsMap = {};
-        if (statsResponse.data && statsResponse.data.plans) {
-          statsResponse.data.plans.forEach((plan) => {
-            // ✅ Use the plan name directly (no billing cycle needed)
-            const creatorKey = `${plan.name}_creator`;
-            const collaboratorKey = `${plan.name}_collaborator`;
-
-            statsMap[creatorKey] = plan.creator_count || 0;
-            statsMap[collaboratorKey] = plan.collaborator_count || 0;
-          });
-        }
-
-        console.log("📊 Stats Map:", statsMap);
-
-        // Transform plans with REAL user counts
-        const transformedPlans = [];
-
-        plansResponse.data.plans.forEach((plan) => {
-          // ✅ Get real counts from stats using simple keys
+    if (plansResponse.data && plansResponse.data.plans) {
+      // ✅ FIX: Create stats map with correct keys
+      const statsMap = {};
+      if (statsResponse.data && statsResponse.data.plans) {
+        statsResponse.data.plans.forEach((plan) => {
           const creatorKey = `${plan.name}_creator`;
           const collaboratorKey = `${plan.name}_collaborator`;
 
-          const creatorCount = statsMap[creatorKey] || 0;
-          const collaboratorCount = statsMap[collaboratorKey] || 0;
-
-          // For role-specific plans, use the appropriate count
-          let userCount = 0;
-          if (plan.role === "creator") {
-            userCount = creatorCount;
-          } else if (plan.role === "collaborator") {
-            userCount = collaboratorCount;
-          } else if (plan.role === "both") {
-            userCount = creatorCount + collaboratorCount;
-          } else {
-            userCount = creatorCount + collaboratorCount;
-          }
-
-          transformedPlans.push({
-            id: plan.id,
-            name: plan.name,
-            price_display:
-              plan.price === 0
-                ? "Free"
-                : plan.billing_cycle === "yearly"
-                  ? `₹${plan.price}/year`
-                  : `₹${plan.price}/month`,
-            price_value: plan.price,
-            users: userCount, // ✅ REAL COUNT from database
-            features: plan.features.map((f) =>
-              typeof f === "string" ? f : f.title || f.description || "",
-            ),
-            duration: plan.billing_cycle,
-            role: plan.role || "creator",
-            discount_percentage: plan.discount_percentage,
-            discount_description: plan.discount_description,
-            original_price: plan.price,
-            description: plan.description,
-            max_users: plan.max_users,
-            max_upload_storage_gb: plan.max_upload_storage_gb,
-            max_proposals: plan.max_proposals,
-            max_job_posts: plan.max_job_posts,
-            max_invitations: plan.max_invitations,
-            max_contracts: plan.max_contracts,
-            is_popular: plan.is_popular,
-            is_basic_or_free: isBasicOrFreePlan(plan.name),
-            is_active: plan.is_active !== undefined ? plan.is_active : true,
-          });
+          statsMap[creatorKey] = plan.creator_count || 0;
+          statsMap[collaboratorKey] = plan.collaborator_count || 0;
         });
-
-        console.log("✅ Transformed Plans with real counts:", transformedPlans);
-        setPricingPlans(transformedPlans);
-        setPlansCurrentPage(1);
       }
-    } catch (error) {
-      console.error("Error fetching plans:", error);
-      toast.error("Failed to fetch subscription plans");
-    } finally {
-      setIsLoading((prev) => ({ ...prev, plans: false }));
+
+      console.log("📊 Stats Map:", statsMap);
+
+      // Transform plans with REAL user counts
+      const transformedPlans = [];
+
+      plansResponse.data.plans.forEach((plan) => {
+        const creatorKey = `${plan.name}_creator`;
+        const collaboratorKey = `${plan.name}_collaborator`;
+
+        const creatorCount = statsMap[creatorKey] || 0;
+        const collaboratorCount = statsMap[collaboratorKey] || 0;
+
+        let userCount = 0;
+        if (plan.role === "creator") {
+          userCount = creatorCount;
+        } else if (plan.role === "collaborator") {
+          userCount = collaboratorCount;
+        } else if (plan.role === "both") {
+          userCount = creatorCount + collaboratorCount;
+        } else {
+          userCount = creatorCount + collaboratorCount;
+        }
+
+        // ✅ FIX: Determine display duration
+        let displayDuration = plan.billing_cycle || "monthly";
+        // If it's a Basic/Free plan, show "Lifetime"
+        if (isBasicOrFreePlan(plan.name)) {
+          displayDuration = "lifetime";
+        }
+
+        // Also check if the plan itself has lifetime duration
+        if (plan.duration && plan.duration.toLowerCase() === "lifetime") {
+          displayDuration = "lifetime";
+        }
+
+        transformedPlans.push({
+          id: plan.id,
+          name: plan.name,
+          price_display:
+            plan.price === 0
+              ? "Free"
+              : plan.billing_cycle === "yearly"
+                ? `₹${plan.price}/year`
+                : `₹${plan.price}/month`,
+          price_value: plan.price,
+          users: userCount,
+          features: plan.features.map((f) =>
+            typeof f === "string" ? f : f.title || f.description || "",
+          ),
+          duration: displayDuration, // ✅ FIXED: Use corrected duration
+          role: plan.role || "creator",
+          discount_percentage: plan.discount_percentage,
+          discount_description: plan.discount_description,
+          original_price: plan.price,
+          description: plan.description,
+          max_users: plan.max_users,
+          max_upload_storage_gb: plan.max_upload_storage_gb,
+          max_proposals: plan.max_proposals,
+          max_job_posts: plan.max_job_posts,
+          max_invitations: plan.max_invitations,
+          max_contracts: plan.max_contracts,
+          is_popular: plan.is_popular,
+          is_basic_or_free: isBasicOrFreePlan(plan.name),
+          is_active: plan.is_active !== undefined ? plan.is_active : true,
+        });
+      });
+
+      console.log("✅ Transformed Plans with real counts:", transformedPlans);
+      setPricingPlans(transformedPlans);
+      setPlansCurrentPage(1);
     }
-  };
+  } catch (error) {
+    console.error("Error fetching plans:", error);
+    toast.error("Failed to fetch subscription plans");
+  } finally {
+    setIsLoading((prev) => ({ ...prev, plans: false }));
+  }
+};
   const fetchSubscriptionHistory = async () => {
     setIsLoading((prev) => ({ ...prev, history: true }));
 
@@ -868,123 +861,102 @@ const SubscriptionPage = () => {
     }
   };
 
-  const downloadInvoice = async (row) => {
-    try {
-      setIsLoading((prev) => ({ ...prev, action: true }));
-      setSelectedRow(row);
+ const downloadInvoice = async (row) => {
+  try {
+    setIsLoading((prev) => ({ ...prev, action: true }));
+    setSelectedRow(row);
 
-      const invoiceNumber = row.invoice_number || row.last_invoice_number;
-      const subscriptionId = row.stripe_subscription_id || row.subscription_id;
+    const invoiceNumber = row.invoice_number || row.last_invoice_number;
+    const subscriptionId = row.stripe_subscription_id || row.subscription_id;
 
-      // Check if it's a Basic/Free plan (no invoice)
-      if (
-        row.is_basic ||
-        row.plan?.toLowerCase() === "basic" ||
-        row.plan?.toLowerCase() === "free"
-      ) {
-        toast.info("Basic/Free plans do not have invoices");
-        setIsLoading((prev) => ({ ...prev, action: false }));
-        setSelectedRow(null);
-        return;
-      }
-
-      const identifier = invoiceNumber || subscriptionId;
-
-      if (!identifier) {
-        toast.error("No invoice number or subscription ID available");
-        setIsLoading((prev) => ({ ...prev, action: false }));
-        setSelectedRow(null);
-        return;
-      }
-
-      const token = localStorage.getItem("access_token") || "";
-      const API_BASE_URL =
-        import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-      // ✅ Use force_download=true to get the file directly
-      const url = `${API_BASE_URL}/payment/invoice/${encodeURIComponent(identifier)}?force_download=true`;
-
-      console.log("📄 Downloading invoice from:", url);
-
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/pdf",
-          "Cache-Control": "no-cache, no-store, must-revalidate",
-        },
-      });
-
-      if (!response.ok) {
-        // Try to get error message from response
-        let errorMessage = `HTTP ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorData.detail || errorMessage;
-        } catch (e) {
-          // If response is not JSON, try text
-          try {
-            errorMessage = await response.text();
-          } catch (e2) {
-            // Fallback to status text
-            errorMessage = response.statusText || errorMessage;
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      // ✅ Get the blob from response
-      const blob = await response.blob();
-
-      // Check if we got a valid PDF
-      if (
-        blob.type !== "application/pdf" &&
-        blob.type !== "application/octet-stream"
-      ) {
-        console.warn("Unexpected content type:", blob.type);
-        // Try to read as text to see if it's an error message
-        if (blob.type.includes("json")) {
-          const text = await blob.text();
-          try {
-            const errorData = JSON.parse(text);
-            throw new Error(
-              errorData.error ||
-                errorData.detail ||
-                "Failed to download invoice",
-            );
-          } catch (e) {
-            // If not JSON, just show the text
-            if (text) throw new Error(text);
-          }
-        }
-      }
-
-      // Check if blob is empty
-      if (blob.size === 0) {
-        throw new Error("Downloaded file is empty");
-      }
-
-      // Create download link
-      const link = document.createElement("a");
-      const objectUrl = URL.createObjectURL(blob);
-      link.href = objectUrl;
-      link.download = `Talenta_Invoice_${invoiceNumber || identifier}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      // Clean up the URL object after a short delay
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
-
-      toast.success("Invoice downloaded successfully!");
-    } catch (error) {
-      console.error("Error downloading invoice:", error);
-      toast.error(error.message || "Failed to download invoice");
-    } finally {
+    // Check if it's a Basic/Free plan (no invoice)
+    if (
+      row.is_basic ||
+      row.plan?.toLowerCase() === "basic" ||
+      row.plan?.toLowerCase() === "free"
+    ) {
+      toast.info("Basic/Free plans do not have invoices");
       setIsLoading((prev) => ({ ...prev, action: false }));
       setSelectedRow(null);
+      return;
     }
-  };
+
+    const identifier = invoiceNumber || subscriptionId;
+
+    if (!identifier) {
+      toast.error("No invoice number or subscription ID available");
+      setIsLoading((prev) => ({ ...prev, action: false }));
+      setSelectedRow(null);
+      return;
+    }
+
+    const token = localStorage.getItem("access_token") || "";
+    const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+    // ✅ Get the presigned URL from the backend
+    const url = `${API_BASE_URL}/payment/invoice/${encodeURIComponent(identifier)}?force_download=true`;
+
+    console.log("📄 Getting invoice download URL from:", url);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.detail || errorMessage;
+      } catch (e) {
+        try {
+          errorMessage = await response.text();
+        } catch (e2) {
+          errorMessage = response.statusText || errorMessage;
+        }
+      }
+      throw new Error(errorMessage);
+    }
+
+    // ✅ Parse the JSON response
+    const data = await response.json();
+    console.log("📄 Invoice data received:", data);
+
+    if (!data.success) {
+      throw new Error(data.error || "Failed to get download URL");
+    }
+
+    if (!data.download_url) {
+      throw new Error("No download URL received");
+    }
+
+    console.log("📥 Downloading from presigned URL:", data.download_url);
+    
+    // ✅ Method 1: Open in new tab (for viewing)
+    // This is useful if you want users to view the invoice first
+    // window.open(data.download_url, '_blank');
+    
+    // ✅ Method 2: Direct download (recommended for force_download=true)
+    const link = document.createElement('a');
+    link.href = data.download_url;
+    link.download = data.filename || `Talenta_Invoice_${invoiceNumber || identifier}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Invoice downloaded successfully!");
+  } catch (error) {
+    console.error("Error downloading invoice:", error);
+    toast.error(error.message || "Failed to download invoice");
+  } finally {
+    setIsLoading((prev) => ({ ...prev, action: false }));
+    setSelectedRow(null);
+  }
+};
   const openCreateModal = () => {
     setModalMode("create");
     setSelectedPlan(null);
@@ -1275,6 +1247,11 @@ const SubscriptionPage = () => {
   };
 
   const addFeature = () => {
+    // Check if already at maximum (15 features)
+    if (planForm.features.length >= 15) {
+      toast.error("Maximum 15 features allowed");
+      return;
+    }
     setPlanForm({
       ...planForm,
       features: [...planForm.features, ""],
@@ -1362,14 +1339,18 @@ const SubscriptionPage = () => {
       const name = (item.full_name || "").toLowerCase();
       const role = (item.role || "").toLowerCase();
       const plan = (item.plan || "").toLowerCase();
-      const cycleValue = item.billing_cycle || item.duration || "monthly";
-      const isYearly =
-        cycleValue === "yearly" ||
-        cycleValue === "Yearly" ||
-        cycleValue === "annual" ||
-        cycleValue === "Annual" ||
-        cycleValue === "year";
-      const billingCycle = isYearly ? "yearly" : "monthly";
+      const cycleValue = item.billing_cycle || item.duration || "monthly"; // ✅ Changed user to item
+      const lowerCycle = cycleValue.toLowerCase();
+
+      let billingCycle = "monthly";
+      if (lowerCycle === "lifetime") billingCycle = "lifetime";
+      else if (
+        lowerCycle === "yearly" ||
+        lowerCycle === "annual" ||
+        lowerCycle === "year"
+      )
+        billingCycle = "yearly";
+      else billingCycle = "monthly";
 
       return (
         name.includes(searchLower) ||
@@ -1536,105 +1517,155 @@ const SubscriptionPage = () => {
           </div>
 
           {/* Dynamic Plan Cards - Maximum 4 per row with View All/Show Less */}
- {/* Dynamic Plan Cards - Maximum 4 per row with View All/Show Less */}
-{isLoading.stats ? (
-  <div className="col-span-3 flex justify-center py-12">
-    <Loader className="animate-spin" size={40} />
-  </div>
-) : dynamicPlanCards.length > 0 ? (
-  <>
-    {(showAllPlans ? dynamicPlanCards : dynamicPlanCards.slice(0, 3)).map((plan, index) => {
-      // ✅ Helper to get duration string safely
-      const getDurationDisplay = (duration) => {
-        if (!duration) return "Monthly";
-        if (typeof duration === 'string') {
-          return duration === "yearly" ? "Yearly" : "Monthly";
-        }
-        if (typeof duration === 'object') {
-          return duration?.duration === "yearly" ? "Yearly" : "Monthly";
-        }
-        return "Monthly";
-      };
-      
-      return (
-        <div
-          key={plan.id}
-          className={`flex items-center gap-4 px-6 py-5 rounded-xl shadow-xl transition-all duration-300 ${
-            isDarkMode 
-              ? "bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700" 
-              : "text-white"
-          }`}
-          style={
-            isDarkMode ? {} :
-              index === 0 ? { background: "linear-gradient(90deg, #7d54af 0%, #8264a7 100%)" } :
-                index === 1 ? { background: "linear-gradient(90deg, #7A5C97 0%, #6A4E87 100%)" } :
-                  index === 2 ? { background: "linear-gradient(90deg, #5a3e7a 0%, #4a2e6a 100%)" } :
-                    index === 3 ? { background: "linear-gradient(90deg, #6B46C1 0%, #553C9A 100%)" } :
-                      { background: "linear-gradient(90deg, #805AD5 0%, #6B46C1 100%)" }
-          }
-        >
-          <div className="flex-shrink-0">
-            {plan.role === "creator" ? (
-              <User size={26} className={isDarkMode ? "text-blue-400" : "text-white"} />
-            ) : (
-              <Users2 size={26} className={isDarkMode ? "text-green-400" : "text-white"} />
-            )}
-          </div>
-          <div className="flex flex-col items-start flex-1">
-            <div className="flex justify-between w-full items-center">
-              <h2 className="text-3xl font-medium leading-none tracking-tight text-white">{plan.users}</h2>
-              <span className={`text-xs px-2 py-1 rounded-full ${getRoleBadgeColor(plan.role)} text-white`}>
-                {plan.role === "creator" ? "Creator" : "Collaborator"}
-              </span>
+          {/* Dynamic Plan Cards - Maximum 4 per row with View All/Show Less */}
+          {/* Dynamic Plan Cards */}
+          {isLoading.stats ? (
+            <div className="col-span-3 flex justify-center py-12">
+              <Loader className="animate-spin" size={40} />
             </div>
-            <p className="text-[13px] mt-1 capitalize opacity-90 text-white" style={{ fontFamily: "'Old Standard TT', serif" }}>
-              {plan.name}
-              {" "}
-              (
-              {getDurationDisplay(plan.duration)}
-              )
-            </p>
-          </div>
-        </div>
-      );
-    })}
-    
-    {/* View All Button - only show if there are more than 3 cards and not showing all */}
-    {dynamicPlanCards.length > 3 && !showAllPlans && (
-      <button
-        onClick={() => setShowAllPlans(true)}
-        className={`flex items-center justify-center gap-2 px-4 py-5 rounded-xl shadow-xl transition-all duration-300 ${
-          isDarkMode 
-            ? "bg-gray-800 text-white border border-gray-700 hover:bg-gray-700" 
-            : "bg-gray-200 text-black hover:bg-gray-300"
-        }`}
-      >
-        <Eye size={20} />
-        <span className="font-medium">View All ({dynamicPlanCards.length})</span>
-      </button>
-    )}
-    
-    {/* Show Less button - only show when showing all cards and there are more than 3 */}
-    {dynamicPlanCards.length > 3 && showAllPlans && (
-      <button
-        onClick={() => setShowAllPlans(false)}
-        className={`flex items-center justify-center gap-2 px-4 py-5 rounded-xl shadow-xl transition-all duration-300 ${
-          isDarkMode 
-            ? "bg-gray-800 text-white border border-gray-700 hover:bg-gray-700" 
-            : "bg-gray-200 text-black hover:bg-gray-300"
-        }`}
-      >
-        <Eye size={20} />
-        <span className="font-medium">Show Less</span>
-      </button>
-    )}
-  </>
-) : (
-  <div className="col-span-3 text-center py-12">
-    <p className="text-gray-500">No active subscriptions</p>
-  </div>
-)}
+          ) : dynamicPlanCards.length > 0 ? (
+            <>
+              {(showAllPlans
+                ? dynamicPlanCards
+                : dynamicPlanCards.slice(0, 3)
+              ).map((plan, index) => {
+                const getDurationDisplay = (duration) => {
+                  if (!duration) return "Lifetime";
+                  if (typeof duration === "string") {
+                    const lower = duration.toLowerCase();
+                    if (lower === "lifetime") return "Lifetime";
+                    if (lower === "yearly") return "Yearly";
+                    if (lower === "monthly") return "Monthly";
+                    return duration;
+                  }
+                  if (typeof duration === "object") {
+                    const dur = duration?.duration?.toLowerCase() || "lifetime";
+                    if (dur === "lifetime") return "Lifetime";
+                    if (dur === "yearly") return "Yearly";
+                    if (dur === "monthly") return "Monthly";
+                    return dur;
+                  }
+                  return "Lifetime";
+                };
 
+                return (
+                  <div
+                    key={plan.id}
+                    className={`flex items-center gap-4 px-6 py-5 rounded-xl shadow-xl transition-all duration-300 ${
+                      isDarkMode
+                        ? "bg-gradient-to-br from-gray-800 to-gray-900 border border-gray-700"
+                        : "text-white"
+                    }`}
+                    style={
+                      isDarkMode
+                        ? {}
+                        : index === 0
+                          ? {
+                              background:
+                                "linear-gradient(90deg, #7d54af 0%, #8264a7 100%)",
+                            }
+                          : index === 1
+                            ? {
+                                background:
+                                  "linear-gradient(90deg, #7A5C97 0%, #6A4E87 100%)",
+                              }
+                            : index === 2
+                              ? {
+                                  background:
+                                    "linear-gradient(90deg, #5a3e7a 0%, #4a2e6a 100%)",
+                                }
+                              : index === 3
+                                ? {
+                                    background:
+                                      "linear-gradient(90deg, #6B46C1 0%, #553C9A 100%)",
+                                  }
+                                : {
+                                    background:
+                                      "linear-gradient(90deg, #805AD5 0%, #6B46C1 100%)",
+                                  }
+                    }
+                  >
+                    <div className="flex-shrink-0">
+                      {plan.role === "creator" ? (
+                        <User
+                          size={26}
+                          className={
+                            isDarkMode ? "text-blue-400" : "text-white"
+                          }
+                        />
+                      ) : (
+                        <Users2
+                          size={26}
+                          className={
+                            isDarkMode ? "text-green-400" : "text-white"
+                          }
+                        />
+                      )}
+                    </div>
+                    <div className="flex flex-col items-start flex-1">
+                      <div className="flex justify-between w-full items-center">
+                        <h2 className="text-3xl font-medium leading-none tracking-tight text-white">
+                          {plan.users}
+                        </h2>
+                        <span
+                          className={`text-xs px-2 py-1 rounded-full ${getRoleBadgeColor(plan.role)} text-white`}
+                        >
+                          {plan.role === "creator" ? "Creator" : "Collaborator"}
+                        </span>
+                      </div>
+                      <p className="text-[13px] mt-1 capitalize opacity-90 text-white">
+                        {plan.name}
+                        {plan.is_deleted_plan && (
+                          <span className="ml-2 text-xs bg-red-500/80 text-white px-1.5 py-0.5 rounded-full">
+                            Deleted
+                          </span>
+                        )}
+                        <span className="ml-1 text-xs opacity-70">
+                          ({getDurationDisplay(plan.duration)})
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* View All Button */}
+              {dynamicPlanCards.length > 3 && !showAllPlans && (
+                <button
+                  onClick={() => setShowAllPlans(true)}
+                  className={`flex items-center justify-center gap-2 px-4 py-5 rounded-xl shadow-xl transition-all duration-300 ${
+                    isDarkMode
+                      ? "bg-gray-800 text-white border border-gray-700 hover:bg-gray-700"
+                      : "bg-gray-200 text-black hover:bg-gray-300"
+                  }`}
+                >
+                  <Eye size={20} />
+                  <span className="font-medium">
+                    View All ({dynamicPlanCards.length})
+                  </span>
+                </button>
+              )}
+
+              {/* Show Less button */}
+              {dynamicPlanCards.length > 3 && showAllPlans && (
+                <button
+                  onClick={() => setShowAllPlans(false)}
+                  className={`flex items-center justify-center gap-2 px-4 py-5 rounded-xl shadow-xl transition-all duration-300 ${
+                    isDarkMode
+                      ? "bg-gray-800 text-white border border-gray-700 hover:bg-gray-700"
+                      : "bg-gray-200 text-black hover:bg-gray-300"
+                  }`}
+                >
+                  <Eye size={20} />
+                  <span className="font-medium">Show Less</span>
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="col-span-3 text-center py-12">
+              <p className="text-gray-500">No plans available</p>
+            </div>
+          )}
         </div>
 
         {/* Rest of your component remains the same */}
@@ -1734,39 +1765,53 @@ const SubscriptionPage = () => {
                     </button>
                   </div>
                 )}
-<div className="flex justify-between items-start mb-4 mt-8">
-  <div className={`px-4 py-1 rounded-lg text-sm font-bold ${isDarkMode ? "bg-purple-600 text-white" : "bg-[#C9A7FF] text-black"}`}>
+                <div className="flex justify-between items-start mb-4 mt-8">
+  <div
+    className={`px-4 py-1 rounded-lg text-sm font-bold ${isDarkMode ? "bg-purple-600 text-white" : "bg-[#C9A7FF] text-black"}`}
+  >
     {plan.name} (
     {(() => {
-      // ✅ Helper to get duration string safely
       const duration = plan.duration;
       if (!duration) return "Monthly";
-      if (typeof duration === 'string') {
-        return duration === "yearly" ? "Yearly" : "Monthly";
-      }
-      if (typeof duration === 'object') {
-        return duration?.duration === "yearly" ? "Yearly" : "Monthly";
-      }
+      const durStr = typeof duration === "string" ? duration : duration?.duration || "";
+      const lower = durStr.toLowerCase();
+      
+      // ✅ Check if it's a Basic/Free plan
+      if (isBasicOrFreePlan(plan.name)) return "Lifetime";
+      if (lower === "lifetime") return "Lifetime";
+      if (lower === "yearly") return "Yearly";
       return "Monthly";
     })()}
     )
   </div>
-  <div className={`px-3 py-1 rounded-lg text-xs font-bold ${
-    (() => {
-      const duration = plan.duration;
-      if (!duration) return false;
-      if (typeof duration === 'string') return duration === "yearly";
-      if (typeof duration === 'object') return duration?.duration === "yearly";
-      return false;
-    })()
-      ? "bg-amber-500 text-white"
-      : "bg-emerald-500 text-white"
-  }`}>
+  
+  {/* Duration Badge */}
+  <div
+    className={`px-3 py-1 rounded-lg text-xs font-bold text-white ${
+      (() => {
+        const duration = plan.duration;
+        if (!duration) return "bg-emerald-500";
+        const durStr = typeof duration === "string" ? duration : duration?.duration || "";
+        const lower = durStr.toLowerCase();
+        
+        // ✅ Check if it's a Basic/Free plan
+        if (isBasicOrFreePlan(plan.name)) return "bg-purple-600";
+        if (lower === "lifetime") return "bg-purple-600";
+        if (lower === "yearly") return "bg-amber-500";
+        return "bg-emerald-500";
+      })()
+    }`}
+  >
     {(() => {
       const duration = plan.duration;
       if (!duration) return "Monthly";
-      if (typeof duration === 'string') return duration === "yearly" ? "Yearly" : "Monthly";
-      if (typeof duration === 'object') return duration?.duration === "yearly" ? "Yearly" : "Monthly";
+      const durStr = typeof duration === "string" ? duration : duration?.duration || "";
+      const lower = durStr.toLowerCase();
+      
+      // ✅ Check if it's a Basic/Free plan
+      if (isBasicOrFreePlan(plan.name)) return "Lifetime";
+      if (lower === "lifetime") return "Lifetime";
+      if (lower === "yearly") return "Yearly";
       return "Monthly";
     })()}
   </div>
@@ -2161,11 +2206,24 @@ const SubscriptionPage = () => {
                       className={`text-[14px] font-semibold ${isDarkMode ? "text-white" : "text-black"}`}
                     >
                       Features <span className="text-red-500">*</span>
+                      <span className="text-xs ml-2 text-gray-500">
+                        (
+                        {
+                          planForm.features.filter((f) => f && f.trim() !== "")
+                            .length
+                        }
+                        /15)
+                      </span>
                     </label>
                     <button
                       type="button"
                       onClick={addFeature}
-                      className="flex items-center gap-1 text-sm text-purple-600 hover:text-purple-700"
+                      disabled={planForm.features.length >= 15}
+                      className={`flex items-center gap-1 text-sm transition ${
+                        planForm.features.length >= 15
+                          ? "text-gray-400 cursor-not-allowed"
+                          : "text-purple-600 hover:text-purple-700"
+                      }`}
                     >
                       <Plus size={16} /> Add Feature
                     </button>
@@ -2512,7 +2570,7 @@ const SubscriptionPage = () => {
               </button>
             </div>
 
-            <div className="relative w-full sm:w-72 flex-shrink-0">
+            <div className="relative w-full sm:w-96 flex-shrink-0">
               <Search
                 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-500"
                 size={18}
@@ -2534,6 +2592,7 @@ const SubscriptionPage = () => {
                   boxShadow: isDarkMode
                     ? "0 0 0 1px rgba(139,92,246,0.4)"
                     : "0 0 0 1px rgba(139,92,246,0.25)",
+                  minWidth: "280px", // Add minimum width
                 }}
               />
             </div>
@@ -2672,11 +2731,47 @@ const SubscriptionPage = () => {
                               </div>
                             </td>
                             <td className="py-3 px-4 text-[13px]">
-                              <span
-                                className={`px-2 py-1 rounded-full text-[11px] font-medium ${isYearly ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}
-                              >
-                                {cycleDisplay}
-                              </span>
+                              {(() => {
+                                const cycleValue =
+                                  user.billing_cycle ||
+                                  user.duration ||
+                                  "monthly";
+                                const lowerCycle = cycleValue.toLowerCase();
+
+                                // ✅ Check if it's a Basic/Free plan
+                                const isBasicPlan =
+                                  user.plan?.toLowerCase() === "basic" ||
+                                  user.plan?.toLowerCase() === "free" ||
+                                  user.is_basic === true;
+
+                                let cycleDisplay = "Monthly";
+                                let cycleColor =
+                                  "bg-emerald-100 text-emerald-700";
+
+                                // ✅ ALWAYS show "Lifetime" for Basic plans
+                                if (isBasicPlan) {
+                                  cycleDisplay = "Lifetime";
+                                  cycleColor = "bg-purple-100 text-purple-700";
+                                } else if (lowerCycle === "lifetime") {
+                                  cycleDisplay = "Lifetime";
+                                  cycleColor = "bg-purple-100 text-purple-700";
+                                } else if (
+                                  lowerCycle === "yearly" ||
+                                  lowerCycle === "annual" ||
+                                  lowerCycle === "year"
+                                ) {
+                                  cycleDisplay = "Yearly";
+                                  cycleColor = "bg-amber-100 text-amber-700";
+                                }
+
+                                return (
+                                  <span
+                                    className={`px-2 py-1 rounded-full text-[11px] font-medium ${cycleColor}`}
+                                  >
+                                    {cycleDisplay}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="py-3 px-4 text-[13px]">
                               {formatDate(user.start_date)}
@@ -2821,36 +2916,51 @@ const SubscriptionPage = () => {
         </div>
 
         {/* Delete Plan Modal - Simplified */}
-{showDeleteModal && (
-  <div className="fixed inset-0 flex items-center justify-center z-[999]">
-    <div className="absolute inset-0 backdrop-blur-md bg-black/60" onClick={() => setShowDeleteModal(false)} />
-    <div className={`relative w-full max-w-md rounded-[24px] shadow-[0_0_20px_rgba(0,0,0,0.3)] p-6 text-center ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-gray-100/95 backdrop-blur-lg"}`}>
-      <h3 className={`text-2xl font-semibold mb-3 ${isDarkMode ? "text-white" : "text-black"}`}>
-        Delete Plan
-      </h3>
-      
-      <p className={`mb-4 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}>
-        Are you sure you want to delete <span className="font-semibold">{planToDelete?.name}</span> plan?
-        <br />This action cannot be undone.
-      </p>
-      
-      <div className="flex justify-center gap-4">
-        <button
-          onClick={() => { setShowDeleteModal(false); setPlanToDelete(null); }}
-          className={`px-5 py-2 rounded-full transition ${isDarkMode ? "bg-gray-700 text-white hover:bg-gray-600" : "bg-gray-400 text-white hover:bg-gray-500"}`}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={confirmDeletePlan}
-          className="px-5 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition"
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+        {showDeleteModal && (
+          <div className="fixed inset-0 flex items-center justify-center z-[999]">
+            <div
+              className="absolute inset-0 backdrop-blur-md bg-black/60"
+              onClick={() => setShowDeleteModal(false)}
+            />
+            <div
+              className={`relative w-full max-w-md rounded-[24px] shadow-[0_0_20px_rgba(0,0,0,0.3)] p-6 text-center ${isDarkMode ? "bg-gray-900 border border-gray-700" : "bg-gray-100/95 backdrop-blur-lg"}`}
+            >
+              <h3
+                className={`text-2xl font-semibold mb-3 ${isDarkMode ? "text-white" : "text-black"}`}
+              >
+                Delete Plan
+              </h3>
+
+              <p
+                className={`mb-4 ${isDarkMode ? "text-gray-300" : "text-gray-700"}`}
+              >
+                Are you sure you want to delete{" "}
+                <span className="font-semibold">{planToDelete?.name}</span>{" "}
+                plan?
+                <br />
+                This action cannot be undone.
+              </p>
+
+              <div className="flex justify-center gap-4">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setPlanToDelete(null);
+                  }}
+                  className={`px-5 py-2 rounded-full transition ${isDarkMode ? "bg-gray-700 text-white hover:bg-gray-600" : "bg-gray-400 text-white hover:bg-gray-500"}`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeletePlan}
+                  className="px-5 py-2 rounded-full bg-red-600 text-white hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

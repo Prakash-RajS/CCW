@@ -19,89 +19,103 @@ export default function TransactionHistory() {
   }, [userData]);
 
   const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get(`/wallet/transactions?user_id=${userData.id}`);
+  try {
+    setLoading(true);
+    const response = await api.get(`/wallet/transactions?user_id=${userData.id}`);
 
-      const formattedTxs = response.data.map(tx => {
-        let displayName = "Transaction";
-        const txType = (tx.transaction_type || tx.type || "").toLowerCase();
+    const formattedTxs = response.data.map(tx => {
+      let displayName = "Transaction";
+      const txType = (tx.type || tx.transaction_type || "").toLowerCase();
 
-        if (
-          txType.includes("deposit") ||
-          txType.includes("wallet topup") ||
-          txType.includes("topup")
-        ) {
-          displayName = "Wallet Top Up";
-        }
-        else if (
-          txType.includes("contract payment") ||
-          txType.includes("milestone")
-        ) {
-          displayName = tx.to_user || "Collaborator";
-        }
-        else if (
-          txType.includes("payment received")
-        ) {
-          displayName = tx.from_user || "Creator";
-        }
-        else if (
-          txType.includes("withdrawal")
-        ) {
+      // ✅ Check for withdrawal - use the user field
+      if (txType.includes("withdrawal")) {
+        // Use the user name from the transaction
+        if (tx.user) {
+          // ✅ Check if this is the current user's withdrawal
+          if (tx.user_id === userData.id) {
+            displayName = `${tx.user} (You)`;
+          } else {
+            displayName = tx.user;
+          }
+        } else {
           displayName = "Withdrawal";
         }
+      }
+      else if (
+        txType.includes("deposit") ||
+        txType.includes("wallet topup") ||
+        txType.includes("topup")
+      ) {
+        displayName = "Wallet Top Up";
+      }
+      else if (
+        txType.includes("contract payment") ||
+        txType.includes("milestone")
+      ) {
+        displayName = tx.to_user || "Collaborator";
+      }
+      else if (
+        txType.includes("payment received")
+      ) {
+        displayName = tx.from_user || "Creator";
+      }
+      else if (
+        txType.includes("transfer")
+      ) {
+        displayName = tx.to_user || tx.from_user || "Transfer";
+      }
 
-        let displayType = "Other";
+      let displayType = "Other";
 
-        if (
-          txType.includes("deposit") ||
-          txType.includes("topup")
-        ) {
-          displayType = "Top Up";
-        }
-        else if (
-          txType.includes("contract payment") ||
-          txType.includes("payment received") ||
-          txType.includes("milestone")
-        ) {
-          displayType = "Internal Transfer";
-        }
-        else if (
-          txType.includes("withdrawal")
-        ) {
-          displayType = "Withdrawal";
-        }
+      if (
+        txType.includes("deposit") ||
+        txType.includes("topup")
+      ) {
+        displayType = "Top Up";
+      }
+      else if (
+        txType.includes("contract payment") ||
+        txType.includes("payment received") ||
+        txType.includes("milestone")
+      ) {
+        displayType = "Internal Transfer";
+      }
+      else if (
+        txType.includes("withdrawal")
+      ) {
+        displayType = "Withdrawal";
+      }
 
-        let displayStatus = "Success";
-        const statusRaw = (tx.status || "").toLowerCase();
-        if (statusRaw === "pending") displayStatus = "Pending";
-        else if (statusRaw === "failed" || statusRaw === "rejected") displayStatus = "Rejected";
+      let displayStatus = "Success";
+      const statusRaw = (tx.status || "").toLowerCase();
+      if (statusRaw === "pending") displayStatus = "Pending";
+      else if (statusRaw === "failed" || statusRaw === "rejected") displayStatus = "Rejected";
 
-        return {
-          date: new Date(tx.date).toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric'
-          }).replace(/\//g, '-'),
-          name: displayName,
-          amount: tx.amount,
-          type: displayType,
-          status: displayStatus,
-        };
-      });
+      return {
+        date: new Date(tx.date).toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        }).replace(/\//g, '-'),
+        name: displayName,
+        amount: tx.amount,
+        type: displayType,
+        status: displayStatus,
+      };
+    });
 
-      setTransactions(formattedTxs);
-      setCurrentPage(1);
-    } catch (err) {
-      console.error("Error fetching transactions:", err);
-      toast.error(
-        "Failed to load transactions",
-        err.response?.data?.detail || "Please refresh the page and try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    setTransactions(formattedTxs);
+    setCurrentPage(1);
+  } catch (err) {
+    console.error("Error fetching transactions:", err);
+    toast.error(
+      "Failed to load transactions",
+      err.response?.data?.detail || "Please refresh the page and try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);

@@ -1510,142 +1510,133 @@ def delete_user(user_id: int, admin: AdminUser = Depends(get_current_admin)):
 def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
     """Get subscription statistics for dashboard cards - DYNAMIC"""
     ensure_db_connection()
-   
+
     try:
         from django.db.models import Q
         from collections import defaultdict
+        
         now = django_timezone.now()
-        
-        # ✅ DEBUG: Log what's in the database
-        print("🔍 DEBUG: Checking UserSubscription table...")
-        all_subs = UserSubscription.objects.all()
-        print(f"   Total subscriptions in DB: {all_subs.count()}")
-        
-        for sub in all_subs[:5]:
-            print(f"   - User: {sub.user.email if sub.user else 'None'}, "
-                  f"Plan: {sub.current_plan or sub.plan_name or 'None'}, "
-                  f"Status: {sub.status}, "
-                  f"End Date: {sub.plan_end_date}")
-        
-        # ✅ FIX: Get ALL subscriptions regardless of status first
-        # Then filter by status and end date
-        all_subscriptions = UserSubscription.objects.select_related('user').all()
-        
-        # Filter for active subscriptions - be more flexible with status
-        active_subscriptions = []
-        for sub in all_subscriptions:
-            is_active = False
-            
-            # Check status - include more status values
-            if sub.status in ['active', 'trialing', 'subscribed', 'paid', 'completed', 'pending']:
-                # Check if not expired
-                if not sub.plan_end_date or sub.plan_end_date > now:
-                    is_active = True
-                    print(f"✅ Active: {sub.user.email} - Plan: {sub.current_plan or sub.plan_name} - Status: {sub.status}")
-            
-            if is_active:
-                active_subscriptions.append(sub)
-        
-        print(f"📊 Found {len(active_subscriptions)} active subscriptions")
-        
+
+        # Get ALL active subscriptions from SubscriptionHistory
+        active_subscriptions = SubscriptionHistory.objects.filter(
+            action__in=["created", "updated"],
+            status__in=['active', 'trialing', None]
+        ).select_related('user')
+
         # Get unique user IDs with active subscriptions
-        subscriber_ids = set()
-        for sub in active_subscriptions:
-            if sub.user:
-                subscriber_ids.add(sub.user.id)
-        
+        subscriber_ids = list(active_subscriptions.values_list('user_id', flat=True).distinct())
         total_subscribers = len(subscriber_ids)
-        
+
         # Get all unique plan names from active subscriptions
         plan_stats = defaultdict(lambda: {"creator": 0, "collaborator": 0, "total": 0})
-        
+
         for sub in active_subscriptions:
-            # Get plan name - try both fields
-            plan_name = sub.current_plan or sub.plan_name or "Unknown"
-            
+            # ✅ Normalize plan name
+            plan_name = sub.plan_name or sub.current_plan or "Basic"
+            plan_name = plan_name.replace(" (Monthly)", "").replace(" (Yearly)", "").strip()
+            if " - " in plan_name:
+                plan_name = plan_name.split(" - ")[0].strip()
+
             # Get user role
-            if sub.user and sub.user.role:
-                role = sub.user.role.lower()
-            else:
-                role = "unknown"
-            
-            if role == "creator":
-                plan_stats[plan_name]["creator"] += 1
-            elif role == "collaborator":
-                plan_stats[plan_name]["collaborator"] += 1
-            else:
-                # If role is unknown, try to determine from profile
-                if sub.user:
-                    try:
-                        if hasattr(sub.user, 'creatorprofile'):
-                            plan_stats[plan_name]["creator"] += 1
-                        elif hasattr(sub.user, 'collaborator_profile'):
-                            plan_stats[plan_name]["collaborator"] += 1
-                        else:
-                            plan_stats[plan_name]["total"] += 1
-                    except:
-                        plan_stats[plan_name]["total"] += 1
-                else:
-                    plan_stats[plan_name]["total"] += 1
-            
-            plan_stats[plan_name]["total"] += 1
-        
-        # Get ALL active plans from SubscriptionPlan model
-        all_plans = SubscriptionPlan.objects.filter(is_active=True)
-        active_plan_names = set(all_plans.values_list('name', flat=True))
-        
-        # Also include plans that have subscribers
-        all_plan_names = set(plan_stats.keys()) | active_plan_names
-        
-        # Prepare response
+            user = sub.user
+            if user:
+                role = user.role.lower() if user.role else "unknown"
+                if role == "creator":
+                    plan_stats[plan_name]["creator"] += 1
+                elif role == "collaborator":
+                    plan_stats[plan_name]["collaborator"] += 1
+                plan_stats[plan_name]["total"] += 1
+
+        # ✅ Get ALL active plans from SubscriptionPlan model
+        all_plans = SubscriptionPlan.objects.filter(is_active=True).order_by('name')
+
+        # ✅ Create a set of plan names from SubscriptionPlan
+        plan_names_in_db = set()
+        for plan in all_plans:
+            plan_names_in_db.add(plan.name.strip())
+
+        # ✅ Build plans_data from SubscriptionPlan table FIRST
         plans_data = []
-        
-        for plan_name in all_plan_names:
-            # Check if plan exists in SubscriptionPlan
-            plan_obj = SubscriptionPlan.objects.filter(name=plan_name).first()
-            
+
+        for plan in all_plans:
+            plan_name = plan.name.strip()
             counts = plan_stats.get(plan_name, {"creator": 0, "collaborator": 0, "total": 0})
             
-            # Determine role from plan or infer from subscriptions
-            if plan_obj:
-                role = plan_obj.role
+            # Get the count for this specific role
+            role_count = 0
+            if plan.role == "creator":
+                role_count = counts["creator"]
+            elif plan.role == "collaborator":
+                role_count = counts["collaborator"]
             else:
-                if counts["creator"] > 0 and counts["collaborator"] > 0:
-                    role = "both"
-                elif counts["creator"] > 0:
-                    role = "creator"
-                elif counts["collaborator"] > 0:
-                    role = "collaborator"
-                else:
-                    role = "both"
+                role_count = counts["creator"] + counts["collaborator"]
+            
+            # ✅ Determine display duration - FIXED
+            if plan.duration and plan.duration.lower() == "lifetime":
+                duration_display = "Lifetime"
+            elif plan.duration and plan.duration.lower() == "yearly":
+                duration_display = "Yearly"
+            else:
+                duration_display = "Monthly"
             
             plans_data.append({
+                "id": plan.id,
                 "name": plan_name,
                 "creator_count": counts["creator"],
                 "collaborator_count": counts["collaborator"],
-                "total_count": counts["total"],
-                "role": role,
-                "is_deleted_plan": not bool(plan_obj)
+                "total_count": role_count,
+                "role": plan.role,
+                "is_deleted_plan": False,
+                "price": float(plan.price) if plan.price else 0,
+                "duration": duration_display,  # ← Shows "Lifetime" for lifetime plans
+                "is_active": plan.is_active
             })
-        
+
+        # ✅ Check for plans with users that are NOT in SubscriptionPlan table
+        for plan_name, counts in plan_stats.items():
+            normalized_name = plan_name.strip()
+            
+            if normalized_name in plan_names_in_db:
+                continue
+            
+            if counts["creator"] > 0:
+                plans_data.append({
+                    "id": None,
+                    "name": normalized_name,
+                    "creator_count": counts["creator"],
+                    "collaborator_count": 0,
+                    "total_count": counts["creator"],
+                    "role": "creator",
+                    "is_deleted_plan": True,
+                    "price": 0,
+                    "duration": "Lifetime",
+                    "is_active": False
+                })
+            
+            if counts["collaborator"] > 0:
+                plans_data.append({
+                    "id": None,
+                    "name": normalized_name,
+                    "creator_count": 0,
+                    "collaborator_count": counts["collaborator"],
+                    "total_count": counts["collaborator"],
+                    "role": "collaborator",
+                    "is_deleted_plan": True,
+                    "price": 0,
+                    "duration": "Lifetime",
+                    "is_active": False
+                })
+
         # Users with NO active subscription
         all_user_ids = set(UserData.objects.values_list('id', flat=True))
         users_without_subs = len(all_user_ids - set(subscriber_ids))
-        
-        print(f"📊 Dynamic Stats Summary:")
-        print(f"  - Total Subscribers: {total_subscribers}")
-        print(f"  - Plans found: {len(plans_data)}")
-        for plan in plans_data:
-            deleted_tag = " (DELETED PLAN)" if plan.get("is_deleted_plan") else ""
-            print(f"    - {plan['name']}{deleted_tag}: Creator={plan['creator_count']}, Collaborator={plan['collaborator_count']}")
-        print(f"  - Users without subscription: {users_without_subs}")
-       
+
         return {
             "total_subscribers": total_subscribers,
             "users_without_subscription": users_without_subs,
             "plans": plans_data
         }
-        
+
     except Exception as e:
         print(f"❌ Error in get_subscription_stats: {e}")
         import traceback

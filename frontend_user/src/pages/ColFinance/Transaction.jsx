@@ -437,88 +437,102 @@ const Transaction = () => {
   }, [userData]);
 
   const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await api.get(`/wallet/transactions?user_id=${userData.id}`);
-      
-      // Transform data to match the required format
-      const formattedTransactions = response.data.map(tx => {
-        // Determine display name same as TransactionHistory page
-        let displayName = "Transaction";
-        const txType = (tx.transaction_type || tx.type || "").toLowerCase();
+  try {
+    setLoading(true);
+    setError(null);
 
-        if (
-          txType.includes("deposit") ||
-          txType.includes("wallet topup") ||
-          txType.includes("topup")
-        ) {
-          displayName = "Wallet Top Up";
-        }
-        else if (
-          txType.includes("payment received")
-        ) {
-          // Collaborator sees creator name
-          displayName = tx.from_user || "Creator";
-        }
-        else if (
-          txType.includes("contract payment") ||
-          txType.includes("milestone")
-        ) {
-          // Creator sees collaborator name
-          displayName = tx.to_user || "Collaborator";
-        }
-        else if (
-          txType.includes("withdrawal")
-        ) {
+    const response = await api.get(`/wallet/transactions?user_id=${userData.id}`);
+
+    // Transform data to match the required format
+    const formattedTransactions = response.data.map(tx => {
+      // Determine display name
+      let displayName = "Transaction";
+      const txType = (tx.type || tx.transaction_type || "").toLowerCase();
+
+      // ✅ Check for withdrawal - use the user field
+      if (txType.includes("withdrawal")) {
+        // Use the user name from the transaction
+        if (tx.user) {
+          // ✅ Check if this is the current user's withdrawal
+          if (tx.user_id === userData.id) {
+            displayName = `${tx.user} (You)`;
+          } else {
+            displayName = tx.user;
+          }
+        } else {
           displayName = "Withdrawal";
         }
+      }
+      else if (
+        txType.includes("deposit") ||
+        txType.includes("wallet topup") ||
+        txType.includes("topup")
+      ) {
+        displayName = "Wallet Top Up";
+      }
+      else if (
+        txType.includes("payment received")
+      ) {
+        // Collaborator sees creator name
+        displayName = tx.from_user || "Creator";
+      }
+      else if (
+        txType.includes("contract payment") ||
+        txType.includes("milestone")
+      ) {
+        // Creator sees collaborator name
+        displayName = tx.to_user || "Collaborator";
+      }
+      else if (
+        txType.includes("transfer")
+      ) {
+        displayName = tx.to_user || tx.from_user || "Transfer";
+      }
 
-        // Determine display type
-        let displayType = "Other";
-        if (txType.includes("deposit") || txType.includes("topup")) displayType = "Top Up";
-        else if (
-          txType.includes("contract payment") ||
-          txType.includes("payment received") ||
-          txType.includes("milestone")
-        )
-          displayType = "Internal Transfer";
-        else if (txType.includes("withdrawal")) displayType = "Withdrawal";
-        else if (tx.type === "deposit") displayType = "Top Up";
-        else if (tx.type === "transfer") displayType = "Transfer";
-        else if (tx.type === "withdrawal") displayType = "Withdrawal";
+      // Determine display type
+      let displayType = "Other";
+      if (txType.includes("deposit") || txType.includes("topup")) displayType = "Top Up";
+      else if (
+        txType.includes("contract payment") ||
+        txType.includes("payment received") ||
+        txType.includes("milestone")
+      )
+        displayType = "Internal Transfer";
+      else if (txType.includes("withdrawal")) displayType = "Withdrawal";
+      else if (tx.type === "deposit") displayType = "Top Up";
+      else if (tx.type === "transfer") displayType = "Transfer";
+      else if (tx.type === "withdrawal") displayType = "Withdrawal";
 
-        // Determine status
-        let displayStatus = "Success";
-        const statusRaw = (tx.status || "").toLowerCase();
-        if (statusRaw === "pending") displayStatus = "Pending";
-        else if (statusRaw === "failed" || statusRaw === "rejected") displayStatus = "Rejected";
+      // Determine status
+      let displayStatus = "Success";
+      const statusRaw = (tx.status || "").toLowerCase();
+      if (statusRaw === "pending") displayStatus = "Pending";
+      else if (statusRaw === "failed" || statusRaw === "rejected") displayStatus = "Rejected";
 
-        return {
-          id: tx.id,
-          date: formatDate(tx.date),
-          name: displayName,
-          amount: tx.amount,
-          type: displayType,
-          status: displayStatus,
-          raw_date: tx.date
-        };
-      });
-      
-      setTransactions(formattedTransactions);
-      setCurrentPage(1);
-    } catch (err) {
-      console.error("Error fetching transactions:", err);
-      setError("Failed to load transaction history");
-      toast.error(
-        "Failed to load transactions",
-        err.response?.data?.detail || "Please refresh the page and try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+      return {
+        id: tx.id,
+        date: formatDate(tx.date),
+        name: displayName,
+        amount: tx.amount,
+        type: displayType,
+        status: displayStatus,
+        raw_date: tx.date
+      };
+    });
+
+    setTransactions(formattedTransactions);
+    setCurrentPage(1);
+  } catch (err) {
+    console.error("Error fetching transactions:", err);
+    setError("Failed to load transaction history");
+    toast.error(
+      "Failed to load transactions",
+      err.response?.data?.detail || "Please refresh the page and try again."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Format date to DD-MM-YY
   const formatDate = (dateString) => {

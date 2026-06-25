@@ -1,4 +1,5 @@
 # fastapi_app/routes/payment.py
+from fastapi.responses import FileResponse, RedirectResponse, Response, JSONResponse  # Add JSONResponse
 import os
 import hmac
 import hashlib
@@ -18,6 +19,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from decimal import Decimal
 import logging
+logger = logging.getLogger(__name__)
+
 
 # ==============================================================================
 # SUPPRESS FONTTOOLS DEBUG LOGS
@@ -1584,7 +1587,7 @@ async def debug_order(order_id: str):
 
 
 # ==============================================================================
-# 15. INVOICE DOWNLOAD (UPDATED WITH S3 SUPPORT)
+# 15. INVOICE DOWNLOAD (UPDATED - Returns JSON with URL)
 # ==============================================================================
 
 @router.get("/invoice/{identifier}")
@@ -1594,19 +1597,20 @@ async def download_invoice(
     force_download: bool = Query(False, description="Force download instead of viewing"),
 ):
     """
-    Download invoice PDF with S3 support - PROXY MODE.
-    This endpoint proxies the file from S3 to avoid CORS issues.
+    Download invoice PDF with S3 support.
+    When USE_S3=True and force_download=True, returns a presigned URL for direct download.
     """
     ensure_db_connection()
 
     try:
         print(f"🔍 Invoice request received for identifier: {identifier}")
         print(f"📥 Force download: {force_download}")
-
+        print(f"📥 USE_S3: {USE_S3}")
+        
         # ============================================================
         # FIND INVOICE
         # ============================================================
-
+        
         # Find invoice by invoice number
         invoice = await sync_to_async(
             lambda: Invoice.objects.filter(
@@ -1645,147 +1649,98 @@ async def download_invoice(
         pdf_path_or_key = str(invoice.pdf_file)
         print(f"📄 Invoice found: {invoice.invoice_number}")
         print(f"📄 PDF path/key: {pdf_path_or_key}")
-        print(f"📄 USE_S3: {USE_S3}")
 
         # ============================================================
-        # S3 MODE - PROXY THE FILE
+        # S3 MODE - Generate presigned URL
         # ============================================================
-
+        
         if USE_S3:
-            from fastapi_app.routes.storage import S3_CLIENT, S3_BUCKET
-
+            from fastapi_app.routes.storage import S3_CLIENT, S3_BUCKET, generate_presigned_url, ExpiryPreset
+            
             # Extract S3 key
             s3_key = get_s3_key_from_path(pdf_path_or_key)
             print(f"🔑 S3 Key: {s3_key}")
-
+            
             try:
                 # Check if file exists in S3
-                head_response = S3_CLIENT.head_object(Bucket=S3_BUCKET, Key=s3_key)
+                S3_CLIENT.head_object(Bucket=S3_BUCKET, Key=s3_key)
                 print(f"✅ File exists in S3")
-                print(f"   Content-Type: {head_response.get('ContentType')}")
-                print(f"   Size: {head_response.get('ContentLength')} bytes")
-
-                # ============================================================
-                # OPTION 1: Generate Presigned URL (for viewing)
-                # ============================================================
-                if not force_download:
-                    # Generate presigned URL for viewing
-                    download_url = generate_presigned_url(
-                        s3_key=s3_key,
-                        expires_in=ExpiryPreset.WEEKLY,
-                        force_download=False
+                
+                # Prepare filename for download
+                filename = f"Talenta_Invoice_{invoice.invoice_number}.pdf"
+                
+                # ✅ Generate presigned URL with force_download parameter
+                # Your generate_presigned_url function already handles force_download
+                download_url = generate_presigned_url(
+                    s3_key=s3_key,
+                    expires_in=ExpiryPreset.WEEKLY,  # 7 days expiration
+                    force_download=force_download,   # Pass the parameter
+                    custom_filename=filename         # Use custom filename
+                )
+                
+                if download_url:
+                    print(f"✅ Generated presigned URL for: {s3_key}")
+                    print(f"   Force download: {force_download}")
+                    print(f"   Filename: {filename}")
+                    
+                    # ✅ Return JSON with download URL
+                    return JSONResponse(
+                        content={
+                            "success": True,
+                            "download_url": download_url,
+                            "invoice_number": invoice.invoice_number,
+                            "filename": filename,
+                            "storage_mode": "s3",
+                            "expires_in": "7 days",
+                            "force_download": force_download
+                        }
                     )
-
-                    if download_url:
-                        return JSONResponse(
-                            content={
-                                "success": True,
-                                "download_url": download_url,
-                                "invoice_number": invoice.invoice_number,
-                                "storage_mode": "s3",
-                                "expires_in": "7 days"
-                            }
-                        )
-                    else:
-                        return JSONResponse(
-                            status_code=404,
-                            content={"success": False, "error": "Could not generate download URL"}
-                        )
-
-                # ============================================================
-                # OPTION 2: PROXY - Download from S3 and serve directly
-                # ============================================================
                 else:
-                    print(f"📥 Proxy mode: Downloading from S3...")
-
-                    # Get the file from S3
-                    s3_response = S3_CLIENT.get_object(Bucket=S3_BUCKET, Key=s3_key)
-                    file_content = s3_response['Body'].read()
-
-                    # Prepare filename
-                    filename = f"Talenta_Invoice_{invoice.invoice_number}.pdf"
-
-                    # Create response with proper headers for download
-                    headers = {
-                        "Content-Disposition": f'attachment; filename="{filename}"',
-                        "Content-Type": "application/pdf",
-                        "Content-Length": str(len(file_content)),
-                        "Cache-Control": "no-cache, no-store, must-revalidate",
-                        "Pragma": "no-cache",
-                        "Expires": "0",
-                    }
-
-                    print(f"✅ File proxied successfully: {filename} ({len(file_content)} bytes)")
-
-                    return Response(
-                        content=file_content,
-                        status_code=200,
-                        headers=headers,
-                        media_type="application/pdf",
+                    print(f"❌ Failed to generate presigned URL")
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "success": False, 
+                            "error": "Could not generate download URL from S3"
+                        }
                     )
-
+                    
             except Exception as e:
-                print(f"❌ Error fetching from S3: {e}")
+                print(f"❌ Error with S3: {e}")
                 import traceback
                 traceback.print_exc()
-
-                # Try to upload local file to S3 as fallback
+                
+                # Fallback: Try local file
                 local_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
                 print(f"📁 Checking local path: {local_path}")
-
+                
                 if local_path.exists():
-                    print(f"📁 Local file exists, uploading to S3...")
-                    try:
-                        from fastapi_app.routes.storage import save_bytes_content_sync
-                        with open(local_path, 'rb') as f:
-                            file_content = f.read()
-                        save_bytes_content_sync(
-                            content=file_content,
-                            s3_key=s3_key,
-                            content_type="application/pdf"
+                    print(f"📁 Local file exists, serving locally...")
+                    if force_download:
+                        return FileResponse(
+                            path=str(local_path),
+                            media_type="application/pdf",
+                            filename=f"Talenta_Invoice_{invoice.invoice_number}.pdf",
                         )
-                        print(f"✅ File uploaded to S3: {s3_key}")
-
-                        # Retry with the uploaded file
-                        if force_download:
-                            s3_response = S3_CLIENT.get_object(Bucket=S3_BUCKET, Key=s3_key)
-                            file_content = s3_response['Body'].read()
-
-                            filename = f"Talenta_Invoice_{invoice.invoice_number}.pdf"
-                            headers = {
-                                "Content-Disposition": f'attachment; filename="{filename}"',
-                                "Content-Type": "application/pdf",
-                                "Content-Length": str(len(file_content)),
-                            }
-
-                            return Response(
-                                content=file_content,
-                                status_code=200,
-                                headers=headers,
-                                media_type="application/pdf",
-                            )
-                    except Exception as upload_error:
-                        print(f"❌ Failed to upload to S3: {upload_error}")
-                        # Fallback to local mode
+                    else:
                         return FileResponse(
                             path=str(local_path),
                             media_type="application/pdf",
                             filename=f"Talenta_Invoice_{invoice.invoice_number}.pdf",
                         )
                 else:
-                    print(f"❌ Local file not found: {local_path}")
                     return JSONResponse(
                         status_code=404,
                         content={
                             "success": False, 
-                            "error": f"Invoice file not found in S3 or locally"
+                            "error": "Invoice file not found in S3 or locally"
                         }
                     )
 
         # ============================================================
         # LOCAL MODE
         # ============================================================
-
+        
         else:
             # Local mode
             pdf_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
@@ -1798,15 +1753,11 @@ async def download_invoice(
                     content={"success": False, "error": "Invoice file not found"}
                 )
 
-            # If force_download is True, use attachment header
             if force_download:
                 return FileResponse(
                     path=str(pdf_path),
                     media_type="application/pdf",
                     filename=f"Talenta_Invoice_{invoice.invoice_number}.pdf",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="Talenta_Invoice_{invoice.invoice_number}.pdf"'
-                    }
                 )
             else:
                 return FileResponse(
@@ -1823,16 +1774,8 @@ async def download_invoice(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
-
- 
-
-
 # ==============================================================================
-# 16. GET INVOICE URL (Helper Endpoint) - FIXED
-# ==============================================================================
-
-# ==============================================================================
-# 16. GET INVOICE URL (Helper Endpoint) - FIXED
+# 16. GET INVOICE URL (Helper Endpoint) - CONSISTENT WITH ABOVE
 # ==============================================================================
 
 @router.get("/invoice-url")
@@ -1844,16 +1787,14 @@ async def get_invoice_url_endpoint(
 ):
     """
     Get a presigned URL for an invoice (S3 mode) or local URL (local mode).
-    Accepts invoice number or subscription ID as identifier.
+    This is the recommended endpoint for frontend to use.
     """
     ensure_db_connection()
 
     try:
         invoice = None
 
-        # =====================================================
-        # 1. SEARCH USING INVOICE NUMBER (from query param)
-        # =====================================================
+        # Search by invoice number
         if invoice_number:
             invoice = await sync_to_async(
                 lambda: Invoice.objects.filter(
@@ -1861,11 +1802,8 @@ async def get_invoice_url_endpoint(
                 ).first()
             )()
 
-        # =====================================================
-        # 2. SEARCH USING SUBSCRIPTION ID (stripe_subscription_id)
-        # =====================================================
+        # Search by subscription ID
         if not invoice and subscription_id:
-            # First, find the UserSubscription by stripe_subscription_id
             user_subscription = await sync_to_async(
                 lambda: UserSubscription.objects.filter(
                     stripe_subscription_id=subscription_id
@@ -1873,92 +1811,99 @@ async def get_invoice_url_endpoint(
             )()
             
             if user_subscription:
-                # Then find the invoice by subscription ID (foreign key)
                 invoice = await sync_to_async(
                     lambda: Invoice.objects.filter(
                         subscription=user_subscription
                     ).first()
                 )()
-            
-            # If still not found, try using the old invoice_number field
-            if not invoice:
-                # Some invoices might have the stripe_subscription_id stored in invoice_number
-                invoice = await sync_to_async(
-                    lambda: Invoice.objects.filter(
-                        invoice_number=subscription_id
-                    ).first()
-                )()
 
-        # =====================================================
-        # 3. SEARCH USING IDENTIFIER
-        # =====================================================
+        # Search by identifier
         if not invoice and identifier:
-            # Try as invoice number
             invoice = await sync_to_async(
                 lambda: Invoice.objects.filter(
                     invoice_number=str(identifier)
                 ).first()
             )()
             
-            # If not found and identifier is a number, try as ID
             if not invoice and identifier.isdigit():
                 invoice = await sync_to_async(
                     lambda: Invoice.objects.filter(
                         id=int(identifier)
                     ).first()
                 )()
-            
-            # If still not found, try to find subscription by stripe_subscription_id
-            if not invoice:
-                user_subscription = await sync_to_async(
-                    lambda: UserSubscription.objects.filter(
-                        stripe_subscription_id=identifier
-                    ).first()
-                )()
-                
-                if user_subscription:
-                    invoice = await sync_to_async(
-                        lambda: Invoice.objects.filter(
-                            subscription=user_subscription
-                        ).first()
-                    )()
 
-        # =====================================================
-        # NOT FOUND
-        # =====================================================
         if not invoice:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Invoice not found for identifier: {identifier}"
-            )
+            return {
+                "success": False,
+                "error": f"Invoice not found for identifier: {identifier}"
+            }
 
         if not invoice.pdf_file:
-            raise HTTPException(
-                status_code=404,
-                detail="Invoice PDF missing"
-            )
+            return {
+                "success": False,
+                "error": "Invoice PDF missing",
+                "invoice_id": invoice.id,
+                "invoice_number": invoice.invoice_number
+            }
 
         pdf_path_or_key = str(invoice.pdf_file)
 
         if USE_S3:
+            from fastapi_app.routes.storage import generate_presigned_url, ExpiryPreset
+            
             s3_key = get_s3_key_from_path(pdf_path_or_key)
+            
+            # Check if file exists in S3
+            try:
+                from fastapi_app.routes.storage import S3_CLIENT, S3_BUCKET
+                S3_CLIENT.head_object(Bucket=S3_BUCKET, Key=s3_key)
+            except Exception as e:
+                return {
+                    "success": False,
+                    "error": "File not found in S3 storage",
+                    "invoice_id": invoice.id,
+                    "invoice_number": invoice.invoice_number,
+                    "storage_mode": "s3"
+                }
+            
+            # Generate presigned URL with force_download=True
             download_url = generate_presigned_url(
                 s3_key=s3_key,
                 expires_in=ExpiryPreset.WEEKLY,
-                force_download=False
+                force_download=True
             )
             
-            return {
-                "success": True,
-                "invoice_id": invoice.id,
-                "invoice_number": invoice.invoice_number,
-                "url": download_url,
-                "storage_mode": "s3",
-                "expires_in": "7 days"
-            }
+            if download_url:
+                return {
+                    "success": True,
+                    "invoice_id": invoice.id,
+                    "invoice_number": invoice.invoice_number,
+                    "url": download_url,
+                    "storage_mode": "s3",
+                    "expires_in": "7 days"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Failed to generate presigned URL",
+                    "invoice_id": invoice.id,
+                    "invoice_number": invoice.invoice_number,
+                    "storage_mode": "s3"
+                }
         else:
             base_url = str(request.base_url).rstrip("/")
             local_url = f"{base_url}/media/{pdf_path_or_key}"
+            
+            # Check if local file exists
+            local_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
+            if not local_path.exists():
+                return {
+                    "success": False,
+                    "error": "File not found in local storage",
+                    "invoice_id": invoice.id,
+                    "invoice_number": invoice.invoice_number,
+                    "storage_mode": "local"
+                }
             
             return {
                 "success": True,
@@ -1968,13 +1913,14 @@ async def get_invoice_url_endpoint(
                 "storage_mode": "local"
             }
 
-    except HTTPException:
-        raise
     except Exception as e:
-        # print(f"❌ Get invoice URL error: {e}")
+        logger.error(f"❌ Get invoice URL error: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 

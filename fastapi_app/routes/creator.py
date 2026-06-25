@@ -40,17 +40,17 @@ def generate_random_digits(length=4):
 
 def get_or_create_basic_plan(role: str):
     """
-    Returns a SubscriptionPlan object for the given role with price=0 and duration='monthly'.
+    Returns a SubscriptionPlan object for the given role with price=0 and duration='lifetime'.
     Creates it if it doesn't exist.
     """
     plan_name = "Basic"
-    duration = "monthly"
+    duration = "lifetime"  # ✅ CHANGED: Monthly → Lifetime
     price = 0.00
 
     plan, created = SubscriptionPlan.objects.get_or_create(
         name=plan_name,
         role=role,
-        duration=duration,
+        duration=duration,  # ✅ CHANGED: Monthly → Lifetime
         defaults={
             "price": price,
             "description": f"Free basic plan for {role}s",
@@ -401,11 +401,11 @@ async def save_creator_profile(
                     email=user.email or "",
                     current_plan=basic_plan.name,
                     plan_name=basic_plan.name,
-                    duration=basic_plan.duration.capitalize(),
+                    duration="lifetime",  # ✅ CHANGED: basic_plan.duration.capitalize() → "lifetime"
                     plan_price=basic_plan.price,
                     plan_start_date=now,
-                    plan_end_date=None if is_basic else now + timedelta(days=30),
-                    renewal_date=None if is_basic else now + timedelta(days=30),
+                    plan_end_date=None,  # ✅ NO END DATE
+                    renewal_date=None,   # ✅ NO RENEWAL
                     status="active",
                     is_trial=False,
                 )
@@ -414,7 +414,7 @@ async def save_creator_profile(
                     user=user,
                     email=user.email or "",
                     plan_name=basic_plan.name,
-                    duration=basic_plan.duration,
+                    duration="lifetime", 
                     plan_price=basic_plan.price,
                     start_date=now,
                     end_date=None,

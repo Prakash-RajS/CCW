@@ -404,15 +404,25 @@ const downloadMilestoneWork = async (contract, milestoneIndex) => {
   };
 
   const openExternalLink = (externalLink) => {
-    if (externalLink) {
-      window.open(externalLink, "_blank", "noopener,noreferrer");
-    } else {
-      toast.error(
-        "No external link",
-        "This contract does not have an external file link.",
-      );
-    }
-  };
+  if (!externalLink) {
+    toast.error(
+      "No external link",
+      "This contract does not have an external file link.",
+    );
+    return;
+  }
+
+  // Check if the URL already has a protocol
+  let url = externalLink.trim();
+  
+  // If the URL doesn't start with http:// or https://, add https://
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+
+  // Open in new tab
+  window.open(url, '_blank', 'noopener,noreferrer');
+};
 
   const totalPages = Math.ceil(contracts.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -755,24 +765,28 @@ const downloadMilestoneWork = async (contract, milestoneIndex) => {
     </svg>
   </div>
   <div
-    onClick={() => openExternalLink(contract.external_file_link)}
-    className="w-7 h-7 md:w-[52px] md:h-[52px] rounded-full bg-gradient-to-br from-[#3B82F6] to-[#1E3A8A] flex items-center justify-center shadow-[0_6px_20px_rgba(59,130,246,0.35)] cursor-pointer hover:opacity-90 transition"
-    title={contract.external_file_link ? "Open external link" : "No external link"}
+  onClick={() => openExternalLink(contract.external_file_link)}
+  className={`w-7 h-7 md:w-[52px] md:h-[52px] rounded-full flex items-center justify-center shadow-[0_6px_20px_rgba(59,130,246,0.35)] cursor-pointer hover:opacity-90 transition ${
+    contract.external_file_link
+      ? "bg-gradient-to-br from-[#3B82F6] to-[#1E3A8A]"
+      : "bg-gray-300 cursor-not-allowed"
+  }`}
+  title={contract.external_file_link ? "Open external link" : "No external link"}
+>
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={contract.external_file_link ? "white" : "#9CA3AF"}
+    strokeWidth="2"
+    className="md:w-[22px] md:h-[22px]"
   >
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="white"
-      strokeWidth="2"
-      className="md:w-[22px] md:h-[22px]"
-    >
-      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-      <polyline points="15 3 21 3 21 9" />
-      <line x1="10" y1="14" x2="21" y2="3" />
-    </svg>
-  </div>
+    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+    <polyline points="15 3 21 3 21 9" />
+    <line x1="10" y1="14" x2="21" y2="3" />
+  </svg>
+</div>
 </div>
           </div>
         );

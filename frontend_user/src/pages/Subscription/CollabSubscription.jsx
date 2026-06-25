@@ -163,7 +163,13 @@ const CollabSubscription = () => {
           setCurrentPlanName("");
         }
 
-        let response = await api.get("/plans/list", { params: { role: "collaborator", is_active: true } });
+        // ✅ FIX: First try with collaborator role
+        let response = await api.get("/plans/list", { 
+          params: { 
+            role: "collaborator", 
+            is_active: true 
+          } 
+        });
         let allPlans = [];
 
         if (response.data) {
@@ -172,12 +178,27 @@ const CollabSubscription = () => {
           else if (response.data.data && Array.isArray(response.data.data)) allPlans = response.data.data;
         }
 
+        // ✅ If no plans found, try with no role filter
         if (allPlans.length === 0) {
-          response = await api.get("/plans/list", { params: { is_active: true } });
+          response = await api.get("/plans/list", { 
+            params: { is_active: true } 
+          });
           if (response.data) {
             if (Array.isArray(response.data)) allPlans = response.data;
             else if (response.data.plans && Array.isArray(response.data.plans)) allPlans = response.data.plans;
             else if (response.data.data && Array.isArray(response.data.data)) allPlans = response.data.data;
+          }
+        }
+
+        // ✅ If still no plans, try admin endpoint
+        if (allPlans.length === 0) {
+          try {
+            const adminResponse = await api.get("/plans/admin/list-all");
+            if (adminResponse.data && adminResponse.data.plans) {
+              allPlans = adminResponse.data.plans;
+            }
+          } catch (adminErr) {
+            console.log("Admin endpoint not accessible, continuing...");
           }
         }
 
@@ -191,12 +212,35 @@ const CollabSubscription = () => {
             return { ...plan, features };
           });
 
+          // ✅ Filter for collaborator-compatible plans
+          const collaboratorPlans = processedPlans.filter(plan => {
+            const planRole = (plan.role || "both").toLowerCase();
+            return planRole === "both" || planRole === "collaborator";
+          });
+
+          // Use collaborator plans if found, otherwise all plans
+          const plansToShow = collaboratorPlans.length > 0 ? collaboratorPlans : processedPlans;
+
           setPlans({
-            monthly: processedPlans
-              .filter(p => ["monthly", "month"].includes(String(p.duration || "").toLowerCase().trim()))
-              .sort((a, b) => a.price - b.price),
-            yearly: processedPlans
-              .filter(p => ["yearly", "year", "annual"].includes(String(p.duration || "").toLowerCase().trim()))
+            // ✅ Include lifetime plans in monthly view
+            monthly: plansToShow
+              .filter(p => {
+                const duration = String(p.duration || "").toLowerCase().trim();
+                return ["monthly", "month", "lifetime"].includes(duration);
+              })
+              .sort((a, b) => {
+                // ✅ Put lifetime plans first
+                const aIsLifetime = String(a.duration || "").toLowerCase().trim() === "lifetime";
+                const bIsLifetime = String(b.duration || "").toLowerCase().trim() === "lifetime";
+                if (aIsLifetime && !bIsLifetime) return -1;
+                if (!aIsLifetime && bIsLifetime) return 1;
+                return a.price - b.price;
+              }),
+            yearly: plansToShow
+              .filter(p => {
+                const duration = String(p.duration || "").toLowerCase().trim();
+                return ["yearly", "year", "annual"].includes(duration);
+              })
               .sort((a, b) => a.price - b.price),
           });
           setError("");
@@ -375,8 +419,13 @@ const CollabSubscription = () => {
     return [];
   };
 
-  const getPlanDuration = (plan) =>
-    plan.duration?.toLowerCase().includes("year") ? "year" : "month";
+  // ✅ UPDATED: Handle Lifetime duration
+  const getPlanDuration = (plan) => {
+    const duration = String(plan.duration || "").toLowerCase().trim();
+    if (duration === "lifetime") return "Lifetime";
+    if (duration === "yearly" || duration === "year" || duration === "annual") return "year";
+    return "month";
+  };
 
   const hasDiscount = (plan) =>
     Number(plan.discount_percentage) > 0;
@@ -441,6 +490,13 @@ const CollabSubscription = () => {
             </div>
           )}
 
+          {/* ✅ Lifetime Badge */}
+          {String(plan.duration || "").toLowerCase().trim() === "lifetime" && (
+            <div className="absolute top-4 right-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full z-20 shadow-lg">
+              ♾️ LIFETIME
+            </div>
+          )}
+
           {/* Icon */}
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
             <div className="flex items-center justify-center w-12 h-12 bg-[#3e1c71] rounded-full border border-white/20 shadow-lg">
@@ -459,7 +515,9 @@ const CollabSubscription = () => {
               )}
               <p className="text-4xl sm:text-5xl font-extrabold text-white leading-[1.1] flex items-end gap-1">
                 ₹{displayPrice}
-                <span className="text-base sm:text-lg font-medium mb-1">/{getPlanDuration(plan)}</span>
+                <span className="text-base sm:text-lg font-medium mb-1">
+                  /{getPlanDuration(plan)}
+                </span>
               </p>
             </div>
             {plan.description && (
@@ -602,8 +660,20 @@ const CollabSubscription = () => {
           {!loading && (plans.monthly.length > 0 || plans.yearly.length > 0) && (
             <div className="flex justify-center mt-12">
               <div className="flex rounded-full p-1 bg-[#2D0A4A] border border-white ring-1 ring-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.25)]">
-                <button onClick={() => setBilling("monthly")} className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "monthly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`} disabled={loading || isVerifyingPayment}>Monthly billing</button>
-                <button onClick={() => setBilling("yearly")} className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "yearly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`} disabled={loading || isVerifyingPayment}>Annual billing</button>
+                <button 
+                  onClick={() => setBilling("monthly")} 
+                  className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "monthly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`} 
+                  disabled={loading || isVerifyingPayment}
+                >
+                  Lifetime / Monthly
+                </button>
+                <button 
+                  onClick={() => setBilling("yearly")} 
+                  className={`px-6 py-2 rounded-full font-semibold text-sm ${billing === "yearly" ? "bg-white text-black" : "text-white hover:text-gray-200"}`} 
+                  disabled={loading || isVerifyingPayment}
+                >
+                  Annual billing
+                </button>
               </div>
             </div>
           )}
@@ -668,16 +738,14 @@ const CollabSubscription = () => {
 
         {!loading && !error && (plans.monthly.length > 0 || plans.yearly.length > 0) && (
           <>
-            {/* Mobile/Tablet: Single Card Carousel (320px - 1023px) */}
+            {/* Mobile/Tablet: Single Card Carousel */}
             <div className="md:hidden">
-              {/* Single Card Container */}
               <div className="flex justify-center px-4">
                 <div className="w-full max-w-[380px] mx-auto transition-all duration-300">
                   {currentPlans[activeIndex] && renderPlanCard(currentPlans[activeIndex], activeIndex)}
                 </div>
               </div>
 
-              {/* Arrows and Dots - Centered below cards */}
               {currentPlans.length > 1 && (
                 <div className="flex flex-col items-center justify-center gap-4 mt-6">
                   <div className="flex items-center gap-4">
@@ -698,7 +766,6 @@ const CollabSubscription = () => {
                       </svg>
                     </button>
 
-                    {/* Dots */}
                     <div className="flex items-center gap-2">
                       {currentPlans.map((_, idx) => (
                         <button
@@ -733,7 +800,7 @@ const CollabSubscription = () => {
               )}
             </div>
 
-            {/* Desktop: Grid Layout (1024px and above) */}
+            {/* Desktop: Grid Layout */}
             <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 max-w-[1200px] mx-auto px-4 md:px-6 mb-12 md:mb-16">
               {currentPlans.map((plan, index) => renderPlanCard(plan, index))}
             </div>
