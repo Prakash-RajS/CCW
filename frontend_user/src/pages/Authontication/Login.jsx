@@ -245,59 +245,81 @@ const Login = () => {
                 {emailError && <p className="text-[11px] sm:text-[12px] text-red-500 mt-1">{emailError}</p>}
               </div>
 
-              {/* Password — type="text" always, CSS masking */}
-              <div className="w-full mt-3 sm:mt-4">
-                <div className="flex justify-between items-center mb-1.5">
-                  <p className="text-[13px] sm:text-[14px] font-[400] poppins-font text-[#030303]">Password</p>
-                  <button
-                    type="button"
-                    disabled={isLoading}
-                    onClick={() => { if (!isLoading) setShowPassword((prev) => !prev); }}
-                    className={`flex items-center gap-1.5 ${!isLoading ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
-                    style={{ touchAction: "manipulation" }}
-                  >
-                    <span className="text-[13px] sm:text-[14px] font-[400] poppins-font text-[#030303]">
-                      {showPassword ? "Hide" : "Show"}
-                    </span>
-                  </button>
-                </div>
+{/* Password — type="text" always, CSS masking */}
+<div className="w-full mt-3 sm:mt-4">
+  <div className="flex justify-between items-center mb-1.5">
+    <p className="text-[13px] sm:text-[14px] font-[400] poppins-font text-[#030303]">Password</p>
+    <button
+      type="button"
+      disabled={isLoading}
+      onClick={() => { 
+        if (!isLoading) {
+          setShowPassword((prev) => {
+            const newState = !prev;
+            // Force a re-render of the input
+            if (passwordInputRef.current) {
+              // Blur and refocus to force iOS to update the input
+              passwordInputRef.current.blur();
+              setTimeout(() => {
+                if (passwordInputRef.current) {
+                  passwordInputRef.current.focus();
+                }
+              }, 50);
+            }
+            return newState;
+          });
+        }
+      }}
+      className={`flex items-center gap-1.5 ${!isLoading ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+      style={{ touchAction: "manipulation" }}
+    >
+      <span className="text-[13px] sm:text-[14px] font-[400] poppins-font text-[#030303]">
+        {showPassword ? "Hide" : "Show"}
+      </span>
+    </button>
+  </div>
 
-                <div
-                  className={`input-container w-full h-[44px] sm:h-[48px] rounded-[10px] flex items-center px-3 ${passwordError ? "border-2 border-red-500" : ""}`}
-                  style={{ background: "#51218F4D" }}
-                  onClick={() => { if (passwordInputRef.current && !isLoading) passwordInputRef.current.focus(); }}
-                >
-                  <input
-                    ref={passwordInputRef}
-                    type="text"
-                    inputMode="text"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={handlePasswordChange}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !isButtonDisabled) {
-                        e.preventDefault();
-                        handleLogin();
-                      }
-                    }}
-                    disabled={isLoading}
-                    autoComplete="current-password"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    className={`w-full bg-transparent outline-none text-[14px] sm:text-[15px] poppins-font text-[#030303] placeholder:text-[#00000080] ${showPassword ? "password-visible" : "password-masked"} ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
-                    style={{ fontSize: "16px" }}
-                  />
-                </div>
+  <div
+    className={`input-container w-full h-[44px] sm:h-[48px] rounded-[10px] flex items-center px-3 ${passwordError ? "border-2 border-red-500" : ""}`}
+    style={{ background: "#51218F4D" }}
+    onClick={() => { if (passwordInputRef.current && !isLoading) passwordInputRef.current.focus(); }}
+  >
+    <input
+      ref={passwordInputRef}
+      type="text"
+      inputMode="text"
+      placeholder="Enter your password"
+      value={password}
+      onChange={handlePasswordChange}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !isButtonDisabled) {
+          e.preventDefault();
+          handleLogin();
+        }
+      }}
+      disabled={isLoading}
+      autoComplete="current-password"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      key={`password-${showPassword}`} // Add key prop to force re-render
+      className={`w-full bg-transparent outline-none text-[14px] sm:text-[15px] poppins-font text-[#030303] placeholder:text-[#00000080] ${showPassword ? "password-visible" : "password-masked"} ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
+      style={{ 
+        fontSize: "16px",
+        WebkitTextSecurity: showPassword ? "none" : "disc",
+        textSecurity: showPassword ? "none" : "disc"
+      }}
+    />
+  </div>
 
-                {passwordError && <p className="text-[11px] sm:text-[12px] text-red-500 mt-1">{passwordError}</p>}
+  {passwordError && <p className="text-[11px] sm:text-[12px] text-red-500 mt-1">{passwordError}</p>}
 
-                <div className="mt-1.5 flex justify-end">
-                  <Link to="/forgot-password" className="text-[11px] sm:text-[12px] md:text-[14px] poppins-font text-[#3D1768] hover:underline">
-                    Forgot password?
-                  </Link>
-                </div>
-              </div>
+  <div className="mt-1.5 flex justify-end">
+    <Link to="/forgot-password" className="text-[11px] sm:text-[12px] md:text-[14px] poppins-font text-[#3D1768] hover:underline">
+      Forgot password?
+    </Link>
+  </div>
+</div>
 
               {/* Login Button */}
               <button

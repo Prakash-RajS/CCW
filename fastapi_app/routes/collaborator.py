@@ -1793,19 +1793,58 @@ async def get_collaborator_profile(user_id: int, request: Request):
         email_verified = verification.email_verified
         phone_verified = verification.phone_verified
         
-    # ================= COMPLETED CONTRACTS =================
-    from django.db.models import Sum
+    # ================= COMPLETED CONTRACTS & TOTAL EARNINGS =================
+    from django.db.models import Sum, Q
     
+    # ✅ Get all completed contracts (regular contracts)
     completed_contracts = await sync_to_async(list)(
         Contract.objects.filter(
             collaborator=user,
-            status='completed',
-            is_paid=True
+            status='completed'
         )
     )
     
-    total_earnings = sum(float(contract.budget) for contract in completed_contracts)
+    # ✅ Calculate earnings from regular contracts
+    contract_earnings = sum(float(contract.budget) for contract in completed_contracts)
+    
+    # ✅ Get milestone earnings from wallet transactions
+    from creator_app.models import WalletTransaction
+    
+    milestone_earnings = await sync_to_async(
+        lambda: WalletTransaction.objects.filter(
+            to_user=user,
+            transaction_type__in=["Milestone Received", "milestone_payment"]
+        ).aggregate(total=Sum('amount'))['total'] or 0
+    )()
+    
+    # ✅ Total earnings = contract earnings + milestone earnings
+    total_earnings = float(contract_earnings) + float(milestone_earnings)
+    
+    # ✅ Count completed projects (including milestone-based)
     completed_projects_count = len(completed_contracts)
+    
+    # ✅ Check contracts with milestones for additional completed projects
+    milestone_contracts = await sync_to_async(list)(
+        Contract.objects.filter(
+            collaborator=user,
+            milestones_data__isnull=False
+        ).exclude(milestones_data=[])
+    )
+    
+    # ✅ Count milestone-based completed projects that aren't already counted
+    for contract in milestone_contracts:
+        if contract.milestones_data:
+            all_paid = all(
+                m.get('status') == 'paid' 
+                for m in contract.milestones_data 
+                if isinstance(m, dict)
+            )
+            # If all milestones are paid, count as completed project
+            if all_paid:
+                # Check if this contract is already in the completed_contracts list
+                is_already_counted = any(c.id == contract.id for c in completed_contracts)
+                if not is_already_counted:
+                    completed_projects_count += 1
 
     # ================= RESPONSE =================
     return {

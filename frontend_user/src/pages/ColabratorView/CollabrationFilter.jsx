@@ -7,31 +7,202 @@ import Footer from "../../component/Footer";
 import USAFlag from "../../assets/AfterSign/Usa.png";
 import ColHeader from "../../component/ColHeader";
 import toast from "../../component/Toast";
+import ReactCountryFlag from "react-country-flag"; // ✅ ADD THIS IMPORT
 
 // ─── Country list ─────────────────────────────────────────────────────────────
-const fetchCountries = async () => {
-  try {
-    const response = await fetch("https://restcountries.com/v3.1/all?fields=name,cca2");
-    if (!response.ok) throw new Error("Failed to fetch countries");
-    const data = await response.json();
-    return data
-      .filter((c) => c.cca2)
-      .map((c) => ({ value: c.name.common, label: c.name.common }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  } catch {
-    return [
-      { value: "India", label: "India" },
-      { value: "United States", label: "United States" },
-      { value: "United Kingdom", label: "United Kingdom" },
-      { value: "Canada", label: "Canada" },
-      { value: "Australia", label: "Australia" },
-      { value: "Germany", label: "Germany" },
-      { value: "France", label: "France" },
-      { value: "Singapore", label: "Singapore" },
-    ];
-  }
+const getFallbackCountries = () => {
+  return [
+    { value: "Afghanistan", label: "Afghanistan" },
+    { value: "Albania", label: "Albania" },
+    { value: "Algeria", label: "Algeria" },
+    { value: "Andorra", label: "Andorra" },
+    { value: "Angola", label: "Angola" },
+    { value: "Argentina", label: "Argentina" },
+    { value: "Armenia", label: "Armenia" },
+    { value: "Australia", label: "Australia" },
+    { value: "Austria", label: "Austria" },
+    { value: "Azerbaijan", label: "Azerbaijan" },
+    { value: "Bahamas", label: "Bahamas" },
+    { value: "Bahrain", label: "Bahrain" },
+    { value: "Bangladesh", label: "Bangladesh" },
+    { value: "Barbados", label: "Barbados" },
+    { value: "Belarus", label: "Belarus" },
+    { value: "Belgium", label: "Belgium" },
+    { value: "Belize", label: "Belize" },
+    { value: "Benin", label: "Benin" },
+    { value: "Bhutan", label: "Bhutan" },
+    { value: "Bolivia", label: "Bolivia" },
+    { value: "Bosnia and Herzegovina", label: "Bosnia and Herzegovina" },
+    { value: "Botswana", label: "Botswana" },
+    { value: "Brazil", label: "Brazil" },
+    { value: "Brunei", label: "Brunei" },
+    { value: "Bulgaria", label: "Bulgaria" },
+    { value: "Burkina Faso", label: "Burkina Faso" },
+    { value: "Burundi", label: "Burundi" },
+    { value: "Cambodia", label: "Cambodia" },
+    { value: "Cameroon", label: "Cameroon" },
+    { value: "Canada", label: "Canada" },
+    { value: "Cape Verde", label: "Cape Verde" },
+    { value: "Central African Republic", label: "Central African Republic" },
+    { value: "Chad", label: "Chad" },
+    { value: "Chile", label: "Chile" },
+    { value: "China", label: "China" },
+    { value: "Colombia", label: "Colombia" },
+    { value: "Comoros", label: "Comoros" },
+    { value: "Congo", label: "Congo" },
+    { value: "Costa Rica", label: "Costa Rica" },
+    { value: "Croatia", label: "Croatia" },
+    { value: "Cuba", label: "Cuba" },
+    { value: "Cyprus", label: "Cyprus" },
+    { value: "Czech Republic", label: "Czech Republic" },
+    { value: "Denmark", label: "Denmark" },
+    { value: "Djibouti", label: "Djibouti" },
+    { value: "Dominican Republic", label: "Dominican Republic" },
+    { value: "Ecuador", label: "Ecuador" },
+    { value: "Egypt", label: "Egypt" },
+    { value: "El Salvador", label: "El Salvador" },
+    { value: "Equatorial Guinea", label: "Equatorial Guinea" },
+    { value: "Eritrea", label: "Eritrea" },
+    { value: "Estonia", label: "Estonia" },
+    { value: "Eswatini", label: "Eswatini" },
+    { value: "Ethiopia", label: "Ethiopia" },
+    { value: "Fiji", label: "Fiji" },
+    { value: "Finland", label: "Finland" },
+    { value: "France", label: "France" },
+    { value: "Gabon", label: "Gabon" },
+    { value: "Gambia", label: "Gambia" },
+    { value: "Georgia", label: "Georgia" },
+    { value: "Germany", label: "Germany" },
+    { value: "Ghana", label: "Ghana" },
+    { value: "Greece", label: "Greece" },
+    { value: "Guatemala", label: "Guatemala" },
+    { value: "Guinea", label: "Guinea" },
+    { value: "Guyana", label: "Guyana" },
+    { value: "Haiti", label: "Haiti" },
+    { value: "Honduras", label: "Honduras" },
+    { value: "Hungary", label: "Hungary" },
+    { value: "Iceland", label: "Iceland" },
+    { value: "India", label: "India" },
+    { value: "Indonesia", label: "Indonesia" },
+    { value: "Iran", label: "Iran" },
+    { value: "Iraq", label: "Iraq" },
+    { value: "Ireland", label: "Ireland" },
+    { value: "Israel", label: "Israel" },
+    { value: "Italy", label: "Italy" },
+    { value: "Jamaica", label: "Jamaica" },
+    { value: "Japan", label: "Japan" },
+    { value: "Jordan", label: "Jordan" },
+    { value: "Kazakhstan", label: "Kazakhstan" },
+    { value: "Kenya", label: "Kenya" },
+    { value: "Kuwait", label: "Kuwait" },
+    { value: "Kyrgyzstan", label: "Kyrgyzstan" },
+    { value: "Laos", label: "Laos" },
+    { value: "Latvia", label: "Latvia" },
+    { value: "Lebanon", label: "Lebanon" },
+    { value: "Lesotho", label: "Lesotho" },
+    { value: "Liberia", label: "Liberia" },
+    { value: "Libya", label: "Libya" },
+    { value: "Liechtenstein", label: "Liechtenstein" },
+    { value: "Lithuania", label: "Lithuania" },
+    { value: "Luxembourg", label: "Luxembourg" },
+    { value: "Madagascar", label: "Madagascar" },
+    { value: "Malawi", label: "Malawi" },
+    { value: "Malaysia", label: "Malaysia" },
+    { value: "Maldives", label: "Maldives" },
+    { value: "Mali", label: "Mali" },
+    { value: "Malta", label: "Malta" },
+    { value: "Mauritania", label: "Mauritania" },
+    { value: "Mauritius", label: "Mauritius" },
+    { value: "Mexico", label: "Mexico" },
+    { value: "Moldova", label: "Moldova" },
+    { value: "Monaco", label: "Monaco" },
+    { value: "Mongolia", label: "Mongolia" },
+    { value: "Montenegro", label: "Montenegro" },
+    { value: "Morocco", label: "Morocco" },
+    { value: "Mozambique", label: "Mozambique" },
+    { value: "Myanmar", label: "Myanmar" },
+    { value: "Namibia", label: "Namibia" },
+    { value: "Nepal", label: "Nepal" },
+    { value: "Netherlands", label: "Netherlands" },
+    { value: "New Zealand", label: "New Zealand" },
+    { value: "Nicaragua", label: "Nicaragua" },
+    { value: "Niger", label: "Niger" },
+    { value: "Nigeria", label: "Nigeria" },
+    { value: "North Korea", label: "North Korea" },
+    { value: "North Macedonia", label: "North Macedonia" },
+    { value: "Norway", label: "Norway" },
+    { value: "Oman", label: "Oman" },
+    { value: "Pakistan", label: "Pakistan" },
+    { value: "Panama", label: "Panama" },
+    { value: "Paraguay", label: "Paraguay" },
+    { value: "Peru", label: "Peru" },
+    { value: "Philippines", label: "Philippines" },
+    { value: "Poland", label: "Poland" },
+    { value: "Portugal", label: "Portugal" },
+    { value: "Qatar", label: "Qatar" },
+    { value: "Romania", label: "Romania" },
+    { value: "Russia", label: "Russia" },
+    { value: "Rwanda", label: "Rwanda" },
+    { value: "Saudi Arabia", label: "Saudi Arabia" },
+    { value: "Senegal", label: "Senegal" },
+    { value: "Serbia", label: "Serbia" },
+    { value: "Sierra Leone", label: "Sierra Leone" },
+    { value: "Singapore", label: "Singapore" },
+    { value: "Slovakia", label: "Slovakia" },
+    { value: "Slovenia", label: "Slovenia" },
+    { value: "Somalia", label: "Somalia" },
+    { value: "South Africa", label: "South Africa" },
+    { value: "South Korea", label: "South Korea" },
+    { value: "South Sudan", label: "South Sudan" },
+    { value: "Spain", label: "Spain" },
+    { value: "Sri Lanka", label: "Sri Lanka" },
+    { value: "Sudan", label: "Sudan" },
+    { value: "Suriname", label: "Suriname" },
+    { value: "Sweden", label: "Sweden" },
+    { value: "Switzerland", label: "Switzerland" },
+    { value: "Syria", label: "Syria" },
+    { value: "Taiwan", label: "Taiwan" },
+    { value: "Tajikistan", label: "Tajikistan" },
+    { value: "Tanzania", label: "Tanzania" },
+    { value: "Thailand", label: "Thailand" },
+    { value: "Togo", label: "Togo" },
+    { value: "Trinidad and Tobago", label: "Trinidad and Tobago" },
+    { value: "Tunisia", label: "Tunisia" },
+    { value: "Turkey", label: "Turkey" },
+    { value: "Turkmenistan", label: "Turkmenistan" },
+    { value: "Uganda", label: "Uganda" },
+    { value: "Ukraine", label: "Ukraine" },
+    { value: "United Arab Emirates", label: "United Arab Emirates" },
+    { value: "United Kingdom", label: "United Kingdom" },
+    { value: "United States", label: "United States" },
+    { value: "Uruguay", label: "Uruguay" },
+    { value: "Uzbekistan", label: "Uzbekistan" },
+    { value: "Vatican City", label: "Vatican City" },
+    { value: "Venezuela", label: "Venezuela" },
+    { value: "Vietnam", label: "Vietnam" },
+    { value: "Yemen", label: "Yemen" },
+    { value: "Zambia", label: "Zambia" },
+    { value: "Zimbabwe", label: "Zimbabwe" },
+  ].sort((a, b) => a.label.localeCompare(b.label));
 };
 
+const fetchCountries = async () => {
+  try {
+    // Try a more reliable API first
+    const response = await fetch("https://countriesnow.space/api/v0.1/countries/positions");
+    if (!response.ok) throw new Error("Failed to fetch countries");
+    const data = await response.json();
+    if (data.data && Array.isArray(data.data)) {
+      return data.data
+        .map((c) => ({ value: c.name, label: c.name }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    }
+    throw new Error("Invalid data format");
+  } catch (error) {
+    console.warn("Failed to fetch countries from API, using fallback:", error);
+    return getFallbackCountries();
+  }
+};
 // ─── Filter Sidebar Component ────────────────────────────────────────────────
 const FilterSidebar = ({
   pendingFilters,
@@ -59,9 +230,25 @@ const FilterSidebar = ({
     c.label.toLowerCase().includes((pendingFilters.locationSearch || "").toLowerCase())
   );
 
+  // Calculate the height of the dropdown content - REDUCED
+  const getDropdownHeight = () => {
+    if (!showLocationDropdown) return 0;
+    const itemHeight = 36;
+    const headerHeight = 50;
+    const padding = 12;
+    const maxHeight = 250;
+    const calculatedHeight = Math.min(filteredCountries.length * itemHeight + headerHeight + padding, maxHeight);
+    return calculatedHeight;
+  };
+
+  const dropdownHeight = getDropdownHeight();
+
+  // For desktop, we use a wrapper with dynamic height
+  const shouldShowSpacer = !isMobile && showLocationDropdown && filteredCountries.length > 0;
+
   const content = (
     <>
-      <div className="flex items-center justify-between mb-5 lg:mb-6">
+      <div className="flex items-center justify-between mb-4 lg:mb-5">
         <h3 className="font-semibold text-lg text-gray-800">Filters</h3>
         <button
           onClick={onClearFilters}
@@ -72,11 +259,11 @@ const FilterSidebar = ({
       </div>
 
       {/* Budget Range */}
-      <div className="mb-6">
-        <p className="font-semibold text-gray-700 mb-3 text-[13px] tracking-wide">Budget Range (₹)</p>
-        <div className="flex flex-col gap-3">
+      <div className="mb-5">
+        <p className="font-semibold text-gray-700 mb-2.5 text-[13px] tracking-wide">Budget Range (₹)</p>
+        <div className="flex flex-col gap-2.5">
           <div>
-            <label className="text-xs text-gray-500 mb-1.5 block font-medium">Min Budget</label>
+            <label className="text-xs text-gray-500 mb-1 block font-medium">Min Budget</label>
             <input
               type="number"
               placeholder="Min ₹"
@@ -85,14 +272,14 @@ const FilterSidebar = ({
               style={{ border: "1.5px solid #d1d5db", outline: "none" }}
               onFocus={e => e.target.style.border = "2px solid #51218F"}
               onBlur={e => e.target.style.border = "1.5px solid #d1d5db"}
-              className="w-full px-3 py-2.5 text-sm rounded-lg bg-white text-gray-800 placeholder-gray-400 transition-colors"
+              className="w-full px-3 py-2 text-sm rounded-lg bg-white text-gray-800 placeholder-gray-400 transition-colors"
             />
             {budgetErrors.min && (
               <p className="text-red-500 text-xs mt-1">{budgetErrors.min}</p>
             )}
           </div>
           <div>
-            <label className="text-xs text-gray-500 mb-1.5 block font-medium">Max Budget</label>
+            <label className="text-xs text-gray-500 mb-1 block font-medium">Max Budget</label>
             <input
               type="number"
               placeholder="Max ₹"
@@ -101,7 +288,7 @@ const FilterSidebar = ({
               style={{ border: "1.5px solid #d1d5db", outline: "none" }}
               onFocus={e => e.target.style.border = "2px solid #51218F"}
               onBlur={e => e.target.style.border = "1.5px solid #d1d5db"}
-              className="w-full px-3 py-2.5 text-sm rounded-lg bg-white text-gray-800 placeholder-gray-400 transition-colors"
+              className="w-full px-3 py-2 text-sm rounded-lg bg-white text-gray-800 placeholder-gray-400 transition-colors"
             />
             {budgetErrors.max && (
               <p className="text-red-500 text-xs mt-1">{budgetErrors.max}</p>
@@ -110,11 +297,11 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid #f3f4f6", marginBottom: "1.5rem" }} />
+      <div style={{ borderTop: "1px solid #f3f4f6", marginBottom: "1.25rem" }} />
 
       {/* Skills */}
-      <div className="mb-6">
-        <p className="font-semibold text-gray-700 mb-3 text-[13px] tracking-wide">Skills</p>
+      <div className="mb-5">
+        <p className="font-semibold text-gray-700 mb-2.5 text-[13px] tracking-wide">Skills</p>
         <input
           placeholder="Search skills..."
           value={pendingFilters.skillSearch}
@@ -122,7 +309,7 @@ const FilterSidebar = ({
           style={{ border: "1.5px solid #d1d5db", outline: "none" }}
           onFocus={e => e.target.style.border = "2px solid #51218F"}
           onBlur={e => e.target.style.border = "1.5px solid #d1d5db"}
-          className="w-full px-3 py-2.5 text-sm rounded-lg bg-white text-gray-800 placeholder-gray-400 mb-3 transition-colors"
+          className="w-full px-3 py-2 text-sm rounded-lg bg-white text-gray-800 placeholder-gray-400 mb-2.5 transition-colors"
         />
         <div className="max-h-44 overflow-y-auto pr-1">
           {loadingFilters ? (
@@ -131,7 +318,7 @@ const FilterSidebar = ({
             <p className="text-xs text-gray-400 py-2">No skills found</p>
           ) : (
             filteredSkills.slice(0, 20).map((skill) => (
-              <label key={skill} className="flex items-center gap-3 mb-2.5 cursor-pointer group">
+              <label key={skill} className="flex items-center gap-3 mb-2 cursor-pointer group">
                 <input
                   type="checkbox"
                   className="w-4 h-4 accent-[#51218F] cursor-pointer shrink-0"
@@ -145,15 +332,20 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      <div style={{ borderTop: "1px solid #f3f4f6", marginBottom: "1.5rem" }} />
+      <div style={{ borderTop: "1px solid #f3f4f6", marginBottom: "1.25rem" }} />
 
       {/* Location */}
-      <div className="mb-6" ref={locationDropdownRef}>
-        <p className="font-semibold text-gray-700 mb-3 text-[13px] tracking-wide">Location</p>
-        <div className="relative">
+      <div className="mb-4" ref={locationDropdownRef}>
+        <p className="font-semibold text-gray-700 mb-2.5 text-[13px] tracking-wide">Location</p>
+        <div 
+          className="relative transition-all duration-300 ease-in-out"
+          style={{ 
+            marginBottom: shouldShowSpacer ? `${dropdownHeight}px` : '0px'
+          }}
+        >
           <div
             style={{ border: "1.5px solid #d1d5db" }}
-            className="w-full h-[44px] rounded-lg bg-white flex items-center px-3 cursor-pointer hover:border-[#51218F] transition-colors"
+            className="w-full h-[40px] rounded-lg bg-white flex items-center px-3 cursor-pointer hover:border-[#51218F] transition-colors"
             onClick={() => setShowLocationDropdown((v) => !v)}
           >
             <span className={`flex-1 text-sm truncate ${pendingFilters.location ? "text-[#51218F] font-medium" : "text-gray-400"}`}>
@@ -178,13 +370,13 @@ const FilterSidebar = ({
                   style={{ border: "1.5px solid #e5e7eb", outline: "none", backgroundColor: "#f9fafb" }}
                   onFocus={e => e.target.style.border = "1.5px solid #51218F"}
                   onBlur={e => e.target.style.border = "1.5px solid #e5e7eb"}
-                  className="w-full rounded-lg px-3 py-2 text-sm"
+                  className="w-full rounded-lg px-3 py-1.5 text-sm"
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
-              <div className="max-h-48 overflow-y-auto">
+              <div className="max-h-40 overflow-y-auto">
                 <div
-                  className="px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer border-b border-gray-50"
+                  className="px-4 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer border-b border-gray-50"
                   onClick={() => {
                     onPendingFilterChange("location", "");
                     onPendingFilterChange("locationSearch", "");
@@ -194,12 +386,12 @@ const FilterSidebar = ({
                   — Any location —
                 </div>
                 {filteredCountries.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-gray-400 text-center">No results</div>
+                  <div className="px-4 py-2 text-sm text-gray-400 text-center">No results</div>
                 ) : (
                   filteredCountries.map((c) => (
                     <div
                       key={c.value}
-                      className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-purple-50 transition-colors ${
+                      className={`px-4 py-2 text-sm cursor-pointer hover:bg-purple-50 transition-colors ${
                         pendingFilters.location === c.value
                           ? "text-[#51218F] font-semibold bg-purple-50"
                           : "text-gray-700"
@@ -220,16 +412,18 @@ const FilterSidebar = ({
         </div>
       </div>
 
-      {/* Apply Button */}
-    <button
-  onClick={() => {
-    onApplyFilters();
-    if (isMobile && onCloseMobile) onCloseMobile();
-  }}
-  className="hidden lg:block w-full py-3 bg-gradient-to-r from-[#381763] to-[#722FC9] text-white font-semibold rounded-xl hover:opacity-90 active:scale-[0.98] transition-all text-sm mt-auto shadow-md"
->
-  Apply Filters
-</button>
+      {/* ✅ Apply Button - ONLY show on desktop (not mobile) */}
+      {!isMobile && (
+        <button
+          onClick={() => {
+            onApplyFilters();
+            if (isMobile && onCloseMobile) onCloseMobile();
+          }}
+          className="w-full py-2.5 bg-gradient-to-r from-[#381763] to-[#722FC9] text-white font-semibold rounded-xl hover:opacity-90 active:scale-[0.98] transition-all text-sm shadow-md mt-1"
+        >
+          Apply Filters
+        </button>
+      )}
     </>
   );
 
@@ -237,9 +431,11 @@ const FilterSidebar = ({
     return <div className="flex flex-col h-full">{content}</div>;
   }
 
-  return <div className="bg-white rounded-2xl p-5 lg:p-6 shadow-[0_0_25px_rgba(0,0,0,0.3)] text-sm flex flex-col h-full">
-  {content}
-</div>
+  return (
+    <div className="bg-white rounded-2xl p-4 lg:p-5 shadow-[0_0_25px_rgba(0,0,0,0.3)] text-sm flex flex-col h-full">
+      {content}
+    </div>
+  );
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -400,20 +596,27 @@ useEffect(() => {
     return `${job.full_description.substring(0, 150)}...`;
   };
 
-  const CountryFlag = ({ countryCode, country }) => {
-    if (!countryCode) return (
-      <img src={USAFlag} alt="USA" className="w-[18px] h-[12px] rounded-[4px] object-cover" />
-    );
+ const CountryFlag = ({ countryCode, country }) => {
+  if (!countryCode) {
     return (
-      <img
-        src={`https://flagcdn.com/w20/${countryCode.toLowerCase()}.png`}
-        alt={country}
-        title={country}
-        className="w-[18px] h-[12px] rounded-[4px] object-cover"
-        onError={(e) => { e.target.src = USAFlag; }}
-      />
+      <div className="w-[18px] h-[12px] bg-gray-200 rounded-[4px] flex-shrink-0" />
     );
-  };
+  }
+  return (
+    <ReactCountryFlag
+      countryCode={countryCode}
+      svg
+      style={{
+        width: "18px",
+        height: "12px",
+        borderRadius: "4px",
+        display: "block",
+        flexShrink: 0,
+      }}
+      title={country || ""}
+    />
+  );
+};
 
   const fetchFilteredJobs = useCallback(async (filters = appliedFilters, sort = sortOption, search = searchQuery) => {
     setLoading(true);
@@ -837,16 +1040,22 @@ useEffect(() => {
                                 <span>
                                   {(job.creator_rating || 0).toFixed(1)}/5 ({job.creator_reviews_count || 0} reviews)
                                 </span>
-                                <div className="flex items-center gap-1">
-                                  {job.creator_country && job.creator_country !== "Remote" && job.creator_country_code ? (
-                                    <CountryFlag countryCode={job.creator_country_code} country={job.creator_country} />
-                                  ) : (
-                                    <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                  )}
-                                  <span>{job.locationDisplay || "Remote"}</span>
-                                </div>
+                                
+<div className="flex items-center gap-1">
+  {job.creator_country && job.creator_country !== "Remote" && job.creator_country_code ? (
+    <CountryFlag 
+      countryCode={job.creator_country_code} 
+      country={job.creator_country} 
+    />
+  ) : (
+    <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )}
+  <span className="text-xs sm:text-sm text-gray-500 truncate max-w-[120px] sm:max-w-[150px]">
+    {job.locationDisplay || "Remote"}
+  </span>
+</div>
                               </div>
                             </div>
 

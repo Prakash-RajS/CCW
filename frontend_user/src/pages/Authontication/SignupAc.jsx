@@ -515,7 +515,7 @@ const SignupAc = () => {
       });
       return response.data.exists;
     } catch (error) {
-      console.error("Error checking email:", error);
+      //console.error("Error checking email:", error);
       return false;
     } finally {
       setCheckingEmail(false);
@@ -530,7 +530,7 @@ const SignupAc = () => {
       });
       return response.data.exists;
     } catch (error) {
-      console.error("Error checking phone:", error);
+      //console.error("Error checking phone:", error);
       return false;
     } finally {
       setCheckingPhone(false);
@@ -668,7 +668,7 @@ const SignupAc = () => {
         showSingleToast('error', "Error", "Failed to send verification code. Please try again.");
       }
 
-      console.error("Send OTP error:", error);
+      //console.error("Send OTP error:", error);
     } finally {
       setLoading(false);
     }
@@ -862,134 +862,159 @@ const SignupAc = () => {
               </p>
             </div>
 
-            {/* Password - type="text" always, CSS masking */}
-            <div className="w-full">
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-[14px] sm:text-[15px] font-[500] poppins-font text-[#030303]">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isPhoneCompleted) {
-                      handlePasswordContainerClick();
-                    } else {
-                      setShowPassword(!showPassword);
-                      // Maintain focus on iOS when toggling visibility
-                      if (isIOS && passwordInputRef.current) {
-                        setTimeout(() => {
-                          focusWithIOSWorkaround(passwordInputRef);
-                        }, 50);
-                      }
-                    }
-                  }}
-                  disabled={loading || !isPhoneCompleted}
-                  className={`flex items-center gap-1.5 text-[13px] sm:text-[14px] font-[400] poppins-font text-[#030303] ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
+           {/* Password - type="text" always, CSS masking */}
+<div className="w-full">
+  <div className="flex justify-between items-center mb-1">
+    <label className="text-[14px] sm:text-[15px] font-[500] poppins-font text-[#030303]">
+      Password
+    </label>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!isPhoneCompleted) {
+          handlePasswordContainerClick();
+        } else {
+          setShowPassword((prev) => {
+            const newState = !prev;
+            // Force a re-render of the input
+            if (passwordInputRef.current) {
+              // Blur and refocus to force iOS to update the input
+              passwordInputRef.current.blur();
+              setTimeout(() => {
+                if (passwordInputRef.current) {
+                  passwordInputRef.current.focus();
+                }
+              }, 50);
+            }
+            return newState;
+          });
+        }
+      }}
+      disabled={loading || !isPhoneCompleted}
+      className={`flex items-center gap-1.5 text-[13px] sm:text-[14px] font-[400] poppins-font text-[#030303] ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
+      style={{ touchAction: 'manipulation' }}
+    >
+      {showPassword ? "Hide" : "Show"}
+    </button>
+  </div>
 
-              <div
-                className={`input-container w-full h-[46px] sm:h-[50px] rounded-[12px] flex items-center px-4 ${passwordError ? 'border-2 border-red-500' : ''} ${!isPhoneCompleted ? 'opacity-60 cursor-pointer' : ''}`}
-                style={{ background: "#51218F4D" }}
-                onClick={handlePasswordContainerClick}
-              >
-                <input
-                  ref={passwordInputRef}
-                  type="text"
-                  inputMode="text"
-                  required
-                  value={password}
-                  onChange={handlePasswordChange}
-                  onKeyPress={handlePasswordKeyPress}
-                  disabled={loading || !isPhoneCompleted}
-                  placeholder="Enter your password"
-                  autoComplete="new-password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380] ${showPassword ? "password-visible" : "password-masked"} ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
-                  style={{ fontSize: '16px' }}
-                />
-              </div>
+  <div
+    className={`input-container w-full h-[46px] sm:h-[50px] rounded-[12px] flex items-center px-4 ${passwordError ? 'border-2 border-red-500' : ''} ${!isPhoneCompleted ? 'opacity-60 cursor-pointer' : ''}`}
+    style={{ background: "#51218F4D" }}
+    onClick={handlePasswordContainerClick}
+  >
+    <input
+      ref={passwordInputRef}
+      type="text"
+      inputMode="text"
+      required
+      value={password}
+      onChange={handlePasswordChange}
+      onKeyPress={handlePasswordKeyPress}
+      disabled={loading || !isPhoneCompleted}
+      placeholder="Enter your password"
+      autoComplete="new-password"
+      autoCapitalize="none"
+      autoCorrect="off"
+      spellCheck={false}
+      key={`password-${showPassword}`} // Add key prop to force re-render
+      className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380} ${loading || !isPhoneCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
+      style={{ 
+        fontSize: '16px',
+        WebkitTextSecurity: showPassword ? "none" : "disc",
+        textSecurity: showPassword ? "none" : "disc"
+      }}
+    />
+  </div>
 
-              {passwordError && (
-                <p className="text-[11px] sm:text-[12px] text-red-500 mt-1 leading-tight">
-                  {passwordError}
-                </p>
-              )}
-            </div>
+  {passwordError && (
+    <p className="text-[11px] sm:text-[12px] text-red-500 mt-1 leading-tight">
+      {passwordError}
+    </p>
+  )}
+</div>
 
-            {/* Confirm Password - type="text" always, CSS masking */}
-            <div className="w-full">
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-[14px] sm:text-[15px] font-[500] poppins-font text-[#030303]">
-                  Confirm Password
-                </label>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!isPasswordCompleted) {
-                      handleConfirmPasswordContainerClick();
-                    } else {
-                      setShowConfirmPassword(!showConfirmPassword);
-                      // Maintain focus on iOS when toggling visibility
-                      if (isIOS && confirmPasswordInputRef.current) {
-                        setTimeout(() => {
-                          focusWithIOSWorkaround(confirmPasswordInputRef);
-                        }, 50);
-                      }
-                    }
-                  }}
-                  disabled={loading || !isPasswordCompleted}
-                  className={`flex items-center gap-1.5 text-[13px] sm:text-[14px] font-[400] text-[#030303] ${loading || !isPasswordCompleted ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
-                  style={{ touchAction: 'manipulation' }}
-                >
-                  {showConfirmPassword ? "Hide" : "Show"}
-                </button>
-              </div>
+{/* Confirm Password - type="text" always, CSS masking */}
+<div className="w-full">
+  <div className="flex justify-between items-center mb-1">
+    <label className="text-[14px] sm:text-[15px] font-[500] poppins-font text-[#030303]">
+      Confirm Password
+    </label>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!isPasswordCompleted) {
+          handleConfirmPasswordContainerClick();
+        } else {
+          setShowConfirmPassword((prev) => {
+            const newState = !prev;
+            // Force a re-render of the input
+            if (confirmPasswordInputRef.current) {
+              // Blur and refocus to force iOS to update the input
+              confirmPasswordInputRef.current.blur();
+              setTimeout(() => {
+                if (confirmPasswordInputRef.current) {
+                  confirmPasswordInputRef.current.focus();
+                }
+              }, 50);
+            }
+            return newState;
+          });
+        }
+      }}
+      disabled={loading || !isPasswordCompleted}
+      className={`flex items-center gap-1.5 text-[13px] sm:text-[14px] font-[400] text-[#030303] ${loading || !isPasswordCompleted ? "opacity-70 cursor-not-allowed" : "cursor-pointer"}`}
+      style={{ touchAction: 'manipulation' }}
+    >
+      {showConfirmPassword ? "Hide" : "Show"}
+    </button>
+  </div>
 
-              <div
-                className={`input-container w-full h-[46px] sm:h-[50px] rounded-[12px] flex items-center px-4 ${
-                  confirmPasswordError ? 'border-2 border-red-500' : 
-                  password && confirmPassword && password === confirmPassword && isPasswordCompleted ? 'border-2 border-green-500' : ''
-                } ${!isPasswordCompleted ? 'opacity-60 cursor-pointer' : ''}`}
-                style={{ background: "#51218F4D" }}
-                onClick={handleConfirmPasswordContainerClick}
-              >
-                <input
-                  ref={confirmPasswordInputRef}
-                  type="text"
-                  inputMode="text"
-                  required
-                  value={confirmPassword}
-                  onChange={handleConfirmPasswordChange}
-                  onKeyPress={handleConfirmPasswordKeyPress}
-                  disabled={loading || !isPasswordCompleted}
-                  placeholder="Confirm your password"
-                  autoComplete="new-password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380] ${showConfirmPassword ? "password-visible" : "password-masked"} ${loading || !isPasswordCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
-                  style={{ fontSize: '16px' }}
-                />
-              </div>
+  <div
+    className={`input-container w-full h-[46px] sm:h-[50px] rounded-[12px] flex items-center px-4 ${
+      confirmPasswordError ? 'border-2 border-red-500' : 
+      password && confirmPassword && password === confirmPassword && isPasswordCompleted ? 'border-2 border-green-500' : ''
+    } ${!isPasswordCompleted ? 'opacity-60 cursor-pointer' : ''}`}
+    style={{ background: "#51218F4D" }}
+    onClick={handleConfirmPasswordContainerClick}
+  >
+    <input
+      ref={confirmPasswordInputRef}
+      type="text"
+      inputMode="text"
+      required
+      value={confirmPassword}
+      onChange={handleConfirmPasswordChange}
+      onKeyPress={handleConfirmPasswordKeyPress}
+      disabled={loading || !isPasswordCompleted}
+      placeholder="Confirm your password"
+      autoComplete="new-password"
+      autoCapitalize="none"
+      autoCorrect="off"
+      spellCheck={false}
+      key={`confirm-password-${showConfirmPassword}`} // Add key prop to force re-render
+      className={`w-full bg-transparent outline-none text-[15px] sm:text-[16px] poppins-font text-[#030303] placeholder:text-[#03030380} ${loading || !isPasswordCompleted ? "opacity-70 cursor-not-allowed" : ""}`}
+      style={{ 
+        fontSize: '16px',
+        WebkitTextSecurity: showConfirmPassword ? "none" : "disc",
+        textSecurity: showConfirmPassword ? "none" : "disc"
+      }}
+    />
+  </div>
 
-              {confirmPasswordError ? (
-                <p className="text-[11px] sm:text-[12px] text-red-500 mt-1">
-                  {confirmPasswordError}
-                </p>
-              ) : password && confirmPassword && password === confirmPassword && isPasswordCompleted ? (
-                <p className="text-[11px] sm:text-[12px] text-green-500 mt-1">
-                  Passwords match ✓
-                </p>
-              ) : null}
-            </div>
+  {confirmPasswordError ? (
+    <p className="text-[11px] sm:text-[12px] text-red-500 mt-1">
+      {confirmPasswordError}
+    </p>
+  ) : password && confirmPassword && password === confirmPassword && isPasswordCompleted ? (
+    <p className="text-[11px] sm:text-[12px] text-green-500 mt-1">
+      Passwords match ✓
+    </p>
+  ) : null}
+</div>
+
 
             {/* Submit Button */}
             <button

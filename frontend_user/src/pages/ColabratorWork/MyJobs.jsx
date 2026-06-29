@@ -225,26 +225,30 @@ const MyJobs = () => {
     );
   };
 
-  const handleMessage = (e, contract) => {
-    e.stopPropagation();
-    const receiverId = contract.creator?.id || contract.creator_id;
-    const receiverName = contract.creator?.name || "Client";
+  // Update the handleMessage function in MyJobs.jsx
 
-    if (!receiverId) {
-      toast.error("Unable to start conversation: No user ID found");
-      return;
-    }
+const handleMessage = (e, contract) => {
+  e.stopPropagation();
+  const receiverId = contract.creator?.id || contract.creator_id;
+  const receiverName = contract.creator?.name || "Client";
 
-    navigate("/message", {
-      state: {
-        receiverId,
-        userName: receiverName,
-        contractId: contract.contract_id || contract.id,
-        jobTitle: contract.job_title || contract.title || "Project",
-        openConversation: true,
-      },
-    });
-  };
+  if (!receiverId) {
+    toast.error("Unable to start conversation: No user ID found");
+    return;
+  }
+
+  // ✅ Use navigate with proper path and state
+  navigate(`/message?user=${receiverId}`, { 
+    state: { 
+      receiverId: receiverId, 
+      userName: receiverName,
+      senderId: userData?.id,
+      contractId: contract.contract_id || contract.id,
+      jobTitle: contract.job_title || contract.title || "Project",
+      openConversation: true
+    } 
+  });
+};
 
   const handleContractsClick = () => navigate("/all-contacts");
 
