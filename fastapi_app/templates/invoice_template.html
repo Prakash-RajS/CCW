@@ -296,7 +296,7 @@ body {
     padding:
         152px
         40px
-        148px
+        170px
         40px;
 }
 
@@ -533,14 +533,12 @@ body {
 }
 
 /* =========================================================
-   TERMS
+   TERMS - UPDATED WITH REDUCED SPACING
 ========================================================= */
 
 .terms-card {
 
-    padding:
-        20px
-        18px;
+    padding: 20px 18px;
 }
 
 .section-title {
@@ -551,7 +549,7 @@ body {
 
     color: #111827;
 
-    margin-bottom: 14px;
+    margin-bottom: 12px;  /* Reduced from 14px */
 }
 
 .terms-text {
@@ -560,7 +558,16 @@ body {
 
     color: #6b7280;
 
-    line-height: 2;
+    line-height: 1.5;  /* Reduced from 2 */
+}
+
+/* Style for paragraph tags */
+.terms-text p {
+    margin: 0 0 4px 0;  /* 4px gap between paragraphs */
+}
+
+.terms-text p:last-child {
+    margin-bottom: 0;  /* No margin after last paragraph */
 }
 
 /* =========================================================
@@ -974,22 +981,11 @@ padding-right: 10px;
 Terms & Conditions
 </div>
 
+<!-- UPDATED: Using <p> tags instead of <br> for better spacing control -->
 <div class="terms-text">
-
-Subscription fees are billed and confirmed
-before service activation.
-
-<br><br>
-
-Talenta reserves the right to suspend
-platform access in cases involving payment
-disputes, abuse or policy violations.
-
-<br><br>
-
-This invoice serves as official proof
-of payment for your subscription purchase.
-
+    <p>Subscription fees are billed and confirmed before service activation.</p>
+    <p>Talenta reserves the right to suspend platform access in cases involving payment disputes, abuse or policy violations.</p>
+    <p>This invoice serves as official proof of payment for your subscription purchase.</p>
 </div>
 
 </div>

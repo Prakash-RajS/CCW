@@ -676,7 +676,7 @@ def create_plan(
     admin = Depends(get_current_admin)
 ):
     try:
-        # Check if Name + Billing Cycle already exists
+        # Check if Name + Role + Duration already exists
         if SubscriptionPlan.objects.filter(
             name=plan_data.name,
             role=plan_data.role,
@@ -684,7 +684,24 @@ def create_plan(
         ).exists():
             raise HTTPException(
                 status_code=400, 
-                detail=f"Plan '{plan_data.name}' for role '{plan_data.role}' with billing cycle '{plan_data.billing_cycle.value}' already exists"
+                detail=f"❌ A plan named '{plan_data.name}' for role '{plan_data.role}' with billing cycle '{plan_data.billing_cycle.value}' already exists! Please choose a different name."
+            )
+
+        # ✅ Check if Price + Role + Duration already exists
+        if SubscriptionPlan.objects.filter(
+            price=plan_data.price,
+            role=plan_data.role,
+            duration=plan_data.billing_cycle.value
+        ).exists():
+            existing_plan = SubscriptionPlan.objects.filter(
+                price=plan_data.price,
+                role=plan_data.role,
+                duration=plan_data.billing_cycle.value
+            ).first()
+            
+            raise HTTPException(
+                status_code=400, 
+                detail=f"❌ A plan with price ₹{plan_data.price} for role '{plan_data.role}' with billing cycle '{plan_data.billing_cycle.value}' already exists!\n\nExisting plan: \"{existing_plan.name}\" (₹{existing_plan.price}/{existing_plan.duration})"
             )
 
         # Prepare features as JSON list
@@ -772,8 +789,6 @@ def create_plan(
     except HTTPException:
         raise
     except Exception as e:
-        pass
-        # print(f"❌ Error creating plan: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -797,6 +812,74 @@ def edit_plan(
         old_price = float(plan.price)
         old_status = "active" if plan.is_active else "inactive"
         old_duration = plan.duration
+        old_role = plan.role
+
+        # ✅ DETERMINE THE VALUES TO CHECK FOR DUPLICATES
+        # Use new values if provided, otherwise use existing values
+        check_name = plan_data.name if plan_data.name is not None else plan.name
+        check_price = float(plan_data.price) if plan_data.price is not None else float(plan.price)
+        check_role = plan_data.role if plan_data.role is not None else plan.role
+        check_duration = plan_data.billing_cycle.value if plan_data.billing_cycle is not None else plan.duration
+
+        # ✅ CHECK FOR DUPLICATE BY NAME (excluding current plan)
+        if plan_data.name is not None and plan_data.name != plan.name:
+            if SubscriptionPlan.objects.filter(
+                name=check_name,
+                role=check_role,
+                duration=check_duration
+            ).exclude(id=plan_id).exists():
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"❌ A plan named '{check_name}' for role '{check_role}' with billing cycle '{check_duration}' already exists! Please choose a different name."
+                )
+
+        # ✅ CHECK FOR DUPLICATE BY PRICE (excluding current plan)
+        if plan_data.price is not None and float(plan_data.price) != float(plan.price):
+            if SubscriptionPlan.objects.filter(
+                price=check_price,
+                role=check_role,
+                duration=check_duration
+            ).exclude(id=plan_id).exists():
+                existing_plan = SubscriptionPlan.objects.filter(
+                    price=check_price,
+                    role=check_role,
+                    duration=check_duration
+                ).exclude(id=plan_id).first()
+                
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"❌ A plan with price ₹{check_price} for role '{check_role}' with billing cycle '{check_duration}' already exists!\n\nExisting plan: \"{existing_plan.name}\" (₹{existing_plan.price}/{existing_plan.duration})"
+                )
+
+        # Also check if role or duration changed (in case of name/price change with different role/duration)
+        # This catches cases where user changes role or duration along with name/price
+        if plan_data.role is not None and plan_data.role != plan.role:
+            # Check if new role + name + duration combination exists
+            if SubscriptionPlan.objects.filter(
+                name=check_name,
+                role=check_role,
+                duration=check_duration
+            ).exclude(id=plan_id).exists():
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"❌ A plan named '{check_name}' for role '{check_role}' with billing cycle '{check_duration}' already exists!"
+                )
+
+        if plan_data.billing_cycle is not None and plan_data.billing_cycle.value != plan.duration:
+            # Check if new duration + name + role combination exists
+            if SubscriptionPlan.objects.filter(
+                name=check_name,
+                role=check_role,
+                duration=check_duration
+            ).exclude(id=plan_id).exists():
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"❌ A plan named '{check_name}' for role '{check_role}' with billing cycle '{check_duration}' already exists!"
+                )
+
+        # ============================================
+        # NOW PROCEED WITH UPDATES
+        # ============================================
 
         # Update basic fields and track changes
         if plan_data.name is not None and plan_data.name != plan.name:
@@ -932,9 +1015,9 @@ def edit_plan(
 
     except SubscriptionPlan.DoesNotExist:
         raise HTTPException(status_code=404, detail="Plan not found")
+    except HTTPException:
+        raise
     except Exception as e:
-        pass
-        # print(f"❌ Error updating plan: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
