@@ -2,7 +2,7 @@ import fastapi_app.django_setup
 from typing import Optional, List, Dict, Any
 from django.db.models import Q
 from fastapi_app.services.notification_service import create_job_save_notification
-from fastapi import APIRouter, HTTPException, Form, Request, UploadFile, File, Response, Query
+from fastapi import APIRouter, HTTPException, Form, Request, UploadFile, File, Response, Query, Body
 import random
 import io
 import string
@@ -3473,4 +3473,61 @@ async def download_portfolio_item(
         # print(f"Error in download_portfolio_item: {e}")
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@router.post("/ratings/batch")
+async def get_batch_collaborator_ratings(
+    request: Request,
+    data: dict = Body(...)  # Accept dict instead of List
+):
+    """
+    Get ratings for multiple collaborators in one request.
+    """
+    ensure_db_connection()
+    
+    try:
+        # Extract collaborator_ids from the dict
+        collaborator_ids = data.get("collaborator_ids", [])
+        if not collaborator_ids:
+            return {}
+        
+        result = {}
+        
+        @sync_to_async
+        def get_ratings_batch():
+            from django.db.models import Avg, Count
+            
+            # Get all collaborators
+            collaborators = UserData.objects.filter(id__in=collaborator_ids)
+            
+            # Get review stats for all collaborators
+            review_stats = Review.objects.filter(
+                recipient__in=collaborator_ids
+            ).values('recipient_id').annotate(
+                avg_rating=Avg('rating'),
+                total_reviews=Count('id')
+            )
+            
+            # Build response map
+            stats_map = {}
+            for stat in review_stats:
+                stats_map[stat['recipient_id']] = {
+                    'rating': round(stat['avg_rating'] or 0, 1),
+                    'count': stat['total_reviews'] or 0
+                }
+            
+            # Ensure all collaborators have data
+            for collaborator in collaborators:
+                if collaborator.id in stats_map:
+                    result[collaborator.id] = stats_map[collaborator.id]
+                else:
+                    result[collaborator.id] = {'rating': 0, 'count': 0}
+            
+            return result
+        
+        result = await get_ratings_batch()
+        return result
+        
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
