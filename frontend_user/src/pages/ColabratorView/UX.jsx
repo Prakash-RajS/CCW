@@ -71,7 +71,7 @@ export default function UX() {
       const response = await api.get(`/collaborator/jobs/${jobId}`);
       const jobData = response.data || {};
       const creatorData = jobData.creator || {};
-      console.log('[UX] raw job data:', JSON.stringify({ work_attachment: jobData.work_attachment, attachments: jobData.attachments, external_file_link: jobData.external_file_link }));
+      // console.log('[UX] raw job data:', JSON.stringify({ work_attachment: jobData.work_attachment, attachments: jobData.attachments, external_file_link: jobData.external_file_link }));
       setJob(jobData);
       setCreator(creatorData);
       if (creatorData.country) setCreatorLocationName(creatorData.country);

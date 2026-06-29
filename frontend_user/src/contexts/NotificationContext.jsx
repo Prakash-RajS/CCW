@@ -182,7 +182,7 @@ export const NotificationProvider = ({ children }) => {
     const ws = new WebSocket(getWebSocketUrl());
 
     ws.onopen = () => {
-      console.log('✅ Global WS connected');
+      // console.log('✅ Global WS connected');
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
@@ -192,7 +192,7 @@ export const NotificationProvider = ({ children }) => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('📩 Global WS msg:', data.type);
+        // console.log('📩 Global WS msg:', data.type);
 
         // ── new message ──────────────────────────────────────────────────
         if (data.type === 'new_message') {
@@ -217,7 +217,7 @@ export const NotificationProvider = ({ children }) => {
 
         // ── incoming call ────────────────────────────────────────────────
         else if (data.type === 'incoming_call') {
-          console.log('📞 Incoming call:', data.callData);
+          // console.log('📞 Incoming call:', data.callData);
           playRingtone();
           setIncomingCall(data.callData);
           window.dispatchEvent(new CustomEvent('incoming-call', { detail: data.callData }));
@@ -236,7 +236,7 @@ export const NotificationProvider = ({ children }) => {
 
         // ── call ended (by the other side) ───────────────────────────────
         else if (data.type === 'call_ended') {
-          console.log('🔚 Call ended by remote:', data.call_id);
+          // console.log('🔚 Call ended by remote:', data.call_id);
           stopRingtone();
           setIncomingCall(null);
 
@@ -248,7 +248,7 @@ export const NotificationProvider = ({ children }) => {
 
         // ── call joined confirmation ─────────────────────────────────────
         else if (data.type === 'call_joined') {
-          console.log('✅ Call joined:', data.call_id);
+          // console.log('✅ Call joined:', data.call_id);
         }
 
       } catch (err) {
@@ -259,7 +259,7 @@ export const NotificationProvider = ({ children }) => {
     ws.onerror = (err) => console.error('Global WS error:', err);
 
     ws.onclose = () => {
-      console.log('🔌 Global WS closed — will reconnect in 5 s');
+      // console.log('🔌 Global WS closed — will reconnect in 5 s');
       if (isMountedRef.current && userData?.id) {
         reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
       }

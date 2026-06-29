@@ -321,9 +321,9 @@ export const CallButton = ({ otherUserId, callType, onCallInitiated, currentUser
       cleanCallerName = cleanCallerName.charAt(0).toUpperCase() + cleanCallerName.slice(1).toLowerCase();
     }
     
-    console.log('📞 CallButton - Original caller_name:', currentUserName);
-    console.log('📞 CallButton - Clean caller_name:', cleanCallerName);
-    console.log('📞 CallButton - receiver_id:', otherUserId);
+    // console.log('📞 CallButton - Original caller_name:', currentUserName);
+    // console.log('📞 CallButton - Clean caller_name:', cleanCallerName);
+    // console.log('📞 CallButton - receiver_id:', otherUserId);
     
     try {
       const response = await api.post('/message/call/initiate', {
@@ -797,7 +797,7 @@ export const CallWindow = ({ callData, onClose, currentUserId }) => {
           // DEBUG: log what audio output devices this browser actually exposes.
           // Check the console — if labels are blank/generic, setSinkId has
           // nothing useful to target and the OS controls routing instead.
-          console.log('🔊 Available audio outputs:', outputs.map(d => ({ id: d.deviceId, label: d.label })));
+          // console.log('🔊 Available audio outputs:', outputs.map(d => ({ id: d.deviceId, label: d.label })));
 
           if (nextState) {
             // Force the device's built-in/loud speaker, bypassing earphones/headset
@@ -1128,7 +1128,7 @@ export const IncomingCallNotification = ({ callData, onAccept, onDecline }) => {
         
         playPattern();
       } catch (e) {
-        console.log('Ringtone error:', e);
+        // console.log('Ringtone error:', e);
       }
     };
     

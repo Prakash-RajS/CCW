@@ -854,8 +854,8 @@ export default function ColabProfile() {
   const fetchUserData = async () => {
     try {
       const res = await api.get("/auth/me");
-      console.log("Fetched user data:", res.data);
-      console.log("User full_name from auth:", res.data.full_name);
+      // console.log("Fetched user data:", res.data);
+      // console.log("User full_name from auth:", res.data.full_name);
 
       setCurrentUser(res.data);
 
@@ -1266,7 +1266,7 @@ export default function ColabProfile() {
       const response = await api.get(`/collaborator/get/${userId}`);
       const profile = response.data;
 
-      console.log("📦 Profile data from backend:", profile);
+      // console.log("📦 Profile data from backend:", profile);
 
       setProfileData(profile);
 
@@ -1374,7 +1374,7 @@ export default function ColabProfile() {
       const response = await api.get(
         `${API_BASE_URL}/collaborator/reviews/list/${userId}`,
       );
-      console.log("🔍 Full reviews response:", response.data);
+      // console.log("🔍 Full reviews response:", response.data);
       setReviews(response.data);
     } catch (err) {
       console.error("Error fetching reviews:", err);
@@ -1388,7 +1388,7 @@ export default function ColabProfile() {
       const response = await api.get(
         `${API_BASE_URL}/collaborator/portfolio/list/${userId}`,
       );
-      console.log("Portfolio items from backend:", response.data);
+      // console.log("Portfolio items from backend:", response.data);
 
       const items = response.data.map(item => ({
         ...item,
@@ -1721,8 +1721,8 @@ export default function ColabProfile() {
       return;
     }
 
-    console.log("=== SAVING PROFILE ===");
-    console.log("New name being saved:", editFormData.name);
+    // console.log("=== SAVING PROFILE ===");
+    // console.log("New name being saved:", editFormData.name);
 
     setIsSavingProfile(true);
 
@@ -1993,7 +1993,7 @@ export default function ColabProfile() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      console.log("Response:", response.data);
+      // console.log("Response:", response.data);
 
       toast.success("Portfolio item added successfully!");
       setActiveModal(null);
@@ -2076,7 +2076,7 @@ export default function ColabProfile() {
         },
       );
 
-      console.log("Update response:", response.data);
+      // console.log("Update response:", response.data);
 
       toast.success("Portfolio item updated successfully!");
       setActiveModal(null);

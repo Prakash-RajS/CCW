@@ -6,14 +6,14 @@ const ScrollToTop = () => {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    console.log(`Route changed to: ${pathname}`);
+    // console.log(`Route changed to: ${pathname}`);
     
     const forceScrollToTop = () => {
       // Method 1: Target the main content in Dashboard (most specific)
       const dashboardMain = document.querySelector('main.flex-1.overflow-y-auto');
       if (dashboardMain) {
         dashboardMain.scrollTop = 0;
-        console.log("Scrolled dashboard main to top");
+        // console.log("Scrolled dashboard main to top");
       }
       
       // Method 2: Target any element with these exact classes
@@ -29,7 +29,7 @@ const ScrollToTop = () => {
       possibleElements.forEach(el => {
         if (el && el.scrollTop > 0) {
           el.scrollTop = 0;
-          console.log("Scrolled element:", el.className);
+          // console.log("Scrolled element:", el.className);
         }
       });
       

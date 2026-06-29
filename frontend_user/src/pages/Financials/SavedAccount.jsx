@@ -383,7 +383,7 @@ const SavedAccount = () => {
     }
 
     // ✅ If valid → proceed transfer
-    console.log("Transfer Successful");
+    // console.log("Transfer Successful");
   }}
   className="
     w-1/2

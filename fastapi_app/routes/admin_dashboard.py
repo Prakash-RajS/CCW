@@ -1638,7 +1638,7 @@ def get_subscription_stats(admin: AdminUser = Depends(get_current_admin)):
         }
 
     except Exception as e:
-        print(f"❌ Error in get_subscription_stats: {e}")
+        # print(f"❌ Error in get_subscription_stats: {e}")
         import traceback
         traceback.print_exc()
         return {

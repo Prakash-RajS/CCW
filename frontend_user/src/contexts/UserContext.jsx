@@ -215,7 +215,7 @@ export const UserProvider = ({ children }) => {
   ===================================================== */
   const fetchUserData = async () => {
     if (isLoggingOut) {
-      console.log("⏭ Skipping fetch - logout in progress");
+      // console.log("⏭ Skipping fetch - logout in progress");
       setLoading(false);
       return null;
     }
@@ -240,11 +240,11 @@ export const UserProvider = ({ children }) => {
       return user;
     } catch (error) {
       if (error.response?.status === 401) {
-        console.log("🔒 401 received - clearing user state");
+        // console.log("🔒 401 received - clearing user state");
         setUserData(EMPTY_USER);
         setIsAuthenticated(false);
       } else {
-        console.log("⚠️ Non-401 error - keeping user state:", error.message);
+        // console.log("⚠️ Non-401 error - keeping user state:", error.message);
       }
       return null;
     } finally {
@@ -264,7 +264,7 @@ export const UserProvider = ({ children }) => {
      Logout function
   ===================================================== */
   const logout = async () => {
-    console.log("🚪 Starting logout process");
+    // console.log("🚪 Starting logout process");
     
     setIsLoggingOut(true);
     setUserData(EMPTY_USER);
@@ -272,13 +272,13 @@ export const UserProvider = ({ children }) => {
 
     try {
       await api.post("/auth/logout");
-      console.log("✅ Logout API call successful");
+      // console.log("✅ Logout API call successful");
     } catch (error) {
       console.error("❌ Logout API error:", error);
     } finally {
       setTimeout(() => {
         setIsLoggingOut(false);
-        console.log("🔄 Logout flag reset");
+        // console.log("🔄 Logout flag reset");
       }, 1000);
     }
 
@@ -294,23 +294,23 @@ export const UserProvider = ({ children }) => {
 
     // Only skip auth check for truly public routes
     if (isPublicRoute(path)) {
-      console.log(`🌐 Public route (${path}) - skipping auth check`);
+      // console.log(`🌐 Public route (${path}) - skipping auth check`);
       setLoading(false);
       return;
     }
 
     // Protected routes → fetch user
-    console.log(`🔒 Protected route (${path}) - fetching user data`);
+    // console.log(`🔒 Protected route (${path}) - fetching user data`);
     fetchUserData();
 
     // Multi-tab sync
     const handleBroadcast = (event) => {
       if (event.data?.type === "userDataUpdated") {
-        console.log("📡 Broadcast: userDataUpdated - refetching");
+        // console.log("📡 Broadcast: userDataUpdated - refetching");
         fetchUserData();
       }
       if (event.data?.type === "userLoggedOut") {
-        console.log("📡 Broadcast: userLoggedOut - clearing state");
+        // console.log("📡 Broadcast: userLoggedOut - clearing state");
         setUserData(EMPTY_USER);
         setIsAuthenticated(false);
       }

@@ -220,7 +220,7 @@ const OtpRequest = () => {
         // ✅ CRITICAL: Update the OTP token with the new one from resend
         if (response?.data?.otp_token) {
           setCurrentOtpToken(response.data.otp_token);
-          console.log("✅ Updated OTP token after resend");
+          // console.log("✅ Updated OTP token after resend");
         }
         
       } else if (isSignup) {
@@ -239,7 +239,7 @@ const OtpRequest = () => {
         // ✅ CRITICAL: Update the OTP token with the new one from resend
         if (response?.data?.otp_token) {
           setCurrentOtpToken(response.data.otp_token);
-          console.log("✅ Updated OTP token after resend");
+          // console.log("✅ Updated OTP token after resend");
         }
       }
 

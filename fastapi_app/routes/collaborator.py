@@ -735,8 +735,9 @@ async def save_collaborator_profile(
                     )
                 await update_profile_pic_local()
         except Exception as e:
+            pass
             # ✅ Don't fail the whole request if profile picture fails
-            print(f"⚠️ Profile picture error: {e}")
+            # print(f"⚠️ Profile picture error: {e}")
 
     # ========== HANDLE PORTFOLIO UPLOADS ==========
     if portfolio_uploads and portfolio_uploads.filename:
@@ -807,8 +808,9 @@ async def save_collaborator_profile(
             await track_upload()
 
         except Exception as e:
+            pass
             # ✅ Don't fail the whole request if portfolio upload fails
-            print(f"⚠️ Portfolio upload error: {e}")
+            # print(f"⚠️ Portfolio upload error: {e}")
 
     # ========== PARSE TIMING ==========
     parsed_timing = timing
@@ -941,8 +943,9 @@ async def save_collaborator_profile(
 
         await create_subscription()
     except Exception as e:
+        pass
         # ✅ Don't fail the whole request if subscription creation fails
-        print(f"⚠️ Subscription creation error: {e}")
+        # print(f"⚠️ Subscription creation error: {e}")
 
     # ========== NOTIFICATIONS ==========
     try:
@@ -973,8 +976,9 @@ async def save_collaborator_profile(
                 )
             await create_skills_notification()
     except Exception as e:
+        pass
         # ✅ Don't fail the whole request if notification fails
-        print(f"⚠️ Notification error: {e}")
+        # print(f"⚠️ Notification error: {e}")
 
     return {
         "message": "Collaborator profile saved successfully",

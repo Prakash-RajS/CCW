@@ -1112,7 +1112,7 @@ async def send_message_for_proposal(
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Error in send_message_for_proposal: {str(e)}")
+        # print(f"❌ Error in send_message_for_proposal: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
@@ -1323,7 +1323,7 @@ async def download_file(
             if len(parts) == 2 and parts[0].isdigit():
                 download_filename = parts[1]
         
-        print(f"📥 Download: stored={filename}, clean={download_filename}")
+        # print(f"📥 Download: stored={filename}, clean={download_filename}")
         
         # ✅ If using S3, generate a presigned URL with force download
         if USE_S3:
@@ -1386,7 +1386,7 @@ async def download_file(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error downloading file: {str(e)}")
+        # print(f"❌ Error downloading file: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
@@ -1701,7 +1701,7 @@ async def star_message(message_id: int, payload: StarMessagePayload):
         }
         
     except Exception as e:
-        print(f"❌ Error starring message: {str(e)}")
+        # print(f"❌ Error starring message: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -1835,5 +1835,5 @@ async def get_messages_reactions_batch(
         return {"reactions": grouped_reactions}
         
     except Exception as e:
-        print(f"❌ Error getting batch reactions: {str(e)}")
+        # print(f"❌ Error getting batch reactions: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

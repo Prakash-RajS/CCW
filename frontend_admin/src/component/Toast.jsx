@@ -1,36 +1,3 @@
-// import React from "react";
-// import { Toaster } from "react-hot-toast";
-// import { useContext } from "react";
-// import { ThemeContext } from "./ThemeContext.jsx"; // adjust path if needed
-
-// const Toast = () => {
-//   const { isDarkMode } = useContext(ThemeContext);
-
-//   return (
-//     <Toaster
-//       position="top-center" // ✅ Center top
-//       toastOptions={{
-//         duration: 3000,
-//         style: {
-//           background: isDarkMode ? "#333" : "#fff",
-//           color: isDarkMode ? "#fff" : "#333",
-//           padding: "12px 16px",
-//           borderRadius: "10px",
-//           boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-//           fontSize: "14px",
-//         },
-//       }}
-//       containerStyle={{
-//         top: "50%",          // ✅ Vertical center
-//         left: "50%",         // ✅ Horizontal center
-//         transform: "translate(-50%, -50%)",
-//       }}
-//     />
-//   );
-// };
-
-// export default Toast;
-
 //src/component/Toast.jsx
 import React from "react";
 import { Toaster, toast as hotToast } from "react-hot-toast";

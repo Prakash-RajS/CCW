@@ -1448,58 +1448,6 @@ def check_phone(phone: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# @router.post("/complete-social-email")
-# def complete_social_email(data: SocialEmailRequest):
-#     ensure_db_connection()
-
-#     email = data.email.strip().lower()
-
-#     if UserData.objects.filter(email__iexact=email).exists():
-#         raise HTTPException(
-#             status_code=400,
-#             detail="Email already exists"
-#         )
-
-#     try:
-#         user = UserData.objects.get(
-#             userid=data.auth0_id
-#         )
-#     except UserData.DoesNotExist:
-#         raise HTTPException(
-#             status_code=404,
-#             detail="User not found"
-#         )
-
-#     user.email = email
-#     user.save(update_fields=["email"])
-
-#     access_token = create_token(
-#         {
-#             "sub": user.email,
-#             "type": "access",
-#             "role": user.role
-#         },
-#         timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-#     )
-
-#     refresh_token = create_token(
-#         {
-#             "sub": user.email,
-#             "type": "refresh"
-#         },
-#         timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-#     )
-
-#     handshake_token = create_handshake_token(
-#         access_token,
-#         refresh_token,
-#         user.role or ""
-#     )
-
-#     return {
-#         "token": handshake_token
-#     }
-    
 @router.get("/health")
 def auth_health():
     ensure_db_connection()

@@ -109,7 +109,7 @@ const UserPage = () => {
     dataUpdateEmitter.emit('dashboardDataUpdated', { source: 'UserPage', action, userName });
     localStorage.setItem('dashboardRefresh', Date.now().toString());
     localStorage.setItem('adminDataUpdated', Date.now().toString());
-    console.log(`Dashboard update triggered: ${action} user - ${userName}`);
+    // console.log(`Dashboard update triggered: ${action} user - ${userName}`);
   };
 
   // Refresh function - fetches users and stats

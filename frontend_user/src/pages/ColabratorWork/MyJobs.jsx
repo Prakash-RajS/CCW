@@ -143,7 +143,7 @@ const MyJobs = () => {
       setError(null);
 
       const response = await api.get(`/jobs/working/${userData.id}`);
-      console.log("Working jobs response:", response.data);
+      // console.log("Working jobs response:", response.data);
 
       if (response.data?.contracts && Array.isArray(response.data.contracts)) {
         const workingContracts = response.data.contracts;

@@ -80,7 +80,7 @@ const PostProject = () => {
     
     if (validateForm()) {
       // Here you would typically make an API call to save the job
-      console.log("Job data to submit:", formData);
+      // console.log("Job data to submit:", formData);
       
       // Show success message or navigate to dashboard
       alert("Job posted successfully!");

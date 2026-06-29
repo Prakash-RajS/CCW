@@ -202,7 +202,7 @@ const Subscription = () => {
           allPlans = adminResponse.data.plans;
         }
       } catch (adminErr) {
-        console.log("Admin endpoint not accessible, continuing...");
+        // console.log("Admin endpoint not accessible, continuing...");
       }
     }
 

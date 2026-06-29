@@ -942,17 +942,19 @@ def send_invoice_email_wrapper(
                 )
             )
             if result:
-                print(f"✅ Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
+                pass
+                # print(f"✅ Invoice email sent successfully to {getattr(user, 'email', 'unknown')}")
             else:
-                print(f"❌ Invoice email returned False for {getattr(user, 'email', 'unknown')}")
+                # print(f"❌ Invoice email returned False for {getattr(user, 'email', 'unknown')}")
+                pass
         except Exception as e:
-            print(f"❌ Error in invoice email async execution: {e}")
+            #print(f"❌ Error in invoice email async execution: {e}")
             import traceback
             traceback.print_exc()
         finally:
             loop.close()
     except Exception as e:
-        print(f"❌ Failed to send invoice email: {e}")
+        # print(f"❌ Failed to send invoice email: {e}")
         import traceback
         traceback.print_exc()
 
@@ -1179,9 +1181,9 @@ async def verify_payment(
                 request=request,  # This is fine - wrapper accepts it but doesn't use it
             )
             email_sent = True
-            print(f"📧 Invoice email queued for {user.email}")
+            # print(f"📧 Invoice email queued for {user.email}")
         except Exception as e:
-            print(f"Invoice email error: {e}")
+            # print(f"Invoice email error: {e}")
             import traceback
             traceback.print_exc()
 
@@ -1603,9 +1605,9 @@ async def download_invoice(
     ensure_db_connection()
 
     try:
-        print(f"🔍 Invoice request received for identifier: {identifier}")
-        print(f"📥 Force download: {force_download}")
-        print(f"📥 USE_S3: {USE_S3}")
+        # print(f"🔍 Invoice request received for identifier: {identifier}")
+        # print(f"📥 Force download: {force_download}")
+        # print(f"📥 USE_S3: {USE_S3}")
         
         # ============================================================
         # FIND INVOICE
@@ -1627,7 +1629,7 @@ async def download_invoice(
             )()
 
         if not invoice:
-            print(f"❌ Invoice not found for identifier: {identifier}")
+            # print(f"❌ Invoice not found for identifier: {identifier}")
             return JSONResponse(
                 status_code=404,
                 content={
@@ -1637,7 +1639,7 @@ async def download_invoice(
             )
 
         if not invoice.pdf_file:
-            print(f"❌ Invoice PDF missing for: {invoice.invoice_number}")
+            # print(f"❌ Invoice PDF missing for: {invoice.invoice_number}")
             return JSONResponse(
                 status_code=404,
                 content={
@@ -1647,8 +1649,8 @@ async def download_invoice(
             )
 
         pdf_path_or_key = str(invoice.pdf_file)
-        print(f"📄 Invoice found: {invoice.invoice_number}")
-        print(f"📄 PDF path/key: {pdf_path_or_key}")
+        # print(f"📄 Invoice found: {invoice.invoice_number}")
+        # print(f"📄 PDF path/key: {pdf_path_or_key}")
 
         # ============================================================
         # S3 MODE - Generate presigned URL
@@ -1659,12 +1661,12 @@ async def download_invoice(
             
             # Extract S3 key
             s3_key = get_s3_key_from_path(pdf_path_or_key)
-            print(f"🔑 S3 Key: {s3_key}")
+            # print(f"🔑 S3 Key: {s3_key}")
             
             try:
                 # Check if file exists in S3
                 S3_CLIENT.head_object(Bucket=S3_BUCKET, Key=s3_key)
-                print(f"✅ File exists in S3")
+                # print(f"✅ File exists in S3")
                 
                 # Prepare filename for download
                 filename = f"Talenta_Invoice_{invoice.invoice_number}.pdf"
@@ -1679,9 +1681,9 @@ async def download_invoice(
                 )
                 
                 if download_url:
-                    print(f"✅ Generated presigned URL for: {s3_key}")
-                    print(f"   Force download: {force_download}")
-                    print(f"   Filename: {filename}")
+                    # print(f"✅ Generated presigned URL for: {s3_key}")
+                    # print(f"   Force download: {force_download}")
+                    # print(f"   Filename: {filename}")
                     
                     # ✅ Return JSON with download URL
                     return JSONResponse(
@@ -1696,7 +1698,7 @@ async def download_invoice(
                         }
                     )
                 else:
-                    print(f"❌ Failed to generate presigned URL")
+                    # print(f"❌ Failed to generate presigned URL")
                     return JSONResponse(
                         status_code=500,
                         content={
@@ -1706,16 +1708,16 @@ async def download_invoice(
                     )
                     
             except Exception as e:
-                print(f"❌ Error with S3: {e}")
+                # print(f"❌ Error with S3: {e}")
                 import traceback
                 traceback.print_exc()
                 
                 # Fallback: Try local file
                 local_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
-                print(f"📁 Checking local path: {local_path}")
+                # print(f"📁 Checking local path: {local_path}")
                 
                 if local_path.exists():
-                    print(f"📁 Local file exists, serving locally...")
+                    # print(f"📁 Local file exists, serving locally...")
                     if force_download:
                         return FileResponse(
                             path=str(local_path),
@@ -1744,8 +1746,8 @@ async def download_invoice(
         else:
             # Local mode
             pdf_path = Path(settings.MEDIA_ROOT) / pdf_path_or_key
-            print(f"📁 Local PDF path: {pdf_path}")
-            print(f"📁 File exists: {pdf_path.exists()}")
+            # print(f"📁 Local PDF path: {pdf_path}")
+            # print(f"📁 File exists: {pdf_path.exists()}")
 
             if not pdf_path.exists():
                 return JSONResponse(
@@ -1767,7 +1769,7 @@ async def download_invoice(
                 )
 
     except Exception as e:
-        print(f"❌ Invoice download error: {e}")
+        # print(f"❌ Invoice download error: {e}")
         import traceback
         traceback.print_exc()
         return JSONResponse(

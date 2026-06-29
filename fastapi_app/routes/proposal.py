@@ -153,7 +153,8 @@ def get_user_location(user: UserData):
             }
 
     except Exception as e:
-        print(f"Error getting user location: {e}")
+        pass
+        # print(f"Error getting user location: {e}")
 
     return {
         "location": "",
@@ -179,7 +180,8 @@ def get_user_skills(user: UserData):
                 elif profile.skill_category:
                     return [profile.skill_category]
     except Exception as e:
-        print(f"Error getting user skills: {e}")
+        pass
+        # print(f"Error getting user skills: {e}")
     
     return []
 
@@ -672,9 +674,10 @@ async def edit_proposal(
                         proposal.milestone_description = first.get('description', '')
                         proposal.milestone_due_date = first.get('due_date', None)
                         proposal.milestone_amount = first.get('amount', 0)
-                    print(f"✅ Updated {len(milestones_list)} milestones for proposal {proposal_id}")
+                    # print(f"✅ Updated {len(milestones_list)} milestones for proposal {proposal_id}")
                 except Exception as e:
-                    print(f"Error parsing milestones_json: {e}")
+                    # print(f"Error parsing milestones_json: {e}")
+                    pass
             elif payment_type == PaymentTypeEnum.project:
                 proposal.milestones_data = []
                 proposal.milestone_description = None

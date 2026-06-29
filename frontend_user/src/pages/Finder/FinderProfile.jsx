@@ -686,7 +686,7 @@ export default function FinderProfile() {
         if (userData?.id) {
           try {
             const jobsResponse = await api.get(`/jobs/my-jobs/${userData.id}`);
-            console.log("FinderProfile - Jobs API response:", jobsResponse.data);
+            // console.log("FinderProfile - Jobs API response:", jobsResponse.data);
             
             let rawJobs = [];
             if (jobsResponse.data.jobs) {
@@ -697,7 +697,7 @@ export default function FinderProfile() {
               rawJobs = jobsResponse.data.data;
             }
             
-            console.log("FinderProfile - Raw jobs:", rawJobs);
+            // console.log("FinderProfile - Raw jobs:", rawJobs);
             
             const mappedJobs = rawJobs.map((job) => ({
               ...job,
@@ -706,12 +706,12 @@ export default function FinderProfile() {
               has_contract: job.has_contract || false
             }));
             
-            console.log("FinderProfile - Mapped jobs:", mappedJobs.map(j => ({ 
-              id: j.id, 
-              title: j.title, 
-              status: j.status,
-              has_contract: j.has_contract 
-            })));
+            // console.log("FinderProfile - Mapped jobs:", mappedJobs.map(j => ({ 
+            //   id: j.id, 
+            //   title: j.title, 
+            //   status: j.status,
+            //   has_contract: j.has_contract 
+            // })));
             
             setJobs(mappedJobs);
           } catch (err) {
@@ -786,10 +786,10 @@ export default function FinderProfile() {
 
   const openInvitePopup = () => {
     // Log to debug
-    console.log("Jobs in FinderProfile:", jobs);
-    console.log("Jobs count:", jobs.length);
-    console.log("Jobs loading:", jobsLoading);
-    console.log("Job statuses:", jobs.map(j => ({ id: j.id, title: j.title, status: j.status })));
+    // console.log("Jobs in FinderProfile:", jobs);
+    // console.log("Jobs count:", jobs.length);
+    // console.log("Jobs loading:", jobsLoading);
+    // console.log("Job statuses:", jobs.map(j => ({ id: j.id, title: j.title, status: j.status })));
     
     // Check if jobs are still loading
     if (jobsLoading) {
@@ -809,7 +809,7 @@ export default function FinderProfile() {
       (j) => j.status === "posted" || j.status === "active",
     );
     
-    console.log("Has active jobs:", hasActiveJobs);
+    // console.log("Has active jobs:", hasActiveJobs);
     
     if (!hasActiveJobs) {
       toast.info("Please create a job first before inviting collaborators");

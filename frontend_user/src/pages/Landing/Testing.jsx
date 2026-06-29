@@ -78,13 +78,13 @@ const Testing = () => {
       if (!location.state?.scrollToSection) return;
 
       const sectionId = location.state.scrollToSection;
-      console.log("Attempting to scroll to section:", sectionId);
+      // console.log("Attempting to scroll to section:", sectionId);
 
       // Function to perform scroll
       const performScroll = (id) => {
         const element = document.getElementById(id);
         if (element) {
-          console.log("Found element, scrolling to:", id);
+          // console.log("Found element, scrolling to:", id);
           element.scrollIntoView({
             behavior: 'smooth',
             block: 'start'
@@ -110,7 +110,7 @@ const Testing = () => {
           clearInterval(interval);
           window.history.replaceState({}, document.title);
         } else if (attempts >= maxAttempts) {
-          console.log("Max attempts reached, could not find element:", sectionId);
+          // console.log("Max attempts reached, could not find element:", sectionId);
           clearInterval(interval);
         }
       }, 200);

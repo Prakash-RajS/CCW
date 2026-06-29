@@ -9,7 +9,7 @@ import Msg from "../assets/AfterSign/Msg.png";
 import toast from "../component/Toast";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-console.log("🔍 ColHeader API_BASE_URL:", API_BASE_URL);
+// console.log("🔍 ColHeader API_BASE_URL:", API_BASE_URL);
 
 const ColHeader = () => {
   const navigate = useNavigate();
@@ -119,7 +119,7 @@ const ColHeader = () => {
   // Listen for manual refresh events from profile page
   useEffect(() => {
     const handleRefreshNotifications = () => {
-      console.log("🔄 Refreshing notifications instantly...");
+      // console.log("🔄 Refreshing notifications instantly...");
       if (userData?.id) {
         fetchNotifications(true);
         fetchUnreadMessageCount();
@@ -303,11 +303,11 @@ const ColHeader = () => {
     try {
       if (!userData?.id) return;
       const response = await api.get(`/message/unread-count?current_user_id=${userData.id}`);
-      console.log("💬 ColHeader unread message count response:", response.data);
+      // console.log("💬 ColHeader unread message count response:", response.data);
       
       if (response.data) {
         const count = response.data.count || 0;
-        console.log(`💬 ColHeader setting unread message count to: ${count}`);
+        // console.log(`💬 ColHeader setting unread message count to: ${count}`);
         setUnreadMessageCount(prev => (prev === count ? prev : count));
       }
     } catch (error) {
@@ -394,7 +394,7 @@ const ColHeader = () => {
             }
             break;
           default:
-            console.log('No redirect for notification type:', notification.type);
+            // console.log('No redirect for notification type:', notification.type);
             break;
         }
       }
@@ -553,7 +553,7 @@ const ColHeader = () => {
 
   // ✅ Updated changeStatus – uses backend status in context
   const changeStatus = async (newDisplayStatus) => {
-    console.log("🔄 changeStatus called with:", newDisplayStatus);
+    // console.log("🔄 changeStatus called with:", newDisplayStatus);
     
     if (!userData?.id) {
       console.error("❌ No user ID available");
@@ -569,7 +569,7 @@ const ColHeader = () => {
         status: backendStatus
       });
       
-      console.log("✅ Status update response:", response.data);
+      // console.log("✅ Status update response:", response.data);
       
       // Update context with the CORRECT backend status (not the display string)
       updateUserData({ status: backendStatus });
@@ -586,7 +586,7 @@ const ColHeader = () => {
   };
 
   const handleLogout = async () => {
-    console.log("🚪 ColHeader Logout clicked");
+    // console.log("🚪 ColHeader Logout clicked");
     
     setIsProfileMenuOpen(false);
     setIsStatusMenuOpen(false);

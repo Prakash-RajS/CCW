@@ -58,7 +58,7 @@ export const useAutoLogout = (enabled = true) => {
     // Set logout timer
     timerRef.current = setTimeout(() => {
       if (!isLoggingOut) {
-        console.log('⏰ Auto-logout triggered due to inactivity');
+        // console.log('⏰ Auto-logout triggered due to inactivity');
         logout();
       }
     }, AUTO_LOGOUT_TIME);
@@ -134,7 +134,7 @@ export const useAutoLogout = (enabled = true) => {
         const timeAway = Date.now() - lastActivityRef.current;
         if (timeAway > AUTO_LOGOUT_TIME) {
           // User was away too long, auto-logout
-          console.log('⏰ Auto-logout due to tab being hidden too long');
+          // console.log('⏰ Auto-logout due to tab being hidden too long');
           logout();
         } else {
           // Reset timers on return

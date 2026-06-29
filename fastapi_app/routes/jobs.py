@@ -465,6 +465,7 @@ async def edit_job(
     budget_from: float | None = Form(None),
     budget_to: float | None = Form(None),
     status: str | None = Form(None),
+    project_size: str | None = Form(None),  # ✅ ADD THIS LINE
     attachments: list[UploadFile] | None = File(None),
 ):
     """
@@ -473,13 +474,12 @@ async def edit_job(
     File Type: job
     """
     await sync_to_async(ensure_db_connection)()
-    
+
     try:
         job = await sync_to_async(JobPost.objects.get)(id=job_id)
     except JobPost.DoesNotExist:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # ✅ FIX: Get employer using sync_to_async
     employer = await sync_to_async(lambda: job.employer)()
 
     if title is not None:
@@ -494,6 +494,16 @@ async def edit_job(
     if duration is not None:
         job.duration = duration
         job.timeline = calculate_timeline(duration)
+
+    # ✅ ADD THIS BLOCK FOR project_size
+    if project_size is not None:
+        project_size_lower = project_size.lower()
+        if project_size_lower in ["small", "medium", "large"]:
+            job.timeline = project_size_lower
+        else:
+            # If invalid, recalculate from duration as fallback
+            if duration is not None:
+                job.timeline = calculate_timeline(duration)
 
     if expertise_level is not None:
         job.expertise_level = expertise_level
@@ -525,9 +535,8 @@ async def edit_job(
             content = await file.read()
             total_new_bytes += len(content)
             await file.seek(0)
-        
+
         if total_new_bytes > 0:
-            # ✅ FIX: Use employer variable instead of job.employer
             await sync_to_async(check_storage_limit)(employer, total_new_bytes)
 
         # Delete old attachments
@@ -545,7 +554,7 @@ async def edit_job(
                     file.filename
                 )
                 uploaded_files.append(saved_path)
-                
+
                 if not USE_S3:
                     full_path = os.path.join(BASE_DIR, "fastapi_app", "media", saved_path)
                     if os.path.exists(full_path):
@@ -555,7 +564,7 @@ async def edit_job(
         job.attachments = uploaded_files
 
     await sync_to_async(job.save)()
-    
+
     return {
         "message": "Job updated successfully",
         "job_id": job.id,
@@ -683,7 +692,8 @@ async def delete_job(job_id: int):
                         if os.path.exists(full_path):
                             os.remove(full_path)
                 except Exception as e:
-                    print(f"Attachment delete error: {e}")
+                    pass
+                    # print(f"Attachment delete error: {e}")
 
         # Delete related records
         Proposal.objects.filter(job=job).delete()
@@ -754,7 +764,8 @@ async def list_all_jobs(request: Request, status: str | None = None):
                             except:
                                 pass
                 except Exception as e:
-                    print(f"Could not fetch creator profile location: {e}")
+                    pass
+                    # print(f"Could not fetch creator profile location: {e}")
                 
                 employer_name = "Client"
                 if employer:
@@ -1065,10 +1076,11 @@ async def get_working_jobs(
                                 )
 
                         except Exception as e:
-                            print(
-                                f"Could not fetch creator "
-                                f"profile location: {e}"
-                            )
+                            pass
+                            # print(
+                            #     f"Could not fetch creator "
+                            #     f"profile location: {e}"
+                            # )
 
                     # ======================================
                     # Job Attachments
@@ -1091,9 +1103,10 @@ async def get_working_jobs(
                                     attachment_urls.append(url)
 
                             except Exception as e:
-                                print(
-                                    f"Attachment URL error: {e}"
-                                )
+                                pass
+                                # print(
+                                #     f"Attachment URL error: {e}"
+                                # )
 
                     # ======================================
                     # Job Details

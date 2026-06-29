@@ -40,7 +40,7 @@ const AuthCallback = () => {
         });
 
         const role = response.data?.role || "";
-        console.log(`✅ Session established, role: '${role}'`);
+        // console.log(`✅ Session established, role: '${role}'`);
 
         // ✅ Populate UserContext now that cookies are set
         await fetchUserData();

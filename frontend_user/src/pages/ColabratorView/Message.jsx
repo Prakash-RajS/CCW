@@ -1832,17 +1832,17 @@ const handleFileDownload = async (fileUrl, storedFileName, originalFileName) => 
     
     const cleanName = getCleanName(originalFileName || storedName);
     
-    console.log("📥 Download file:", {
-      storedName,
-      cleanName,
-      fileType,
-      originalFileName
-    });
+    // console.log("📥 Download file:", {
+    //   storedName,
+    //   cleanName,
+    //   fileType,
+    //   originalFileName
+    // });
     
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     const downloadUrl = `${baseUrl}/message/download/${fileType}/${encodeURIComponent(storedName)}?original_filename=${encodeURIComponent(cleanName)}`;
     
-    console.log("📥 Download URL:", downloadUrl);
+    // console.log("📥 Download URL:", downloadUrl);
     
     const response = await fetch(downloadUrl, {
       method: 'GET',

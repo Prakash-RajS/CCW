@@ -93,7 +93,7 @@ export default function ProtectedRoute({ allowedRoles }) {
 
   // Role not permitted for this route
   if (allowedRoles && !allowedRoles.includes(userData.role)) {
-    console.log(`🚫 Role mismatch: ${userData.role} not in [${allowedRoles}]`);
+    // console.log(`🚫 Role mismatch: ${userData.role} not in [${allowedRoles}]`);
     return userData.role === "creator"
       ? <Navigate to="/home" replace />
       : <Navigate to="/col-home" replace />;
@@ -101,7 +101,7 @@ export default function ProtectedRoute({ allowedRoles }) {
 
   // Check route accessibility
   if (!isRouteAccessible(location.pathname, userData.role)) {
-    console.log(`🚫 Access denied: ${userData.role} cannot access ${location.pathname}`);
+    // console.log(`🚫 Access denied: ${userData.role} cannot access ${location.pathname}`);
     return <Navigate to="/404" replace />;
   }
 

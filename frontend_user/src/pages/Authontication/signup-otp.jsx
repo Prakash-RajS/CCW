@@ -248,7 +248,7 @@ const SignupOtp = () => {
             // ✅ CRITICAL: Update the OTP token with the new one from resend response
             if (response.data.otp_token) {
                 setOtpToken(response.data.otp_token);
-                console.log("✅ Updated OTP token after resend:", response.data.otp_token);
+                // console.log("✅ Updated OTP token after resend:", response.data.otp_token);
             }
 
             // ✅ Store new cooldown token for future rate limiting

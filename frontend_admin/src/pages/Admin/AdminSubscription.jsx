@@ -336,9 +336,9 @@ const SubscriptionPage = () => {
     });
     localStorage.setItem("dashboardRefresh", Date.now().toString());
     localStorage.setItem("adminDataUpdated", Date.now().toString());
-    console.log(
-      `Dashboard update triggered: ${action} subscription plan - ${planName}`,
-    );
+    // console.log(
+    //   `Dashboard update triggered: ${action} subscription plan - ${planName}`,
+    // );
   };
 
   // ======================================================
@@ -541,7 +541,7 @@ const SubscriptionPage = () => {
     setIsLoading((prev) => ({ ...prev, stats: true }));
     try {
       const response = await api.get(`${ADMIN_API_URL}/subscriptions/stats`);
-      console.log("📊 Dynamic Stats API Response:", response.data);
+      // console.log("📊 Dynamic Stats API Response:", response.data);
 
       setStats({
         total_subscribers: response.data.total_subscribers || 0,
@@ -577,7 +577,7 @@ const SubscriptionPage = () => {
       }
 
       setDynamicPlanCards(cards);
-      console.log("✅ Dynamic Plan Cards created:", cards);
+      // console.log("✅ Dynamic Plan Cards created:", cards);
     } catch (error) {
       console.error("Error fetching stats:", error);
       toast.error("Failed to fetch subscription statistics");
@@ -707,8 +707,8 @@ const SubscriptionPage = () => {
       api.get(`${ADMIN_API_URL}/subscriptions/stats`),
     ]);
 
-    console.log("📊 Plans API Response:", plansResponse.data);
-    console.log("📊 Stats API Response:", statsResponse.data);
+    // console.log("📊 Plans API Response:", plansResponse.data);
+    // console.log("📊 Stats API Response:", statsResponse.data);
 
     if (plansResponse.data && plansResponse.data.plans) {
       // ✅ FIX: Create stats map with correct keys
@@ -723,7 +723,7 @@ const SubscriptionPage = () => {
         });
       }
 
-      console.log("📊 Stats Map:", statsMap);
+      // console.log("📊 Stats Map:", statsMap);
 
       // Transform plans with REAL user counts
       const transformedPlans = [];
@@ -790,7 +790,7 @@ const SubscriptionPage = () => {
         });
       });
 
-      console.log("✅ Transformed Plans with real counts:", transformedPlans);
+      // console.log("✅ Transformed Plans with real counts:", transformedPlans);
       setPricingPlans(transformedPlans);
       setPlansCurrentPage(1);
     }
@@ -849,7 +849,7 @@ const SubscriptionPage = () => {
             new Date(b.date || b.created_at) - new Date(a.date || a.created_at),
         );
 
-      console.log("Processed history:", processedData.length);
+      // console.log("Processed history:", processedData.length);
       setSubscriptionHistory(processedData);
       setHistoryCurrentPage(1);
     } catch (error) {
@@ -896,7 +896,7 @@ const SubscriptionPage = () => {
     // ✅ Get the presigned URL from the backend
     const url = `${API_BASE_URL}/payment/invoice/${encodeURIComponent(identifier)}?force_download=true`;
 
-    console.log("📄 Getting invoice download URL from:", url);
+    // console.log("📄 Getting invoice download URL from:", url);
 
     const response = await fetch(url, {
       method: "GET",
@@ -924,7 +924,7 @@ const SubscriptionPage = () => {
 
     // ✅ Parse the JSON response
     const data = await response.json();
-    console.log("📄 Invoice data received:", data);
+    // console.log("📄 Invoice data received:", data);
 
     if (!data.success) {
       throw new Error(data.error || "Failed to get download URL");
@@ -934,7 +934,7 @@ const SubscriptionPage = () => {
       throw new Error("No download URL received");
     }
 
-    console.log("📥 Downloading from presigned URL:", data.download_url);
+    // console.log("📥 Downloading from presigned URL:", data.download_url);
     
     // ✅ Method 1: Open in new tab (for viewing)
     // This is useful if you want users to view the invoice first

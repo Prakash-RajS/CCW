@@ -741,7 +741,7 @@ const Dashboard = () => {
   const fetchActiveProjects = useCallback(
     async (searchTerm = "") => {
       try {
-        console.log("🟢 Fetching active projects with search term:", searchTerm);
+        // console.log("🟢 Fetching active projects with search term:", searchTerm);
         const params = searchTerm ? { search: searchTerm, limit: 100 } : { limit: 100 };
         const response = await api.get("/admin/dashboard/active-projects", { params });
 

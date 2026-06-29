@@ -420,7 +420,7 @@ export default function AddFunds({ onWalletSelect }) {
           sessionStorage.removeItem("pendingWalletUserId");
         }
         if (result.redirect) {
-          console.log("Redirecting to payment page...");
+          // console.log("Redirecting to payment page...");
         }
         if (result.paymentDetails) {
           toast.success("Payment Successful", `₹${depositAmount} has been added to your wallet.`);

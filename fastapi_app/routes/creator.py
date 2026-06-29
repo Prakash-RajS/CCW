@@ -280,7 +280,8 @@ async def save_creator_profile(
                     )
                 await save_profile_pic_local()
         except Exception as e:
-            print(f"⚠️ Profile picture error: {e}")
+            pass
+            # print(f"⚠️ Profile picture error: {e}")
 
     # ---------------- Save / Update Creator Profile ----------------
     defaults = {
@@ -365,7 +366,8 @@ async def save_creator_profile(
                 await save_portfolio_local()
 
         except Exception as e:
-            print(f"⚠️ Portfolio upload error: {e}")
+            # print(f"⚠️ Portfolio upload error: {e}")
+            pass
 
     elif portfolio_link and portfolio_link.strip():
         @sync_to_async
@@ -428,7 +430,8 @@ async def save_creator_profile(
         
         await create_subscription()
     except Exception as e:
-        print(f"⚠️ Subscription creation error: {e}")
+        # print(f"⚠️ Subscription creation error: {e}")
+        pass
 
     return {
         "message": "Creator profile saved successfully"
