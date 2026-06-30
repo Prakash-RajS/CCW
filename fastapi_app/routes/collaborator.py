@@ -271,9 +271,7 @@ async def serve_file(file_path: str, request: Request):
     
     # ✅ Check if the file_path is actually a full URL (Google/Auth0 profile pics)
     if file_path.startswith(('http://', 'https://')):
-        # Decode URL if it was encoded
         decoded_url = urllib.parse.unquote(file_path)
-        # print(f"🔄 Redirecting to external URL: {decoded_url}")
         return RedirectResponse(url=decoded_url, status_code=302)
     
     try:
@@ -289,7 +287,6 @@ async def serve_file(file_path: str, request: Request):
                 get_work_submission_url
             )
             
-            # Determine which URL generator to use
             file_url = None
             if file_path.startswith('profile_pics/'):
                 file_url = get_profile_pic_url(file_path)
@@ -299,7 +296,6 @@ async def serve_file(file_path: str, request: Request):
                 file_url = get_work_submission_url(file_path)
             
             if file_url:
-                # print(f"🔄 Redirecting to S3 presigned URL: {file_url}")
                 return RedirectResponse(url=file_url, status_code=302)
         
         # Check local file paths
@@ -309,6 +305,7 @@ async def serve_file(file_path: str, request: Request):
             FASTAPI_BASE_DIR / "media" / file_path,
             FASTAPI_BASE_DIR / file_path,
             FASTAPI_BASE_DIR.parent / file_path,
+            FASTAPI_BASE_DIR.parent / "local_storage" / file_path,
         ]
         
         file_location = None
@@ -320,12 +317,40 @@ async def serve_file(file_path: str, request: Request):
         if not file_location:
             raise HTTPException(status_code=404, detail="File not found")
         
+        # Get filename for Content-Disposition
+        filename = file_location.name
+        
+        # Determine content type - IMPROVED
+        import mimetypes
+        mime_type, _ = mimetypes.guess_type(str(file_location))
+        if not mime_type:
+            # Try guessing from filename
+            mime_type, _ = mimetypes.guess_type(filename)
+        if not mime_type:
+            # Fallback based on extension
+            ext = filename.lower().split('.')[-1] if '.' in filename else ''
+            if ext in ['jpg', 'jpeg']:
+                mime_type = 'image/jpeg'
+            elif ext == 'png':
+                mime_type = 'image/png'
+            elif ext == 'gif':
+                mime_type = 'image/gif'
+            elif ext == 'svg':
+                mime_type = 'image/svg+xml'
+            elif ext == 'webp':
+                mime_type = 'image/webp'
+            elif ext == 'pdf':
+                mime_type = 'application/pdf'
+            elif ext in ['doc', 'docx']:
+                mime_type = 'application/msword'
+            elif ext == 'txt':
+                mime_type = 'text/plain'
+            else:
+                mime_type = 'application/octet-stream'
+        
         # Get file stats
         file_size = file_location.stat().st_size
-        filename = file_location.name
         modified_time = file_location.stat().st_mtime
-        
-        # Generate ETag
         etag = hashlib.md5(f"{modified_time}-{file_size}".encode()).hexdigest()
         
         # Check cache
@@ -333,24 +358,14 @@ async def serve_file(file_path: str, request: Request):
         if if_none_match and if_none_match == etag:
             return Response(status_code=304)
         
-        # Determine content type
-        mime_type, _ = mimetypes.guess_type(str(file_location))
-        if not mime_type:
-            mime_type = 'application/octet-stream'
-        
-        # Increase chunk size for better performance (64KB instead of 8KB)
-        CHUNK_SIZE = 65536  # 64KB
-        
         # Handle Range requests
         range_header = request.headers.get('range')
         
         if range_header:
-            # Parse range header
             byte_range = range_header.replace('bytes=', '').split('-')
             start = int(byte_range[0]) if byte_range[0] else 0
             end = int(byte_range[1]) if byte_range[1] else file_size - 1
             
-            # Validate range
             if start >= file_size or end >= file_size:
                 return Response(
                     status_code=416,
@@ -364,7 +379,7 @@ async def serve_file(file_path: str, request: Request):
                     f.seek(start)
                     remaining = content_length
                     while remaining > 0:
-                        chunk_size = min(CHUNK_SIZE, remaining)
+                        chunk_size = min(65536, remaining)
                         chunk = f.read(chunk_size)
                         if not chunk:
                             break
@@ -372,7 +387,7 @@ async def serve_file(file_path: str, request: Request):
                         remaining -= len(chunk)
             
             headers = {
-                "Content-Disposition": f"attachment; filename=\"{filename}\"",
+                "Content-Disposition": f'inline; filename="{filename}"',
                 "Content-Type": mime_type,
                 "Content-Range": f"bytes {start}-{end}/{file_size}",
                 "Content-Length": str(content_length),
@@ -384,7 +399,7 @@ async def serve_file(file_path: str, request: Request):
             
             return StreamingResponse(
                 iterfile_range(),
-                status_code=206,  # Partial Content
+                status_code=206,
                 headers=headers,
                 media_type=mime_type
             )
@@ -392,11 +407,18 @@ async def serve_file(file_path: str, request: Request):
         # Full file request
         def iterfile():
             with open(file_location, 'rb') as f:
-                while chunk := f.read(CHUNK_SIZE):
+                while chunk := f.read(65536):
                     yield chunk
         
+        # Determine if file should be downloaded or displayed inline
+        # For images, use inline; for documents, use attachment
+        if mime_type.startswith('image/'):
+            disposition = f'inline; filename="{filename}"'
+        else:
+            disposition = f'attachment; filename="{filename}"'
+        
         headers = {
-            "Content-Disposition": f"attachment; filename=\"{filename}\"",
+            "Content-Disposition": disposition,
             "Content-Type": mime_type,
             "Accept-Ranges": "bytes",
             "Cache-Control": "public, max-age=86400, immutable",
@@ -413,7 +435,6 @@ async def serve_file(file_path: str, request: Request):
         )
         
     except Exception as e:
-        # print(f"Error serving file: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -3396,7 +3417,7 @@ async def get_user_connects(user_id: int):
     
     
 # ==============================================================================
-#  PORTFOLIO DOWNLOAD ENDPOINT
+#  PORTFOLIO DOWNLOAD ENDPOINT - FIXED
 # ==============================================================================
 @router.get("/portfolio/download/{item_id}")
 async def download_portfolio_item(
@@ -3418,55 +3439,99 @@ async def download_portfolio_item(
             )
         )()
         
-        # Check if user is authorized
-        if item.user_id != user_id:
-            # Allow any authenticated user to view/download portfolio items
-            # You can add more specific authorization logic here if needed
-            pass
-        
         if not item.file:
             raise HTTPException(status_code=404, detail="No file attached to this portfolio item")
         
         # Get the file path/name
         file_path = str(item.file.name)
-        original_filename = item.heading or "portfolio-file"
         
-        # Try to get original filename from the file
+        # Get the original filename - use the actual filename from storage
         if '/' in file_path:
             stored_filename = file_path.split('/')[-1]
-            # Use stored filename if heading is not available
-            if not item.heading:
-                original_filename = stored_filename
+            # Try to extract original filename from stored filename (remove timestamps, etc.)
+            import re
+            # Remove timestamp prefix like "20250630_123456_"
+            clean_filename = re.sub(r'^\d{8}_\d{6}_', '', stored_filename)
+            # Remove UUID patterns like "_a1b2c3d4"
+            clean_filename = re.sub(r'_[a-f0-9]{8}\.', '.', clean_filename)
+            # Clean up multiple underscores
+            clean_filename = re.sub(r'_+', '_', clean_filename)
+            original_filename = clean_filename if clean_filename else stored_filename
+        else:
+            original_filename = item.heading or "portfolio-file"
         
+        # Ensure filename has proper extension
+        if '.' not in original_filename:
+            # Try to get extension from file_path
+            if '.' in file_path:
+                ext = file_path.split('.')[-1]
+                original_filename = f"{original_filename}.{ext}"
+        
+        # 🔥 IMPORTANT: Get the file content first with proper content type
         use_s3_env = os.getenv("USE_S3", "False").lower() == "true"
+        
+        # Determine content type based on file extension
+        import mimetypes
+        content_type, _ = mimetypes.guess_type(original_filename)
+        if not content_type:
+            # Try guessing from the stored filename
+            content_type, _ = mimetypes.guess_type(file_path)
+        if not content_type:
+            # Fallback based on extension
+            ext = original_filename.lower().split('.')[-1] if '.' in original_filename else ''
+            content_type_map = {
+                'jpg': 'image/jpeg',
+                'jpeg': 'image/jpeg',
+                'png': 'image/png',
+                'gif': 'image/gif',
+                'svg': 'image/svg+xml',
+                'webp': 'image/webp',
+                'pdf': 'application/pdf',
+                'doc': 'application/msword',
+                'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'txt': 'text/plain',
+                'mp4': 'video/mp4',
+                'mov': 'video/quicktime',
+                'avi': 'video/x-msvideo',
+                'mp3': 'audio/mpeg',
+                'wav': 'audio/wav',
+                'zip': 'application/zip',
+                'rar': 'application/x-rar-compressed',
+                '7z': 'application/x-7z-compressed',
+            }
+            content_type = content_type_map.get(ext, 'application/octet-stream')
         
         if use_s3_env:
             # ========== S3 STORAGE ==========
             try:
                 from fastapi_app.routes.storage import read_file_bytes
                 s3_key = file_path.lstrip('/')
+                
+                # 🔥 Read the file bytes from S3
                 file_content = read_file_bytes(s3_key)
                 
-                # Determine content type
-                import mimetypes
-                content_type, _ = mimetypes.guess_type(original_filename)
-                if not content_type:
-                    content_type = 'application/octet-stream'
+                # 🔥 Create the response with proper headers
+                headers = {
+                    "Content-Disposition": f'attachment; filename="{original_filename}"',
+                    "Content-Type": content_type,
+                    "Content-Length": str(len(file_content)),
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                    "Access-Control-Expose-Headers": "Content-Disposition, Content-Type, Content-Length",
+                    "X-Content-Type-Options": "nosniff"
+                }
                 
-                # Return as downloadable file
+                # 🔥 Return as streaming response with proper content type
                 return StreamingResponse(
                     io.BytesIO(file_content),
                     media_type=content_type,
-                    headers={
-                        "Content-Disposition": f'attachment; filename="{original_filename}"',
-                        "Content-Type": content_type,
-                        "Cache-Control": "no-cache, no-store, must-revalidate",
-                        "Pragma": "no-cache",
-                        "Expires": "0"
-                    }
+                    headers=headers
                 )
+                
             except Exception as e:
-                # print(f"Error downloading from S3: {e}")
+                import traceback
+                traceback.print_exc()
                 raise HTTPException(status_code=500, detail=f"Failed to download file from S3: {str(e)}")
         else:
             # ========== LOCAL STORAGE ==========
@@ -3478,6 +3543,8 @@ async def download_portfolio_item(
                 PathLib(f"fastapi_app/{file_path}"),
                 PathLib(f"media/portfolio_uploads/collaborator/{PathLib(file_path).name}"),
                 PathLib(f"media/portfolio_uploads/creator/{PathLib(file_path).name}"),
+                PathLib(f"local_storage/portfolio_uploads/collaborator/{PathLib(file_path).name}"),
+                PathLib(f"local_storage/portfolio_uploads/creator/{PathLib(file_path).name}"),
             ]
             
             file_location = None
@@ -3489,12 +3556,7 @@ async def download_portfolio_item(
             if not file_location:
                 raise HTTPException(status_code=404, detail="File not found on server")
             
-            # Determine content type
-            import mimetypes
-            content_type, _ = mimetypes.guess_type(str(file_location))
-            if not content_type:
-                content_type = 'application/octet-stream'
-            
+            # 🔥 Return as FileResponse with proper headers
             return FileResponse(
                 path=file_location,
                 filename=original_filename,
@@ -3502,14 +3564,15 @@ async def download_portfolio_item(
                 headers={
                     "Cache-Control": "no-cache, no-store, must-revalidate",
                     "Pragma": "no-cache",
-                    "Expires": "0"
+                    "Expires": "0",
+                    "Access-Control-Expose-Headers": "Content-Disposition, Content-Type",
+                    "X-Content-Type-Options": "nosniff"
                 }
             )
             
     except PortfolioItem.DoesNotExist:
         raise HTTPException(status_code=404, detail="Portfolio item not found")
     except Exception as e:
-        # print(f"Error in download_portfolio_item: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

@@ -433,57 +433,62 @@ const PortfolioActions = ({ item, loggedInUser }) => {
   const mediaLink = item.media_link || null;
 
   const handleDownload = async (e) => {
-    e.stopPropagation();
+  e.stopPropagation();
+  
+  if (!item.id) { 
+    toast.info("No file available to download"); 
+    return; 
+  }
+  
+  if (isDownloading) return;
+  
+  setIsDownloading(true);
+  
+  toast.success("Download started");
+  
+  try {
+    const response = await api.get(`/collaborator/portfolio/download/${item.id}`, {
+      params: { user_id: loggedInUser?.id },
+      responseType: "blob"
+    });
     
-    if (!item.id) { 
-      toast.info("No file available to download"); 
-      return; 
-    }
+    // Get filename from Content-Disposition header
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = item.original_filename || item.title || 'portfolio-file';
     
-    if (isDownloading) return;
-    
-    setIsDownloading(true);
-    
-    // ✅ Show "Download started" immediately
-    toast.success("Download started");
-    
-    try {
-      const response = await api.get(`/collaborator/portfolio/download/${item.id}`, {
-        params: { user_id: loggedInUser?.id || userData?.id },
-        responseType: "blob"
-      });
-      
-      // Get filename from Content-Disposition header if available
-      const contentDisposition = response.headers['content-disposition'];
-      let filename = item.original_filename || item.title || 'portfolio-file';
-      
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="(.+)"/);
-        if (match && match[1]) {
-          filename = match[1];
-        }
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (match && match[1]) {
+        filename = match[1].replace(/['"]/g, '');
       }
-      
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      setTimeout(() => {
-        window.URL.revokeObjectURL(url);
-      }, 100);
-      
-    } catch (error) {
-      console.error("Download error:", error);
-      toast.error("Download failed", error.response?.data?.detail || "Could not retrieve file");
-    } finally {
-      setIsDownloading(false);
     }
-  };
+    
+    // 🔥 Get content type from response
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    
+    // 🔥 Create blob with proper content type
+    const blob = new Blob([response.data], { type: contentType });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+    
+  } catch (error) {
+    console.error("Download error:", error);
+    toast.error("Download failed", error.response?.data?.detail || "Could not retrieve file");
+  } finally {
+    setIsDownloading(false);
+  }
+};
 
   const handleNavigate = (e) => {
     e.stopPropagation(); 
