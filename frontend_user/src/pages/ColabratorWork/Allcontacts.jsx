@@ -104,6 +104,8 @@ const Allcontacts = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  
+
   useEffect(() => {
     const handleClickOutsidePopup = (event) => {
       if (popupRef.current && !popupRef.current.contains(event.target)) {
@@ -1930,172 +1932,196 @@ const Allcontacts = () => {
 
       {/* EDIT CONTRACT POPUP */}
   
+{/* EDIT CONTRACT POPUP */}
+{/* EDIT CONTRACT POPUP */}
 {showEditCard && selectedContract && !isContractInReview(selectedContract) && (
-  <div className="fixed inset-0 z-[9999] flex items-center justify-center px-2 py-1 sm:py-2">
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-6">
     <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
     <div
-  ref={popupRef}
-  className="relative bg-white w-full max-w-[360px] sm:max-w-[420px] md:max-w-[380px] lg:max-w-[450px] rounded-xl shadow-2xl overflow-visible max-h-[90vh] sm:max-h-[85vh] scrollbar-hide animate-fadeIn"
->
-            <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-10 rounded-t-xl">
-              <div className="flex justify-between items-center">
-  <div className="flex items-center gap-2">
-    <CreatorAvatar contract={selectedContract} size="w-8 h-8" />
-    <div>
-      <h3 className="font-semibold text-xs sm:text-sm text-white">{getClientName(selectedContract)}</h3>
-      <p className="text-[10px] sm:text-xs text-purple-200 truncate max-w-[120px] sm:max-w-[200px]">{selectedContract.job_title}</p>
-    </div>
-  </div>
-  <button
-    onClick={() => {
-      setShowEditCard(false);
-      setSelectedFiles([]);
-      setWorkDescription("");
-      setSelectedStatus("");
-      setStatusReason("");
-      setIsStatusDropdownOpen(false);
-    }}
-    className="w-6 h-6 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition text-base"
-  >
-    ×
-  </button>
-</div>
+      ref={popupRef}
+      className="relative bg-white w-full max-w-[500px] rounded-2xl shadow-2xl overflow-visible max-h-[90vh] animate-fadeIn"
+    >
+      <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] px-5 py-4 sticky top-0 z-10 rounded-t-2xl">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <CreatorAvatar contract={selectedContract} size="w-9 h-9" />
+            <div>
+              <h3 className="font-semibold text-sm text-white">{getClientName(selectedContract)}</h3>
+              <p className="text-xs text-purple-200">{selectedContract.job_title}</p>
             </div>
-
-            <div className="p-2 sm:p-3 md:p-2 space-y-2 sm:space-y-2.5 md:space-y-2 overflow-y-auto scrollbar-hide max-h-[calc(90vh-120px)] sm:max-h-[calc(85vh-130px)]">
-              <div ref={statusDropdownRef} className="relative z-[9999]">
-                <label className={labelClasses}>Update Contract Status</label>
-                <button
-                  type="button"
-                  onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                  className={selectTriggerClasses}
-                  style={{ border: "2px solid #6b7280" }}
-                >
-                  <span className={selectedStatus ? "text-gray-800" : "text-gray-400"}>
-                    {getSelectedStatusLabel()}
-                  </span>
-                  <svg
-                    className={`w-4 h-4 text-gray-500 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {isStatusDropdownOpen && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-200 z-[99999] max-h-64 overflow-y-auto">
-                    {statusOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        onClick={() => {
-                          setSelectedStatus(option.value);
-                          setStatusReason("");
-                          setIsStatusDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-purple-50 transition ${selectedStatus === option.value ? "bg-purple-50 text-[#51218F] font-semibold" : "text-gray-700"
-}`}
-                      >
-                        {option.label}
-                        {selectedStatus === option.value && <span className="float-right text-[#51218F]">✓</span>}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {["pending", "cancelled", "awaiting"].includes(selectedStatus) && (
-                <div>
-                  <label className={labelClasses}>
-                    {selectedStatus === "cancelled"
-                      ? "Reason for cancellation"
-                      : selectedStatus === "awaiting"
-                        ? "Reason for awaiting"
-                        : "Reason for pending"}
-                    <span className="text-red-500 ml-0.5">*</span>
-                  </label>
-                  <textarea
-                    placeholder={`Please explain why you are ${selectedStatus === "cancelled"
-                      ? "cancelling"
-                      : selectedStatus === "awaiting"
-                        ? "setting to awaiting"
-                        : "setting to pending"
-                      } this contract...`}
-                    value={statusReason}
-                    onChange={(e) => setStatusReason(e.target.value)}
-                    rows={3}
-                    className={textareaClasses}
-                    style={{ border: "2px solid #6b7280" }}
-                  />
-                  <p className="text-[10px] text-gray-400 mt-1">This reason will be shared with the client.</p>
-                </div>
-              )}
-
-              {selectedStatus === "completed" && (
-  <>
-    <div>
-      <label className={labelClasses}>
-        Work Description
-        <span className="text-red-500 ml-0.5">*</span>
-      </label>
-      <textarea
-        placeholder="Describe the work you're submitting..."
-        value={workDescription}
-        onChange={(e) => setWorkDescription(e.target.value)}
-        rows={2}
-        className={textareaClasses}
-        style={{ border: "2px solid #6b7280" }}
-      />
-    </div>
-    <div>
-      <label className={labelClasses}>External File Link</label>
-      <input
-        type="url"
-        value={externalFileLink}
-        onChange={(e) => setExternalFileLink(e.target.value)}
-        placeholder="Paste Google Drive / Dropbox link"
-        className={inputClasses}
-        style={{ border: "2px solid #6b7280", fontSize: "12px" }}
-      />
-      <p className="text-[8px] sm:text-[10px] text-gray-400 mt-0.5">For files exceeding 25MB, use cloud storage link.</p>
-    </div>
-  </>
-)}
-{selectedStatus === "completed" && (
-  <div className="max-h-[100px] sm:max-h-[120px] md:max-h-[90px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
-    <label className={labelClasses}>
-      Attachments
-      <span className="text-red-500 ml-0.5">*</span>
-    </label>
-    <div className="mt-1">
-      <FileDropZone inputId="file-upload-input" />
-    </div>
-    <FileList />
-  </div>
-)}
-            </div>
-
-            <div className="px-2 sm:px-4 py-2 sm:py-3 border-t border-gray-200 flex gap-2 justify-end bg-gray-50 sticky bottom-0 rounded-b-xl">
-  <button
-    onClick={() => {
-      setShowEditCard(false);
-      setSelectedFiles([]);
-      setWorkDescription("");
-      setSelectedStatus("");
-      setStatusReason("");
-      setIsStatusDropdownOpen(false);
-    }}
-    className={`${btnDanger} text-xs px-3 py-1.5 sm:px-4 sm:py-2`}
-  >
-    Cancel
-  </button>
-  <button onClick={handleSubmitClick} disabled={loading} className={`${btnPrimary} text-xs px-3 py-1.5 sm:px-4 sm:py-2`}>
-    {loading ? "Processing…" : "Submit"}
-  </button>
-</div>
           </div>
+          <button
+            onClick={() => {
+              setShowEditCard(false);
+              setSelectedFiles([]);
+              setWorkDescription("");
+              setSelectedStatus("");
+              setStatusReason("");
+              setIsStatusDropdownOpen(false);
+            }}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition text-lg"
+          >
+            ×
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* Content - scrollable but dropdown container stays outside scroll */}
+      <div className="relative">
+        <div className="p-5 space-y-4 max-h-[calc(90vh-180px)] overflow-y-auto scrollbar-hide">
+          {/* STATUS DROPDOWN - wrapped with higher z-index and proper positioning */}
+          <div 
+            className="relative z-[99999]" 
+            ref={statusDropdownRef}
+          >
+            <label className={labelClasses}>Update Contract Status</label>
+            <button
+              type="button"
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              className={selectTriggerClasses}
+              style={{ border: "2px solid #6b7280" }}
+            >
+              <span className={selectedStatus ? "text-gray-800" : "text-gray-400"}>
+                {getSelectedStatusLabel()}
+              </span>
+              <svg
+                className={`w-4 h-4 text-gray-500 transition-transform ${isStatusDropdownOpen ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {/* Dropdown rendered outside the scrollable container using fixed positioning */}
+            {isStatusDropdownOpen && (
+              <div 
+                className="fixed bg-white rounded-lg shadow-2xl border border-gray-200 max-h-64 overflow-y-auto"
+                style={{
+                  zIndex: 999999,
+                  width: statusDropdownRef.current?.offsetWidth || 'auto',
+                  top: statusDropdownRef.current 
+                    ? (statusDropdownRef.current.getBoundingClientRect().bottom + 4) 
+                    : 'auto',
+                  left: statusDropdownRef.current 
+                    ? statusDropdownRef.current.getBoundingClientRect().left 
+                    : 'auto',
+                  minWidth: '200px'
+                }}
+              >
+                {statusOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setSelectedStatus(option.value);
+                      setStatusReason("");
+                      setIsStatusDropdownOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition ${
+                      selectedStatus === option.value ? "bg-purple-50 text-[#51218F] font-semibold" : "text-gray-700"
+                    }`}
+                  >
+                    {option.label}
+                    {selectedStatus === option.value && <span className="float-right text-[#51218F]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {["pending", "cancelled", "awaiting"].includes(selectedStatus) && (
+            <div>
+              <label className={labelClasses}>
+                {selectedStatus === "cancelled"
+                  ? "Reason for cancellation"
+                  : selectedStatus === "awaiting"
+                    ? "Reason for awaiting"
+                    : "Reason for pending"}
+                <span className="text-red-500 ml-0.5">*</span>
+              </label>
+              <textarea
+                placeholder={`Please explain why you are ${
+                  selectedStatus === "cancelled"
+                    ? "cancelling"
+                    : selectedStatus === "awaiting"
+                      ? "setting to awaiting"
+                      : "setting to pending"
+                } this contract...`}
+                value={statusReason}
+                onChange={(e) => setStatusReason(e.target.value)}
+                rows={3}
+                className={textareaClasses}
+                style={{ border: "2px solid #6b7280" }}
+              />
+              <p className="text-[10px] text-gray-400 mt-1">This reason will be shared with the client.</p>
+            </div>
+          )}
+
+          {selectedStatus === "completed" && (
+            <>
+              <div>
+                <label className={labelClasses}>
+                  Work Description
+                  <span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <textarea
+                  placeholder="Describe the work you're submitting..."
+                  value={workDescription}
+                  onChange={(e) => setWorkDescription(e.target.value)}
+                  rows={3}
+                  className={textareaClasses}
+                  style={{ border: "2px solid #6b7280" }}
+                />
+              </div>
+              <div>
+                <label className={labelClasses}>External File Link</label>
+                <input
+                  type="url"
+                  value={externalFileLink}
+                  onChange={(e) => setExternalFileLink(e.target.value)}
+                  placeholder="Paste Google Drive / Dropbox link"
+                  className={inputClasses}
+                  style={{ border: "2px solid #6b7280" }}
+                />
+                <p className="text-[10px] text-gray-400 mt-1">For files exceeding 25MB, use cloud storage link.</p>
+              </div>
+              <div>
+                <label className={labelClasses}>
+                  Attachments
+                  <span className="text-red-500 ml-0.5">*</span>
+                </label>
+                <div className="mt-2">
+                  <FileDropZone inputId="file-upload-input" />
+                </div>
+                <FileList />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="px-5 py-4 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 sticky bottom-0 rounded-b-2xl">
+        <button
+          onClick={() => {
+            setShowEditCard(false);
+            setSelectedFiles([]);
+            setWorkDescription("");
+            setSelectedStatus("");
+            setStatusReason("");
+            setIsStatusDropdownOpen(false);
+          }}
+          className={btnDanger}
+        >
+          Cancel
+        </button>
+        <button onClick={handleSubmitClick} disabled={loading} className={btnPrimary}>
+          {loading ? "Processing…" : "Submit"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* MILESTONE SUBMISSION MODAL */}
       {showMilestoneModal && selectedContract && selectedMilestone && (

@@ -1463,38 +1463,62 @@ export default function ColabProfile() {
   // ========== HELPER FUNCTIONS ==========
 
   const getCountryFlag = (location) => {
-    if (!location) return "🇺🇸";
-    const locationLower = location.toLowerCase().trim();
-    const countryFlags = {
-      india: "🇮🇳",
-      indian: "🇮🇳",
-      bharat: "🇮🇳",
-      usa: "🇺🇸",
-      "united states": "🇺🇸",
-      america: "🇺🇸",
-      us: "🇺🇸",
-      uk: "🇬🇧",
-      "united kingdom": "🇬🇧",
-      britain: "🇬🇧",
-      england: "🇬🇧",
-      canada: "🇨🇦",
-      australia: "🇦🇺",
-      germany: "🇩🇪",
-      france: "🇫🇷",
-      japan: "🇯🇵",
-      china: "🇨🇳",
-      singapore: "🇸🇬",
-      malaysia: "🇲🇾",
-      thailand: "🇹🇭",
-      vietnam: "🇻🇳",
-      korea: "🇰🇷",
-      "south korea": "🇰🇷",
-    };
-    for (const [country, flag] of Object.entries(countryFlags)) {
-      if (locationLower.includes(country)) return flag;
-    }
-    return "🇺🇸";
+  if (!location) return "";
+  const locationLower = location.toLowerCase().trim();
+  
+  // India states and cities
+  const indianLocations = [
+    "india", "indian", "bharat", 
+    "karnataka", "maharashtra", "tamilnadu", "tamil nadu", 
+    "kerala", "andhra", "andhra pradesh", "telangana",
+    "uttar pradesh", "bihar", "rajasthan", "gujarat", 
+    "punjab", "haryana", "west bengal", "odisha", "assam",
+    "chhattisgarh", "jharkhand", "uttarakhand", "himachal",
+    "goa", "delhi", "mumbai", "bangalore", "hyderabad",
+    "chennai", "kolkata", "new delhi", "newdelhi",
+    "noida", "gurgaon", "pune", "nagpur", "surat",
+    "ahmedabad", "jaipur", "lucknow", "kanpur", "visakhapatnam",
+    "indore", "bhopal", "patna", "vadodara", "ludhiana",
+    "agra", "nashik", "meerut", "rajkot", "kalyan", "thane",
+    "dhanbad", "amritsar", "nawada", "faridabad", "ghaziabad",
+    "coimbatore", "kolkata", "madhya pradesh", "bengaluru"
+  ];
+  
+  const countryFlags = {
+    usa: "🇺🇸", 
+    "united states": "🇺🇸", 
+    "america": "🇺🇸", 
+    "us": "🇺🇸",
+    uk: "🇬🇧", 
+    "united kingdom": "🇬🇧", 
+    britain: "🇬🇧", 
+    england: "🇬🇧",
+    canada: "🇨🇦",
+    australia: "🇦🇺",
+    germany: "🇩🇪",
+    france: "🇫🇷",
+    japan: "🇯🇵",
+    china: "🇨🇳",
+    singapore: "🇸🇬",
+    malaysia: "🇲🇾",
+    thailand: "🇹🇭",
+    vietnam: "🇻🇳",
+    korea: "🇰🇷", 
+    "south korea": "🇰🇷",
   };
+  
+  // Check for India first
+  if (indianLocations.some(loc => locationLower.includes(loc))) {
+    return "🇮🇳";
+  }
+  
+  // Then check other countries
+  for (const [key, flag] of Object.entries(countryFlags)) {
+    if (locationLower.includes(key)) return flag;
+  }
+  
+  return "";
+};
 
   // Replace the getProfilePictureUrl function with this:
   const getProfilePictureUrl = () => {
@@ -2580,9 +2604,15 @@ export default function ColabProfile() {
                       }}
                     />
                     <div className="flex items-center gap-2 mt-3">
-                      <span className="text-lg">{getCountryFlag(profileData?.location)}</span>
-                      <span className="text-[14px] font-medium">{formatLocation(profileData?.location)}</span>
-                    </div>
+  <svg className="w-4 h-4 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+  {getCountryFlag(profileData?.location) && (
+    <span className="text-lg">{getCountryFlag(profileData?.location)}</span>
+  )}
+  <span className="text-[14px] font-medium">{formatLocation(profileData?.location)}</span>
+</div>
                     <div className="flex items-center gap-2 mt-2">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="10" stroke="#000" strokeWidth="1.5" />
@@ -2703,9 +2733,15 @@ export default function ColabProfile() {
                     <div className="mt-2 text-xs text-gray-500">
                       {profileData?.language && <div>Language: {profileData.language}</div>}
                       <div className="flex items-center gap-1 mt-1">
-                        <span className="text-lg">{getCountryFlag(profileData?.location)}</span>
-                        <span>{profileData?.location}</span>
-                      </div>
+  <svg className="w-3 h-3 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+  {getCountryFlag(profileData?.location) && (
+    <span className="text-lg">{getCountryFlag(profileData?.location)}</span>
+  )}
+  <span>{profileData?.location}</span>
+</div>
                     </div>
                   </div>
                 </div>
