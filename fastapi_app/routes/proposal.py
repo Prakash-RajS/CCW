@@ -763,7 +763,7 @@ async def edit_proposal(
                 message=f"{freelancer_name} has updated their proposal for '{job_title}'",
                 job=job,
                 proposal=proposal,
-                url=f"/proposal"
+                url=f"/proposalspage"
             )
             logger.info(f"✅ Proposal update notification sent to employer {employer.id}")
         except Exception as notify_error:
@@ -788,22 +788,29 @@ async def edit_proposal(
 
 
 # ============================================================
-# 5. WITHDRAW PROPOSAL (UPDATED WITH S3)
+# 5. WITHDRAW PROPOSAL (FIXED)
 # ============================================================
 @router.delete("/WithdrawProposal/{proposal_id}")
 async def withdraw_proposal(proposal_id: int):
     try:
         await sync_to_async(ensure_db_connection)()
 
-        proposal = await sync_to_async(Proposal.objects.get)(id=proposal_id)
+        # ✅ FIX: Use select_related to pre-fetch freelancer
+        proposal = await sync_to_async(
+            lambda: Proposal.objects.select_related('freelancer').get(id=proposal_id)
+        )()
+
+        # Store freelancer reference before deleting
+        freelancer = proposal.freelancer
+        attachments = proposal.attachments or []
 
         # Delete all attachments from S3 or local
-        if proposal.attachments:
-            for attachment_path in proposal.attachments:
-                await delete_proposal_attachment_s3(attachment_path, proposal.freelancer)
+        for attachment_path in attachments:
+            await delete_proposal_attachment_s3(attachment_path, freelancer)
 
+        # Now delete the proposal
         await sync_to_async(proposal.delete)()
-        
+
         return {
             "message": "Proposal deleted successfully",
             "storage_mode": "s3" if USE_S3 else "local"
@@ -811,6 +818,10 @@ async def withdraw_proposal(proposal_id: int):
 
     except Proposal.DoesNotExist:
         raise HTTPException(status_code=404, detail="Proposal not found")
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================
@@ -1201,17 +1212,19 @@ async def accept_proposal(proposal_id: int, creator_id: int):
 
 
 # ============================================================
-# 8. REJECT PROPOSAL
+# 8. REJECT PROPOSAL (UPDATED WITH NOTIFICATIONS)
 # ============================================================
 @router.post("/RejectProposal/{proposal_id}")
 async def reject_proposal(proposal_id: int, creator_id: int):
     try:
         await sync_to_async(ensure_db_connection)()
-        
+
         creator = await sync_to_async(UserData.objects.get)(id=creator_id)
+
+        # ✅ FIX: Use select_related to pre-fetch all needed relations
         proposal = await sync_to_async(
             lambda: Proposal.objects
-            .select_related("job")
+            .select_related("job", "job__employer", "freelancer")
             .filter(id=proposal_id, status="submitted")
             .first()
         )()
@@ -1228,6 +1241,13 @@ async def reject_proposal(proposal_id: int, creator_id: int):
                 detail="Only job creator can reject proposals"
             )
 
+        # Store references before updating
+        freelancer = proposal.freelancer
+        job = proposal.job
+        job_title = job.title if job else "Unknown Job"
+        freelancer_name = freelancer.full_name or freelancer.email or "A freelancer"
+        creator_name = creator.full_name or creator.email or "Client"
+
         def reject_proposal_sync():
             Proposal.objects.filter(
                 id=proposal.id,
@@ -1236,16 +1256,54 @@ async def reject_proposal(proposal_id: int, creator_id: int):
 
         await sync_to_async(reject_proposal_sync)()
 
+        # ============================================================
+        # NOTIFICATION 1: Notify creator (self) that they rejected the proposal
+        # ============================================================
+        try:
+            await sync_to_async(create_notification)(
+                user=creator,
+                notification_type="proposal",
+                title=f"Proposal rejected",
+                message=f"You have rejected {freelancer_name}'s proposal for '{job_title}'",
+                job=job,
+                proposal=proposal,
+                url=f"/proposalspage"
+            )
+            logger.info(f"✅ Rejection notification sent to creator {creator.id}")
+        except Exception as notify_error:
+            logger.error(f"Error sending creator rejection notification: {notify_error}")
+
+        # ============================================================
+        # NOTIFICATION 2: Notify freelancer (collaborator) that their proposal was rejected
+        # ============================================================
+        try:
+            await sync_to_async(create_notification)(
+                user=freelancer,
+                notification_type="proposal",
+                title=f"Proposal rejected for '{job_title}'",
+                message=f"Your proposal for '{job_title}' has been rejected by {creator_name}",
+                job=job,
+                proposal=proposal,
+                url=f"/all-contacts"
+            )
+            logger.info(f"✅ Rejection notification sent to freelancer {freelancer.id}")
+        except Exception as notify_error:
+            logger.error(f"Error sending freelancer rejection notification: {notify_error}")
+
         return {
             "message": "Proposal rejected",
             "proposal_id": proposal.id,
-            "status": "rejected"
+            "status": "rejected",
+            "notification_sent": True
         }
 
     except UserData.DoesNotExist:
         raise HTTPException(status_code=404, detail="Creator not found")
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+ 
 
 
 # ============================================================

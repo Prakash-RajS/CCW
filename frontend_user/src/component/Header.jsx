@@ -544,7 +544,9 @@ const Header = ({ variant = "default" }) => {
 
       {/* Logo */}
       <div className="flex-1 md:flex-none flex justify-center md:justify-start">
-        <h1 className="font-bold text-[24px] sm:text-[28px] md:text-[32px] lg:text-[40px] xl:text-[50px] leading-[100%] trochut-font bg-gradient-to-l from-[#51218F] to-[#030303] bg-clip-text text-transparent whitespace-nowrap">
+        <h1 
+          className="font-bold text-[36px] md:text-[50px] leading-[100%] trochut-font bg-gradient-to-l from-[#51218F] to-[#030303] bg-clip-text text-[#030303]"
+        >
           Talenta
         </h1>
       </div>
