@@ -77,13 +77,10 @@ const Allcontacts = () => {
   // ---------- Styling constants ----------
   const tableHeaderClass =
     "bg-gradient-to-r from-[#51218F] to-[#2a0e4a] text-white text-[12px] font-semibold uppercase tracking-wide";
-  const inputClasses =
-    "w-full rounded-lg px-3 py-2.5 text-sm bg-white transition";
-  const textareaClasses =
-    "w-full rounded-lg px-3 py-2.5 text-sm resize-none bg-white transition";
-  const selectTriggerClasses =
-    "w-full flex items-center justify-between bg-white rounded-lg px-3 py-2.5 text-sm transition";
-  const labelClasses = "block text-xs font-semibold text-gray-700 mb-1.5";
+  const inputClasses = "w-full rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm bg-white transition";
+  const textareaClasses = "w-full rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm resize-none bg-white transition";
+  const selectTriggerClasses = "w-full flex items-center justify-between bg-white rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm transition";
+  const labelClasses = "block text-[10px] sm:text-xs font-semibold text-gray-700 mb-0.5";
   const btnPrimary =
     "px-4 py-2 rounded-lg text-white text-sm font-semibold transition-all duration-200 bg-gradient-to-r from-[#51218F] to-[#2a0e4a] hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed";
   const btnDanger =
@@ -1040,56 +1037,59 @@ const Allcontacts = () => {
   );
 
   const FileDropZone = ({ inputId }) => (
-    <div
-      className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition ${isDragging
+  <div
+    className={`border-2 border-dashed rounded-lg p-2 sm:p-3 md:p-2.5 text-center cursor-pointer transition ${
+      isDragging
         ? "border-[#51218F] bg-purple-50"
         : "border-gray-300 bg-gray-50 hover:border-purple-400 hover:bg-purple-50/30"
-        }`}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onClick={() => document.getElementById(inputId).click()}
-    >
-      <input id={inputId} type="file" multiple className="hidden" onChange={handleFileSelection} />
-      <svg className="w-7 h-7 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={1.5}
-          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-        />
-      </svg>
-      <p className="text-xs text-gray-500">
-        <span className="text-[#51218F] font-semibold">Click to upload</span> or drag and drop
-      </p>
-      <p className="text-[10px] text-gray-400 mt-0.5">Max file size: 25MB</p>
-    </div>
-  );
+    }`}
+    onDragEnter={handleDragEnter}
+    onDragLeave={handleDragLeave}
+    onDragOver={handleDragOver}
+    onDrop={handleDrop}
+    onClick={() => document.getElementById(inputId).click()}
+  >
+    <input id={inputId} type="file" multiple className="hidden" onChange={handleFileSelection} />
+    <svg className="w-5 h-5 sm:w-6 sm:h-6 md:w-5 md:h-5 mx-auto text-gray-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={1.5}
+        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+      />
+    </svg>
+    <p className="text-[11px] sm:text-sm md:text-[11px] text-gray-600 font-medium">
+      <span className="text-[#51218F] font-semibold">Click to upload</span> or drag and drop
+    </p>
+    <p className="text-[9px] sm:text-xs md:text-[9px] text-gray-400 mt-0.5">Max 25MB</p>
+  </div>
+);
 
-  const FileList = () =>
-    selectedFiles.length > 0 ? (
-      <div className="mt-2 space-y-1.5 max-h-28 overflow-y-auto">
-        {selectedFiles.map((file, index) => (
-          <div key={index} className="flex items-center justify-between p-2 rounded-lg border border-gray-200 bg-gray-50">
-            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-              <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="text-xs text-gray-700 truncate flex-1">{file.name}</span>
-              <span className="text-[10px] text-gray-400 flex-shrink-0">
-                ({(file.size / (1024 * 1024)).toFixed(1)} MB)
-              </span>
-            </div>
-            <button onClick={() => removeSelectedFile(index)} className="ml-2 text-red-400 hover:text-red-600 flex-shrink-0">
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+ const FileList = () =>
+  selectedFiles.length > 0 ? (
+    <div className="mt-1 space-y-1">
+      {selectedFiles.map((file, index) => (
+        <div key={index} className="flex items-center justify-between p-1 rounded border border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-0.5 flex-1 min-w-0">
+            <svg className="w-2.5 h-2.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="text-[8px] sm:text-[10px] md:text-[8px] text-gray-700 truncate flex-1" title={file.name}>
+              {file.name.length > 15 ? file.name.substring(0, 12) + '...' : file.name}
+            </span>
+            <span className="text-[7px] sm:text-[9px] md:text-[7px] text-gray-400 flex-shrink-0 ml-0.5">
+              {(file.size / (1024 * 1024)).toFixed(1)}MB
+            </span>
           </div>
-        ))}
-      </div>
-    ) : null;
+          <button onClick={() => removeSelectedFile(index)} className="ml-0.5 text-red-400 hover:text-red-600 flex-shrink-0">
+            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ))}
+    </div>
+  ) : null;
 
   const tabs = [
     { key: "submitted", label: "Submitted Proposals", count: proposalCount },
@@ -1116,13 +1116,19 @@ const Allcontacts = () => {
     <div className="w-full min-h-screen flex flex-col overflow-x-hidden" style={{ background: "linear-gradient(180deg, #b8b2c4 100%, #0a0515 100%)" }}>
       {/* GLOBAL STYLES */}
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
-        .scrollbar-hide::-webkit-scrollbar { display: none; }
-        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        /* Ensure bottom borders are visible */
-        .border-b { border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #e5e7eb; }
-      `}</style>
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      /* Custom scrollbar for attachments */
+      .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+      .scrollbar-thin::-webkit-scrollbar-track { background: #f3f4f6; border-radius: 4px; }
+      .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+      .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+      .scrollbar-thin { scrollbar-width: thin; }
+      /* Ensure bottom borders are visible */
+      .border-b { border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #e5e7eb; }
+    `}</style>
 
       <div className="absolute top-0 left-0 w-full z-50">
         <ColHeader />
@@ -1923,39 +1929,40 @@ const Allcontacts = () => {
       <MilestoneDetailsModal />
 
       {/* EDIT CONTRACT POPUP */}
-      {showEditCard && selectedContract && !isContractInReview(selectedContract) && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-6">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div
-            ref={popupRef}
-            className="relative bg-white w-full max-w-[500px] rounded-2xl shadow-2xl overflow-visible max-h-[90vh] scrollbar-hide animate-fadeIn"
-          >
-            <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] px-5 py-4 sticky top-0 z-10 rounded-t-2xl">
+  
+{showEditCard && selectedContract && !isContractInReview(selectedContract) && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center px-2 py-1 sm:py-2">
+    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+    <div
+  ref={popupRef}
+  className="relative bg-white w-full max-w-[360px] sm:max-w-[420px] md:max-w-[380px] lg:max-w-[450px] rounded-xl shadow-2xl overflow-visible max-h-[90vh] sm:max-h-[85vh] scrollbar-hide animate-fadeIn"
+>
+            <div className="bg-gradient-to-r from-[#51218F] to-[#2a0e4a] px-3 sm:px-4 py-2.5 sm:py-3 sticky top-0 z-10 rounded-t-xl">
               <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <CreatorAvatar contract={selectedContract} size="w-9 h-9" />
-                  <div>
-                    <h3 className="font-semibold text-sm text-white">{getClientName(selectedContract)}</h3>
-                    <p className="text-xs text-purple-200">{selectedContract.job_title}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowEditCard(false);
-                    setSelectedFiles([]);
-                    setWorkDescription("");
-                    setSelectedStatus("");
-                    setStatusReason("");
-                    setIsStatusDropdownOpen(false);
-                  }}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition text-lg"
-                >
-                  ×
-                </button>
-              </div>
+  <div className="flex items-center gap-2">
+    <CreatorAvatar contract={selectedContract} size="w-8 h-8" />
+    <div>
+      <h3 className="font-semibold text-xs sm:text-sm text-white">{getClientName(selectedContract)}</h3>
+      <p className="text-[10px] sm:text-xs text-purple-200 truncate max-w-[120px] sm:max-w-[200px]">{selectedContract.job_title}</p>
+    </div>
+  </div>
+  <button
+    onClick={() => {
+      setShowEditCard(false);
+      setSelectedFiles([]);
+      setWorkDescription("");
+      setSelectedStatus("");
+      setStatusReason("");
+      setIsStatusDropdownOpen(false);
+    }}
+    className="w-6 h-6 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition text-base"
+  >
+    ×
+  </button>
+</div>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-2 sm:p-3 md:p-2 space-y-2 sm:space-y-2.5 md:space-y-2 overflow-y-auto scrollbar-hide max-h-[calc(90vh-120px)] sm:max-h-[calc(85vh-130px)]">
               <div ref={statusDropdownRef} className="relative z-[9999]">
                 <label className={labelClasses}>Update Contract Status</label>
                 <button
@@ -1986,8 +1993,8 @@ const Allcontacts = () => {
                           setStatusReason("");
                           setIsStatusDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition ${selectedStatus === option.value ? "bg-purple-50 text-[#51218F] font-semibold" : "text-gray-700"
-                          }`}
+                        className={`w-full text-left px-3 py-2 text-xs sm:text-sm hover:bg-purple-50 transition ${selectedStatus === option.value ? "bg-purple-50 text-[#51218F] font-semibold" : "text-gray-700"
+}`}
                       >
                         {option.label}
                         {selectedStatus === option.value && <span className="float-right text-[#51218F]">✓</span>}
@@ -2025,69 +2032,67 @@ const Allcontacts = () => {
               )}
 
               {selectedStatus === "completed" && (
-                <>
-                  <div>
-                    <label className={labelClasses}>
-                      Work Description
-                      <span className="text-red-500 ml-0.5">*</span>
-                    </label>
-                    <textarea
-                      placeholder="Describe the work you're submitting..."
-                      value={workDescription}
-                      onChange={(e) => setWorkDescription(e.target.value)}
-                      rows={3}
-                      className={textareaClasses}
-                      style={{ border: "2px solid #6b7280" }}
-                    />
-                  </div>
-                  <div>
-                    <label className={labelClasses}>External File Link</label>
-                    <input
-                      type="url"
-                      value={externalFileLink}
-                      onChange={(e) => setExternalFileLink(e.target.value)}
-                      placeholder="Paste Google Drive / Dropbox link"
-                      className={inputClasses}
-                      style={{ border: "2px solid #6b7280" }}
-                    />
-                    <p className="text-[10px] text-gray-400 mt-1">For files exceeding 25MB, use cloud storage link.</p>
-                  </div>
-                </>
-              )}
-              {selectedStatus === "completed" && (
-                <div>
-                  <label className={labelClasses}>
-                    Attachments
-                    <span className="text-red-500 ml-0.5">*</span>
-                  </label>
-
-                  <div className="mt-2">
-                    <FileDropZone inputId="file-upload-input" />
-                  </div>
-
-                  <FileList />
-                </div>
-              )}
+  <>
+    <div>
+      <label className={labelClasses}>
+        Work Description
+        <span className="text-red-500 ml-0.5">*</span>
+      </label>
+      <textarea
+        placeholder="Describe the work you're submitting..."
+        value={workDescription}
+        onChange={(e) => setWorkDescription(e.target.value)}
+        rows={2}
+        className={textareaClasses}
+        style={{ border: "2px solid #6b7280" }}
+      />
+    </div>
+    <div>
+      <label className={labelClasses}>External File Link</label>
+      <input
+        type="url"
+        value={externalFileLink}
+        onChange={(e) => setExternalFileLink(e.target.value)}
+        placeholder="Paste Google Drive / Dropbox link"
+        className={inputClasses}
+        style={{ border: "2px solid #6b7280", fontSize: "12px" }}
+      />
+      <p className="text-[8px] sm:text-[10px] text-gray-400 mt-0.5">For files exceeding 25MB, use cloud storage link.</p>
+    </div>
+  </>
+)}
+{selectedStatus === "completed" && (
+  <div className="max-h-[100px] sm:max-h-[120px] md:max-h-[90px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+    <label className={labelClasses}>
+      Attachments
+      <span className="text-red-500 ml-0.5">*</span>
+    </label>
+    <div className="mt-1">
+      <FileDropZone inputId="file-upload-input" />
+    </div>
+    <FileList />
+  </div>
+)}
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 sticky bottom-0 rounded-b-2xl">
-              <button
-                onClick={() => {
-                  setShowEditCard(false);
-                  setSelectedFiles([]);
-                  setWorkDescription("");
-                  setSelectedStatus("");
-                  setStatusReason("");
-                  setIsStatusDropdownOpen(false);
-                }}
-                className={btnDanger}
-              >
-                Cancel
-              </button>
-              <button onClick={handleSubmitClick} disabled={loading} className={btnPrimary}>
-                {loading ? "Processing…" : "Submit"}
-              </button>
-            </div>
+            <div className="px-2 sm:px-4 py-2 sm:py-3 border-t border-gray-200 flex gap-2 justify-end bg-gray-50 sticky bottom-0 rounded-b-xl">
+  <button
+    onClick={() => {
+      setShowEditCard(false);
+      setSelectedFiles([]);
+      setWorkDescription("");
+      setSelectedStatus("");
+      setStatusReason("");
+      setIsStatusDropdownOpen(false);
+    }}
+    className={`${btnDanger} text-xs px-3 py-1.5 sm:px-4 sm:py-2`}
+  >
+    Cancel
+  </button>
+  <button onClick={handleSubmitClick} disabled={loading} className={`${btnPrimary} text-xs px-3 py-1.5 sm:px-4 sm:py-2`}>
+    {loading ? "Processing…" : "Submit"}
+  </button>
+</div>
           </div>
         </div>
       )}
